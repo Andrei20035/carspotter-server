@@ -1,14 +1,23 @@
 package data.dao
 
 import com.carspotter.data.dao.auth_credential.IAuthCredentialDAO
-import com.carspotter.data.dao.car_model.ICarModelDAO
-import com.carspotter.data.dao.like.ILikeDAO
-import com.carspotter.data.dao.post.IPostDAO
-import com.carspotter.data.dao.user.IUserDAO
-import com.carspotter.data.dto.CreatePostDTO
+import com.carspotter.features.car_model.ICarModelDAO
+import com.carspotter.features.like.ILikeDAO
+import com.carspotter.features.post.IPostDAO
+import com.carspotter.features.user.IUserDAO
+import com.carspotter.features.post.dto.CreatePostDTO
 import com.carspotter.data.model.*
 import com.carspotter.data.table.*
 import com.carspotter.di.daoModule
+import com.carspotter.features.auth.AuthCredential
+import com.carspotter.features.auth.AuthProvider
+import com.carspotter.features.auth.AuthTable
+import com.carspotter.features.car_model.CarModel
+import com.carspotter.features.car_model.CarModelTable
+import com.carspotter.features.like.LikeTable
+import com.carspotter.features.post.PostTable
+import com.carspotter.features.user.User
+import com.carspotter.features.user.UserTable
 import data.testutils.SchemaSetup
 import data.testutils.TestDatabase
 import kotlinx.coroutines.runBlocking
@@ -55,11 +64,11 @@ class LikeDaoTest: KoinTest {
             modules(daoModule)
         }
 
-        SchemaSetup.createUsersTable(Users)
-        SchemaSetup.createPostsTable(Posts)
-        SchemaSetup.createCarModelsTable(CarModels)
-        SchemaSetup.createLikesTable(Likes)
-        SchemaSetup.createAuthCredentialsTableWithConstraint(AuthCredentials)
+        SchemaSetup.createUsersTable(UserTable)
+        SchemaSetup.createPostsTable(PostTable)
+        SchemaSetup.createCarModelsTable(CarModelTable)
+        SchemaSetup.createLikesTable(LikeTable)
+        SchemaSetup.createAuthCredentialsTableWithConstraint(AuthTable)
 
         runBlocking {
             credentialId1 = authCredentialDao.createCredentials(
@@ -122,7 +131,7 @@ class LikeDaoTest: KoinTest {
     @BeforeEach
     fun cleanDatabase() {
         transaction {
-            Likes.deleteAll()
+            LikeTable.deleteAll()
         }
     }
 
@@ -162,7 +171,7 @@ class LikeDaoTest: KoinTest {
     @AfterAll
     fun tearDown() {
         transaction {
-            SchemaUtils.drop(Likes, Posts, Users, CarModels, AuthCredentials)
+            SchemaUtils.drop(LikeTable, PostTable, UserTable, CarModelTable, AuthTable)
         }
         stopKoin()
     }

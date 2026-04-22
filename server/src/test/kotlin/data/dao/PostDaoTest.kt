@@ -1,16 +1,20 @@
 package data.dao
 
 import com.carspotter.data.dao.auth_credential.IAuthCredentialDAO
-import com.carspotter.data.dao.car_model.ICarModelDAO
-import com.carspotter.data.dao.post.IPostDAO
-import com.carspotter.data.dao.user.IUserDAO
-import com.carspotter.data.dto.CreatePostDTO
+import com.carspotter.features.car_model.ICarModelDAO
+import com.carspotter.features.post.IPostDAO
+import com.carspotter.features.user.IUserDAO
+import com.carspotter.features.post.dto.CreatePostDTO
 import com.carspotter.data.model.*
-import com.carspotter.data.table.AuthCredentials
-import com.carspotter.data.table.CarModels
-import com.carspotter.data.table.Posts
-import com.carspotter.data.table.Users
+import com.carspotter.features.auth.AuthTable
+import com.carspotter.features.car_model.CarModelTable
+import com.carspotter.features.post.PostTable
+import com.carspotter.features.user.UserTable
 import com.carspotter.di.daoModule
+import com.carspotter.features.auth.AuthCredential
+import com.carspotter.features.auth.AuthProvider
+import com.carspotter.features.car_model.CarModel
+import com.carspotter.features.user.User
 import data.testutils.SchemaSetup
 import data.testutils.TestDatabase
 import kotlinx.coroutines.runBlocking
@@ -23,7 +27,6 @@ import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
 import org.koin.test.KoinTest
 import org.koin.test.inject
-import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -58,10 +61,10 @@ class PostDaoTest: KoinTest {
             modules(daoModule)
         }
 
-        SchemaSetup.createUsersTable(Users)
-        SchemaSetup.createPostsTable(Posts)
-        SchemaSetup.createCarModelsTable(CarModels)
-        SchemaSetup.createAuthCredentialsTableWithConstraint(AuthCredentials)
+        SchemaSetup.createUsersTable(UserTable)
+        SchemaSetup.createPostsTable(PostTable)
+        SchemaSetup.createCarModelsTable(CarModelTable)
+        SchemaSetup.createAuthCredentialsTableWithConstraint(AuthTable)
 
         runBlocking {
             credentialId1 = authCredentialDao.createCredentials(
@@ -123,7 +126,7 @@ class PostDaoTest: KoinTest {
     @BeforeEach
     fun clearDatabase() {
         transaction {
-            Posts.deleteAll()
+            PostTable.deleteAll()
         }
     }
 
@@ -366,7 +369,7 @@ class PostDaoTest: KoinTest {
     @AfterAll
     fun tearDown() {
         transaction {
-            SchemaUtils.drop(Posts, Users, CarModels, AuthCredentials)
+            SchemaUtils.drop(PostTable, UserTable, CarModelTable, AuthTable)
         }
         stopKoin()
     }

@@ -1,19 +1,23 @@
 package data.repository
 
-import com.carspotter.data.dto.CreatePostDTO
+import com.carspotter.features.post.dto.CreatePostDTO
 import com.carspotter.data.model.*
 import com.carspotter.data.repository.auth_credential.IAuthCredentialRepository
-import com.carspotter.data.repository.car_model.ICarModelRepository
-import com.carspotter.data.repository.friend.IFriendRepository
-import com.carspotter.data.repository.post.IPostRepository
-import com.carspotter.data.repository.user.IUserRepository
-import com.carspotter.data.table.AuthCredentials
-import com.carspotter.data.table.CarModels
-import com.carspotter.data.table.Friends
-import com.carspotter.data.table.Posts
-import com.carspotter.data.table.Users
+import com.carspotter.features.car_model.ICarModelRepository
+import com.carspotter.features.friend.IFriendRepository
+import com.carspotter.features.post.IPostRepository
+import com.carspotter.features.user.IUserRepository
+import com.carspotter.features.auth.AuthTable
+import com.carspotter.features.car_model.CarModelTable
+import com.carspotter.features.friend.FriendTable
+import com.carspotter.features.post.PostTable
+import com.carspotter.features.user.UserTable
 import com.carspotter.di.daoModule
 import com.carspotter.di.repositoryModule
+import com.carspotter.features.auth.AuthCredential
+import com.carspotter.features.auth.AuthProvider
+import com.carspotter.features.car_model.CarModel
+import com.carspotter.features.user.User
 import data.testutils.SchemaSetup
 import data.testutils.TestDatabase
 import kotlinx.coroutines.runBlocking
@@ -28,7 +32,6 @@ import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
 import org.koin.test.KoinTest
 import org.koin.test.inject
-import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -67,11 +70,11 @@ class PostRepositoryTest: KoinTest {
             modules(daoModule, repositoryModule)
         }
 
-        SchemaSetup.createUsersTable(Users)
-        SchemaSetup.createPostsTable(Posts)
-        SchemaSetup.createCarModelsTable(CarModels)
-        SchemaSetup.createFriendsTableWithConstraint(Friends)
-        SchemaSetup.createAuthCredentialsTableWithConstraint(AuthCredentials)
+        SchemaSetup.createUsersTable(UserTable)
+        SchemaSetup.createPostsTable(PostTable)
+        SchemaSetup.createCarModelsTable(CarModelTable)
+        SchemaSetup.createFriendsTableWithConstraint(FriendTable)
+        SchemaSetup.createAuthCredentialsTableWithConstraint(AuthTable)
 
         runBlocking {
             credentialId1 = authCredentialRepository.createCredentials(
@@ -142,14 +145,14 @@ class PostRepositoryTest: KoinTest {
             )
 
             userId4 = userRepository.createUser(
-            User(
-                authCredentialId = credentialId4,
-                fullName = "Bruce Banner",
-                phoneNumber = "0700000000",
-                birthDate = LocalDate.of(1982, 12, 1),
-                username = "Hulk",
-                country = "USA"
-            )
+                User(
+                    authCredentialId = credentialId4,
+                    fullName = "Bruce Banner",
+                    phoneNumber = "0700000000",
+                    birthDate = LocalDate.of(1982, 12, 1),
+                    username = "Hulk",
+                    country = "USA"
+                )
         )
 
             carModelId1 = carModelRepository.createCarModel(
@@ -174,7 +177,7 @@ class PostRepositoryTest: KoinTest {
     @BeforeEach
     fun clearDatabase() {
         transaction {
-            Posts.deleteAll()
+            PostTable.deleteAll()
         }
     }
 
@@ -383,7 +386,7 @@ class PostRepositoryTest: KoinTest {
     @AfterAll
     fun tearDown() {
         transaction {
-            SchemaUtils.drop(CarModels, Friends, Users, Posts, AuthCredentials)
+            SchemaUtils.drop(CarModelTable, FriendTable, UserTable, PostTable, AuthTable)
         }
         stopKoin()
     }

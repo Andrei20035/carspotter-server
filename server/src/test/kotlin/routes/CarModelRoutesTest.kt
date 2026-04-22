@@ -1,9 +1,9 @@
 package routes
 
-import com.carspotter.configureSerialization
-import com.carspotter.data.model.CarModel
-import com.carspotter.data.service.car_model.ICarModelService
-import com.carspotter.routes.carModelRoutes
+import com.carspotter.config.configureSerialization
+import com.carspotter.features.car_model.CarModel
+import com.carspotter.features.car_model.ICarModelService
+import com.carspotter.features.car_model.carModelRoutes
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*

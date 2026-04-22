@@ -1,12 +1,12 @@
 package data.service
 
-import com.carspotter.data.model.AuthCredential
-import com.carspotter.data.model.AuthProvider
-import com.carspotter.data.model.User
-import com.carspotter.data.service.auth_credential.IAuthCredentialService
-import com.carspotter.data.service.user.IUserService
-import com.carspotter.data.table.AuthCredentials
-import com.carspotter.data.table.Users
+import com.carspotter.features.auth.AuthCredential
+import com.carspotter.features.auth.AuthProvider
+import com.carspotter.features.user.User
+import com.carspotter.features.auth.IAuthService
+import com.carspotter.features.user.IUserService
+import com.carspotter.features.auth.AuthTable
+import com.carspotter.features.user.UserTable
 import com.carspotter.di.daoModule
 import com.carspotter.di.repositoryModule
 import com.carspotter.di.serviceModule
@@ -31,7 +31,7 @@ import kotlin.test.assertTrue
 class UserServiceTest: KoinTest {
 
     private val userService: IUserService by inject()
-    private val authCredentialService: IAuthCredentialService by inject()
+    private val authCredentialService: IAuthService by inject()
 
     private var credentialId1: UUID = UUID.randomUUID()
     private var credentialId2: UUID = UUID.randomUUID()
@@ -49,14 +49,14 @@ class UserServiceTest: KoinTest {
             modules(daoModule, repositoryModule, serviceModule)
         }
 
-        SchemaSetup.createAuthCredentialsTableWithConstraint(AuthCredentials)
-        SchemaSetup.createUsersTable(Users)
+        SchemaSetup.createAuthCredentialsTableWithConstraint(AuthTable)
+        SchemaSetup.createUsersTable(UserTable)
     }
 
     @BeforeEach
     fun clearDatabase() {
         transaction {
-            AuthCredentials.deleteAll()
+            AuthTable.deleteAll()
 
             runBlocking {
                 credentialId1 = authCredentialService.createCredentials(
@@ -236,7 +236,7 @@ class UserServiceTest: KoinTest {
     @AfterAll
     fun tearDown() {
         transaction {
-            SchemaUtils.drop(Users, AuthCredentials)
+            SchemaUtils.drop(UserTable, AuthTable)
         }
         stopKoin()
     }

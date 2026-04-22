@@ -1,15 +1,20 @@
 package data.dao
 
 import com.carspotter.data.dao.auth_credential.IAuthCredentialDAO
-import com.carspotter.data.dao.car_model.ICarModelDAO
-import com.carspotter.data.dao.user.IUserDAO
-import com.carspotter.data.dao.user_car.IUserCarDAO
+import com.carspotter.features.car_model.ICarModelDAO
+import com.carspotter.features.user.IUserDAO
+import com.carspotter.features.user_car.IUserCarDAO
 import com.carspotter.data.model.*
-import com.carspotter.data.table.AuthCredentials
-import com.carspotter.data.table.CarModels
-import com.carspotter.data.table.Users
-import com.carspotter.data.table.UsersCars
+import com.carspotter.features.auth.AuthTable
+import com.carspotter.features.car_model.CarModelTable
+import com.carspotter.features.user.UserTable
+import com.carspotter.features.user_car.UserCarTable
 import com.carspotter.di.daoModule
+import com.carspotter.features.auth.AuthCredential
+import com.carspotter.features.auth.AuthProvider
+import com.carspotter.features.car_model.CarModel
+import com.carspotter.features.user.User
+import com.carspotter.features.user_car.UserCar
 import data.testutils.SchemaSetup
 import data.testutils.TestDatabase
 import kotlinx.coroutines.runBlocking
@@ -60,10 +65,10 @@ class UserCarDaoTest: KoinTest {
             modules(daoModule)
         }
 
-        SchemaSetup.createUsersTable(Users)
-        SchemaSetup.createUsersCarsTable(UsersCars)
-        SchemaSetup.createAuthCredentialsTableWithConstraint(AuthCredentials)
-        SchemaSetup.createCarModelsTable(CarModels)
+        SchemaSetup.createUsersTable(UserTable)
+        SchemaSetup.createUsersCarsTable(UserCarTable)
+        SchemaSetup.createAuthCredentialsTableWithConstraint(AuthTable)
+        SchemaSetup.createCarModelsTable(CarModelTable)
 
         runBlocking {
             credentialId1 = authCredentialDao.createCredentials(
@@ -124,7 +129,7 @@ class UserCarDaoTest: KoinTest {
     @BeforeEach
     fun cleanDatabase() {
         transaction {
-            UsersCars.deleteAll()
+            UserCarTable.deleteAll()
         }
     }
 
@@ -252,7 +257,7 @@ class UserCarDaoTest: KoinTest {
     @AfterAll
     fun tearDown() {
         transaction {
-            SchemaUtils.drop(UsersCars, Users, CarModels, AuthCredentials)
+            SchemaUtils.drop(UserCarTable, UserTable, CarModelTable, AuthTable)
         }
         stopKoin()
     }

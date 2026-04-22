@@ -1,12 +1,12 @@
 package data.dao
 
 import com.carspotter.data.dao.auth_credential.IAuthCredentialDAO
-import com.carspotter.data.dao.user.IUserDAO
-import com.carspotter.data.model.AuthCredential
-import com.carspotter.data.model.AuthProvider
-import com.carspotter.data.model.User
-import com.carspotter.data.table.AuthCredentials
-import com.carspotter.data.table.Users
+import com.carspotter.features.user.IUserDAO
+import com.carspotter.features.auth.AuthCredential
+import com.carspotter.features.auth.AuthProvider
+import com.carspotter.features.user.User
+import com.carspotter.features.auth.AuthTable
+import com.carspotter.features.user.UserTable
 import com.carspotter.di.daoModule
 import data.testutils.SchemaSetup
 import data.testutils.TestDatabase
@@ -47,14 +47,14 @@ class UserDaoTest: KoinTest {
             modules(daoModule)
         }
 
-        SchemaSetup.createAuthCredentialsTableWithConstraint(AuthCredentials)
-        SchemaSetup.createUsersTable(Users)
+        SchemaSetup.createAuthCredentialsTableWithConstraint(AuthTable)
+        SchemaSetup.createUsersTable(UserTable)
     }
 
     @BeforeEach
     fun clearDatabase() {
         transaction {
-            AuthCredentials.deleteAll()
+            AuthTable.deleteAll()
 
             runBlocking {
                 credentialId1 = authCredentialDao.createCredentials(
@@ -229,7 +229,7 @@ class UserDaoTest: KoinTest {
     @AfterAll
     fun tearDown() {
         transaction {
-            SchemaUtils.drop(Users, AuthCredentials)
+            SchemaUtils.drop(UserTable, AuthTable)
         }
         stopKoin()
     }

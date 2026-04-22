@@ -1,8 +1,8 @@
 package data.service
 
-import com.carspotter.data.model.CarModel
-import com.carspotter.data.service.car_model.ICarModelService
-import com.carspotter.data.table.CarModels
+import com.carspotter.features.car_model.CarModel
+import com.carspotter.features.car_model.ICarModelService
+import com.carspotter.features.car_model.CarModelTable
 import com.carspotter.di.daoModule
 import com.carspotter.di.repositoryModule
 import com.carspotter.di.serviceModule
@@ -41,13 +41,13 @@ class CarModelServiceTest: KoinTest {
             modules(daoModule, repositoryModule, serviceModule)
         }
 
-        SchemaSetup.createCarModelsTable(CarModels)
+        SchemaSetup.createCarModelsTable(CarModelTable)
     }
 
     @BeforeEach
     fun clearDatabase() {
         transaction {
-            CarModels.deleteAll()
+            CarModelTable.deleteAll()
         }
     }
 
@@ -169,7 +169,7 @@ class CarModelServiceTest: KoinTest {
     @AfterAll
     fun tearDown() {
         transaction {
-            SchemaUtils.drop(CarModels)
+            SchemaUtils.drop(CarModelTable)
         }
         stopKoin()
     }

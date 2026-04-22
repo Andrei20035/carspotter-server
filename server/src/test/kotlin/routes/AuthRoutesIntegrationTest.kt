@@ -2,17 +2,17 @@ package routes
 
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
-import com.carspotter.configureSerialization
-import com.carspotter.data.model.AuthProvider
-import com.carspotter.data.service.auth_credential.AuthCredentialServiceImpl
-import com.carspotter.data.service.auth_credential.GoogleTokenVerifier
-import com.carspotter.data.service.auth_credential.IAuthCredentialService
-import com.carspotter.data.table.AuthCredentials
-import com.carspotter.di.appModule
+import com.carspotter.config.configureSerialization
+import com.carspotter.features.auth.AuthProvider
+import com.carspotter.features.auth.AuthService
+import com.carspotter.features.auth.GoogleTokenVerifier
+import com.carspotter.features.auth.IAuthService
+import com.carspotter.features.auth.AuthTable
+import com.carspotter.core.di.appModule
 import com.carspotter.di.daoModule
 import com.carspotter.di.repositoryModule
 import com.carspotter.di.serviceModule
-import com.carspotter.routes.authRoutes
+import com.carspotter.features.auth.authRoutes
 import data.testutils.FakeGoogleTokenVerifier
 import data.testutils.SchemaSetup
 import data.testutils.TestDatabase
@@ -46,6 +46,7 @@ class AuthRoutesIntegrationTest : KoinTest {
 
     @BeforeAll
     fun setupDatabase() {
+        TestDatabase.start()
         Database.connect(
             url = TestDatabase.postgresContainer.jdbcUrl,
             driver = "org.postgresql.Driver",
@@ -57,23 +58,23 @@ class AuthRoutesIntegrationTest : KoinTest {
             modules(daoModule, repositoryModule, serviceModule, appModule,
                 module {
                     single<GoogleTokenVerifier> { FakeGoogleTokenVerifier() }
-                    single<IAuthCredentialService> { AuthCredentialServiceImpl(get(), get()) }
+                    single<IAuthService> { AuthService(get(), get()) }
                 })
         }
 
-        SchemaSetup.createAuthCredentialsTableWithConstraint(AuthCredentials)
+        SchemaSetup.createAuthCredentialsTableWithConstraint(AuthTable)
     }
 
     @BeforeEach
     fun clearDatabase() {
         transaction {
-            AuthCredentials.deleteAll()
+            AuthTable.deleteAll()
         }
     }
 
     private fun Application.configureTestApplication() {
-        val jwtSecret = System.getenv("JWT_SECRET") ?: throw IllegalStateException("JWT_SECRET environment variable is not set")
-
+//        val jwtSecret = System.getenv("JWT_SECRET") ?: throw IllegalStateException("JWT_SECRET environment variable is not set")
+        val jwtSecret = "test-jwt-secret"
         configureSerialization()
 
         install(Authentication) {
@@ -258,7 +259,7 @@ class AuthRoutesIntegrationTest : KoinTest {
     @AfterAll
     fun tearDown() {
         transaction {
-            SchemaUtils.drop(AuthCredentials)
+            SchemaUtils.drop(AuthTable)
         }
         stopKoin()
     }

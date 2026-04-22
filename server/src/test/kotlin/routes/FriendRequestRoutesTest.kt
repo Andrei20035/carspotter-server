@@ -2,12 +2,12 @@ package routes
 
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
-import com.carspotter.configureSerialization
-import com.carspotter.data.dto.UserDTO
-import com.carspotter.data.dto.toDTO
-import com.carspotter.data.model.FriendRequest
-import com.carspotter.data.service.friend_request.IFriendRequestService
-import com.carspotter.routes.friendRequestRoutes
+import com.carspotter.config.configureSerialization
+import com.carspotter.features.user.dto.UserDTO
+import com.carspotter.features.comment.dto.toDTO
+import com.carspotter.features.friend_request.FriendRequest
+import com.carspotter.features.friend_request.IFriendRequestService
+import com.carspotter.features.friend_request.friendRequestRoutes
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*

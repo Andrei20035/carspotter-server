@@ -2,13 +2,13 @@ package routes
 
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
-import com.carspotter.configureSerialization
-import com.carspotter.data.dto.request.CommentRequest
-import com.carspotter.data.dto.toDTO
-import com.carspotter.data.model.Comment
-import com.carspotter.data.service.comment.ICommentService
-import com.carspotter.data.service.post.IPostService
-import com.carspotter.routes.commentRoutes
+import com.carspotter.config.configureSerialization
+import com.carspotter.features.comment.dto.CommentRequest
+import com.carspotter.features.comment.dto.toDTO
+import com.carspotter.features.comment.Comment
+import com.carspotter.features.comment.ICommentService
+import com.carspotter.features.post.IPostService
+import com.carspotter.features.comment.commentRoutes
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*

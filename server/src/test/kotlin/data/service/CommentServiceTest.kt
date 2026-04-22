@@ -1,16 +1,25 @@
 package data.service
 
-import com.carspotter.data.dto.CreatePostDTO
+import com.carspotter.features.post.dto.CreatePostDTO
 import com.carspotter.data.model.*
-import com.carspotter.data.service.auth_credential.IAuthCredentialService
-import com.carspotter.data.service.car_model.ICarModelService
-import com.carspotter.data.service.comment.ICommentService
-import com.carspotter.data.service.post.IPostService
-import com.carspotter.data.service.user.IUserService
+import com.carspotter.features.auth.IAuthService
+import com.carspotter.features.car_model.ICarModelService
+import com.carspotter.features.comment.ICommentService
+import com.carspotter.features.post.IPostService
+import com.carspotter.features.user.IUserService
 import com.carspotter.data.table.*
 import com.carspotter.di.daoModule
 import com.carspotter.di.repositoryModule
 import com.carspotter.di.serviceModule
+import com.carspotter.features.auth.AuthCredential
+import com.carspotter.features.auth.AuthProvider
+import com.carspotter.features.auth.AuthTable
+import com.carspotter.features.car_model.CarModel
+import com.carspotter.features.car_model.CarModelTable
+import com.carspotter.features.comment.CommentTable
+import com.carspotter.features.post.PostTable
+import com.carspotter.features.user.User
+import com.carspotter.features.user.UserTable
 import data.testutils.SchemaSetup
 import data.testutils.TestDatabase
 import kotlinx.coroutines.runBlocking
@@ -35,7 +44,7 @@ class CommentServiceTest: KoinTest {
     private val userService: IUserService by inject()
     private val postService: IPostService by inject()
     private val carModelService: ICarModelService by inject()
-    private val authCredentialService: IAuthCredentialService by inject()
+    private val authCredentialService: IAuthService by inject()
 
     private var credentialId1: UUID = UUID.randomUUID()
     private var credentialId2: UUID = UUID.randomUUID()
@@ -57,11 +66,11 @@ class CommentServiceTest: KoinTest {
             modules(daoModule, repositoryModule, serviceModule)
         }
 
-        SchemaSetup.createCommentsTable(Comments)
-        SchemaSetup.createUsersTable(Users)
-        SchemaSetup.createAuthCredentialsTableWithConstraint(AuthCredentials)
-        SchemaSetup.createPostsTable(Posts)
-        SchemaSetup.createCarModelsTable(CarModels)
+        SchemaSetup.createCommentsTable(CommentTable)
+        SchemaSetup.createUsersTable(UserTable)
+        SchemaSetup.createAuthCredentialsTableWithConstraint(AuthTable)
+        SchemaSetup.createPostsTable(PostTable)
+        SchemaSetup.createCarModelsTable(CarModelTable)
 
         runBlocking {
             credentialId1 = authCredentialService.createCredentials(
@@ -124,7 +133,7 @@ class CommentServiceTest: KoinTest {
     @BeforeEach
     fun cleanDatabase() {
         transaction {
-            Comments.deleteAll()
+            CommentTable.deleteAll()
         }
     }
 
@@ -199,7 +208,7 @@ class CommentServiceTest: KoinTest {
     @AfterAll
     fun tearDown() {
         transaction {
-            SchemaUtils.drop(Users, Comments, Posts, CarModels, AuthCredentials)
+            SchemaUtils.drop(UserTable, CommentTable, PostTable, CarModelTable, AuthTable)
         }
         stopKoin()
     }

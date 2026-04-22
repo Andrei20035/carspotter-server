@@ -1,15 +1,24 @@
 package data.repository
 
-import com.carspotter.data.dto.CreatePostDTO
+import com.carspotter.features.post.dto.CreatePostDTO
 import com.carspotter.data.model.*
 import com.carspotter.data.repository.auth_credential.IAuthCredentialRepository
-import com.carspotter.data.repository.car_model.ICarModelRepository
-import com.carspotter.data.repository.like.ILikeRepository
-import com.carspotter.data.repository.post.IPostRepository
-import com.carspotter.data.repository.user.IUserRepository
+import com.carspotter.features.car_model.ICarModelRepository
+import com.carspotter.features.like.ILikeRepository
+import com.carspotter.features.post.IPostRepository
+import com.carspotter.features.user.IUserRepository
 import com.carspotter.data.table.*
 import com.carspotter.di.daoModule
 import com.carspotter.di.repositoryModule
+import com.carspotter.features.auth.AuthCredential
+import com.carspotter.features.auth.AuthProvider
+import com.carspotter.features.auth.AuthTable
+import com.carspotter.features.car_model.CarModel
+import com.carspotter.features.car_model.CarModelTable
+import com.carspotter.features.like.LikeTable
+import com.carspotter.features.post.PostTable
+import com.carspotter.features.user.User
+import com.carspotter.features.user.UserTable
 import data.testutils.SchemaSetup
 import data.testutils.TestDatabase
 import kotlinx.coroutines.runBlocking
@@ -56,11 +65,11 @@ class LikeRepositoryTest: KoinTest {
             modules(daoModule, repositoryModule)
         }
 
-        SchemaSetup.createUsersTable(Users)
-        SchemaSetup.createPostsTable(Posts)
-        SchemaSetup.createCarModelsTable(CarModels)
-        SchemaSetup.createLikesTable(Likes)
-        SchemaSetup.createAuthCredentialsTableWithConstraint(AuthCredentials)
+        SchemaSetup.createUsersTable(UserTable)
+        SchemaSetup.createPostsTable(PostTable)
+        SchemaSetup.createCarModelsTable(CarModelTable)
+        SchemaSetup.createLikesTable(LikeTable)
+        SchemaSetup.createAuthCredentialsTableWithConstraint(AuthTable)
 
         runBlocking {
             credentialId1 = authCredentialRepository.createCredentials(
@@ -123,7 +132,7 @@ class LikeRepositoryTest: KoinTest {
     @BeforeEach
     fun cleanDatabase() {
         transaction {
-            Likes.deleteAll()
+            LikeTable.deleteAll()
         }
     }
 
@@ -163,7 +172,7 @@ class LikeRepositoryTest: KoinTest {
     @AfterAll
     fun tearDown() {
         transaction {
-            SchemaUtils.drop(Users, Posts, CarModels, Likes, AuthCredentials)
+            SchemaUtils.drop(UserTable, PostTable, CarModelTable, LikeTable, AuthTable)
         }
         stopKoin()
     }

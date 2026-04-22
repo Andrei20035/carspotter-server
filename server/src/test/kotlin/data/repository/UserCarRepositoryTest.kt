@@ -1,16 +1,20 @@
 package data.repository
 
-import com.carspotter.data.model.*
 import com.carspotter.data.repository.auth_credential.IAuthCredentialRepository
-import com.carspotter.data.repository.car_model.ICarModelRepository
-import com.carspotter.data.repository.user.IUserRepository
-import com.carspotter.data.repository.user_car.IUserCarRepository
-import com.carspotter.data.table.AuthCredentials
-import com.carspotter.data.table.CarModels
-import com.carspotter.data.table.Users
-import com.carspotter.data.table.UsersCars
+import com.carspotter.features.car_model.ICarModelRepository
+import com.carspotter.features.user.IUserRepository
+import com.carspotter.features.user_car.IUserCarRepository
+import com.carspotter.features.auth.AuthTable
+import com.carspotter.features.car_model.CarModelTable
+import com.carspotter.features.user.UserTable
+import com.carspotter.features.user_car.UserCarTable
 import com.carspotter.di.daoModule
 import com.carspotter.di.repositoryModule
+import com.carspotter.features.auth.AuthCredential
+import com.carspotter.features.auth.AuthProvider
+import com.carspotter.features.car_model.CarModel
+import com.carspotter.features.user.User
+import com.carspotter.features.user_car.UserCar
 import data.testutils.SchemaSetup
 import data.testutils.TestDatabase
 import kotlinx.coroutines.runBlocking
@@ -61,10 +65,10 @@ class UserCarRepositoryTest: KoinTest {
             modules(daoModule, repositoryModule)
         }
 
-        SchemaSetup.createUsersTable(Users)
-        SchemaSetup.createUsersCarsTable(UsersCars)
-        SchemaSetup.createAuthCredentialsTableWithConstraint(AuthCredentials)
-        SchemaSetup.createCarModelsTable(CarModels)
+        SchemaSetup.createUsersTable(UserTable)
+        SchemaSetup.createUsersCarsTable(UserCarTable)
+        SchemaSetup.createAuthCredentialsTableWithConstraint(AuthTable)
+        SchemaSetup.createCarModelsTable(CarModelTable)
 
         runBlocking {
             credentialId1 = authCredentialRepository.createCredentials(
@@ -125,7 +129,7 @@ class UserCarRepositoryTest: KoinTest {
     @BeforeEach
     fun cleanDatabase() {
         transaction {
-            UsersCars.deleteAll()
+            UserCarTable.deleteAll()
         }
     }
 
@@ -253,7 +257,7 @@ class UserCarRepositoryTest: KoinTest {
     @AfterAll
     fun tearDown() {
         transaction {
-            SchemaUtils.drop(UsersCars, Users, AuthCredentials)
+            SchemaUtils.drop(UserCarTable, UserTable, AuthTable)
         }
         stopKoin()
     }

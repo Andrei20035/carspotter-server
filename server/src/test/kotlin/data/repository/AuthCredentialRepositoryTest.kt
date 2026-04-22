@@ -1,9 +1,9 @@
 package data.repository
 
-import com.carspotter.data.model.AuthCredential
-import com.carspotter.data.model.AuthProvider
+import com.carspotter.features.auth.AuthCredential
+import com.carspotter.features.auth.AuthProvider
 import com.carspotter.data.repository.auth_credential.IAuthCredentialRepository
-import com.carspotter.data.table.AuthCredentials
+import com.carspotter.features.auth.AuthTable
 import com.carspotter.di.daoModule
 import com.carspotter.di.repositoryModule
 import data.testutils.SchemaSetup
@@ -39,13 +39,13 @@ class AuthCredentialRepositoryTest: KoinTest {
             modules(daoModule, repositoryModule)
         }
 
-        SchemaSetup.createAuthCredentialsTableWithConstraint(AuthCredentials)
+        SchemaSetup.createAuthCredentialsTableWithConstraint(AuthTable)
     }
 
     @BeforeEach
     fun clearDatabase() {
         transaction {
-            AuthCredentials.deleteAll()
+            AuthTable.deleteAll()
         }
     }
 
@@ -148,7 +148,7 @@ class AuthCredentialRepositoryTest: KoinTest {
     @AfterAll
     fun tearDown() {
         transaction {
-            SchemaUtils.drop(AuthCredentials)
+            SchemaUtils.drop(AuthTable)
         }
         stopKoin()
     }

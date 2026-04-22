@@ -1,15 +1,24 @@
 package data.repo
 
-import com.carspotter.data.dto.CreatePostDTO
+import com.carspotter.features.post.dto.CreatePostDTO
 import com.carspotter.data.model.*
 import com.carspotter.data.repository.auth_credential.IAuthCredentialRepository
-import com.carspotter.data.repository.car_model.ICarModelRepository
-import com.carspotter.data.repository.comment.ICommentRepository
-import com.carspotter.data.repository.post.IPostRepository
-import com.carspotter.data.repository.user.IUserRepository
+import com.carspotter.features.car_model.ICarModelRepository
+import com.carspotter.features.comment.ICommentRepository
+import com.carspotter.features.post.IPostRepository
+import com.carspotter.features.user.IUserRepository
 import com.carspotter.data.table.*
 import com.carspotter.di.daoModule
 import com.carspotter.di.repositoryModule
+import com.carspotter.features.auth.AuthCredential
+import com.carspotter.features.auth.AuthProvider
+import com.carspotter.features.auth.AuthTable
+import com.carspotter.features.car_model.CarModel
+import com.carspotter.features.car_model.CarModelTable
+import com.carspotter.features.comment.CommentTable
+import com.carspotter.features.post.PostTable
+import com.carspotter.features.user.User
+import com.carspotter.features.user.UserTable
 import data.testutils.SchemaSetup
 import data.testutils.TestDatabase
 import kotlinx.coroutines.runBlocking
@@ -56,11 +65,11 @@ class CommentRepositoryTest: KoinTest {
             modules(daoModule, repositoryModule)
         }
 
-        SchemaSetup.createCommentsTable(Comments)
-        SchemaSetup.createUsersTable(Users)
-        SchemaSetup.createAuthCredentialsTableWithConstraint(AuthCredentials)
-        SchemaSetup.createPostsTable(Posts)
-        SchemaSetup.createCarModelsTable(CarModels)
+        SchemaSetup.createCommentsTable(CommentTable)
+        SchemaSetup.createUsersTable(UserTable)
+        SchemaSetup.createAuthCredentialsTableWithConstraint(AuthTable)
+        SchemaSetup.createPostsTable(PostTable)
+        SchemaSetup.createCarModelsTable(CarModelTable)
 
         runBlocking {
             credentialId1 = authCredentialRepository.createCredentials(
@@ -123,7 +132,7 @@ class CommentRepositoryTest: KoinTest {
     @BeforeEach
     fun cleanDatabase() {
         transaction {
-            Comments.deleteAll()
+            CommentTable.deleteAll()
         }
     }
 
@@ -198,7 +207,7 @@ class CommentRepositoryTest: KoinTest {
     @AfterAll
     fun tearDown() {
         transaction {
-            SchemaUtils.drop(Users, Comments, Posts, CarModels, AuthCredentials)
+            SchemaUtils.drop(UserTable, CommentTable, PostTable, CarModelTable, AuthTable)
         }
         stopKoin()
     }

@@ -1,12 +1,12 @@
 package data.service
 
 import at.favre.lib.crypto.bcrypt.BCrypt
-import com.carspotter.data.model.AuthCredential
-import com.carspotter.data.model.AuthProvider
+import com.carspotter.features.auth.AuthCredential
+import com.carspotter.features.auth.AuthProvider
 import com.carspotter.data.repository.auth_credential.IAuthCredentialRepository
-import com.carspotter.data.service.auth_credential.AuthCredentialServiceImpl
-import com.carspotter.data.service.auth_credential.IAuthCredentialService
-import com.carspotter.data.table.AuthCredentials
+import com.carspotter.features.auth.AuthService
+import com.carspotter.features.auth.IAuthService
+import com.carspotter.features.auth.AuthTable
 import com.carspotter.di.daoModule
 import com.carspotter.di.repositoryModule
 import com.carspotter.di.serviceModule
@@ -31,7 +31,7 @@ import org.koin.test.inject
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class AuthCredentialServiceTest: KoinTest {
 
-    private val authCredentialService: IAuthCredentialService by inject()
+    private val authCredentialService: IAuthService by inject()
 
     @BeforeAll
     fun setup() {
@@ -46,13 +46,13 @@ class AuthCredentialServiceTest: KoinTest {
             modules(daoModule, repositoryModule, serviceModule)
         }
 
-        SchemaSetup.createAuthCredentialsTableWithConstraint(AuthCredentials)
+        SchemaSetup.createAuthCredentialsTableWithConstraint(AuthTable)
     }
 
     @BeforeEach
     fun clearDatabase() {
         transaction {
-            AuthCredentials.deleteAll()
+            AuthTable.deleteAll()
         }
     }
 
@@ -107,7 +107,7 @@ class AuthCredentialServiceTest: KoinTest {
 
         coEvery { mockRepo.getCredentialsForLogin("credentials@test.com") } returns testCredential
 
-        val authCredentialService = AuthCredentialServiceImpl(
+        val authCredentialService = AuthService(
             authCredentialRepository = mockRepo,
             googleTokenVerifier = fakeVerifier
         )
@@ -159,7 +159,7 @@ class AuthCredentialServiceTest: KoinTest {
     @AfterAll
     fun tearDown() {
         transaction {
-            SchemaUtils.drop(AuthCredentials)
+            SchemaUtils.drop(AuthTable)
         }
         stopKoin()
     }

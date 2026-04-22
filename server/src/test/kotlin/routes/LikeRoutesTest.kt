@@ -2,11 +2,11 @@ package routes
 
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
-import com.carspotter.configureSerialization
-import com.carspotter.data.dto.UserDTO
-import com.carspotter.data.service.like.DuplicateLikeException
-import com.carspotter.data.service.like.ILikeService
-import com.carspotter.routes.likeRoutes
+import com.carspotter.config.configureSerialization
+import com.carspotter.features.user.dto.UserDTO
+import com.carspotter.features.like.DuplicateLikeException
+import com.carspotter.features.like.ILikeService
+import com.carspotter.features.like.likeRoutes
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*

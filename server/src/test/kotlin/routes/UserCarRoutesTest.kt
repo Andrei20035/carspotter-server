@@ -2,14 +2,14 @@ package routes
 
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
-import com.carspotter.configureSerialization
-import com.carspotter.data.dto.UserCarDTO
-import com.carspotter.data.dto.UserDTO
-import com.carspotter.data.dto.request.UserCarRequest
-import com.carspotter.data.dto.request.UserCarUpdateRequest
-import com.carspotter.data.service.user_car.IUserCarService
-import com.carspotter.data.service.user_car.UserCarCreationException
-import com.carspotter.routes.userCarRoutes
+import com.carspotter.config.configureSerialization
+import com.carspotter.features.user_car.dto.UserCarDTO
+import com.carspotter.features.user.dto.UserDTO
+import com.carspotter.features.user_car.dto.UserCarRequest
+import com.carspotter.features.user_car.dto.UserCarUpdateRequest
+import com.carspotter.features.user_car.IUserCarService
+import com.carspotter.features.user_car.UserCarCreationException
+import com.carspotter.features.user_car.userCarRoutes
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*

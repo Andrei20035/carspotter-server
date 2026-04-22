@@ -1,16 +1,16 @@
 package data.service
 
-import com.carspotter.data.model.AuthCredential
-import com.carspotter.data.model.AuthProvider
-import com.carspotter.data.model.User
-import com.carspotter.data.service.auth_credential.IAuthCredentialService
-import com.carspotter.data.service.friend.IFriendService
-import com.carspotter.data.service.friend_request.IFriendRequestService
-import com.carspotter.data.service.user.IUserService
-import com.carspotter.data.table.AuthCredentials
-import com.carspotter.data.table.FriendRequests
-import com.carspotter.data.table.Friends
-import com.carspotter.data.table.Users
+import com.carspotter.features.auth.AuthCredential
+import com.carspotter.features.auth.AuthProvider
+import com.carspotter.features.user.User
+import com.carspotter.features.auth.IAuthService
+import com.carspotter.features.friend.IFriendService
+import com.carspotter.features.friend_request.IFriendRequestService
+import com.carspotter.features.user.IUserService
+import com.carspotter.features.auth.AuthTable
+import com.carspotter.features.friend_request.FriendRequestTable
+import com.carspotter.features.friend.FriendTable
+import com.carspotter.features.user.UserTable
 import com.carspotter.di.daoModule
 import com.carspotter.di.repositoryModule
 import com.carspotter.di.serviceModule
@@ -37,7 +37,7 @@ class FriendRequestServiceTest: KoinTest {
     private val userService: IUserService by inject()
     private val friendService: IFriendService by inject()
     private val friendRequestService: IFriendRequestService by inject()
-    private val authCredentialService: IAuthCredentialService by inject()
+    private val authCredentialService: IAuthService by inject()
 
     private var credentialId1: UUID = UUID.randomUUID()
     private var credentialId2: UUID = UUID.randomUUID()
@@ -57,10 +57,10 @@ class FriendRequestServiceTest: KoinTest {
             modules(daoModule, repositoryModule, serviceModule)
         }
 
-        SchemaSetup.createUsersTable(Users)
-        SchemaSetup.createAuthCredentialsTableWithConstraint(AuthCredentials)
-        SchemaSetup.createFriendsTableWithConstraint(Friends)
-        SchemaSetup.createFriendRequestsTableWithConstraint(FriendRequests)
+        SchemaSetup.createUsersTable(UserTable)
+        SchemaSetup.createAuthCredentialsTableWithConstraint(AuthTable)
+        SchemaSetup.createFriendsTableWithConstraint(FriendTable)
+        SchemaSetup.createFriendRequestsTableWithConstraint(FriendRequestTable)
 
         runBlocking {
             credentialId1 = authCredentialService.createCredentials(
@@ -105,7 +105,7 @@ class FriendRequestServiceTest: KoinTest {
     @BeforeEach
     fun cleanDatabase() {
         transaction {
-            FriendRequests.deleteAll()
+            FriendRequestTable.deleteAll()
         }
     }
 
@@ -181,7 +181,7 @@ class FriendRequestServiceTest: KoinTest {
     @AfterAll
     fun tearDown() {
         transaction {
-            SchemaUtils.drop(Users, Friends, FriendRequests, AuthCredentials)
+            SchemaUtils.drop(UserTable, FriendTable, FriendRequestTable, AuthTable)
         }
         stopKoin()
     }

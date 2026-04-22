@@ -2,11 +2,11 @@ package routes
 
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
-import com.carspotter.configureSerialization
-import com.carspotter.data.dto.FriendDTO
-import com.carspotter.data.dto.UserDTO
-import com.carspotter.data.service.friend.IFriendService
-import com.carspotter.routes.friendRoutes
+import com.carspotter.config.configureSerialization
+import com.carspotter.features.friend.dto.FriendDTO
+import com.carspotter.features.user.dto.UserDTO
+import com.carspotter.features.friend.IFriendService
+import com.carspotter.features.friend.friendRoutes
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
@@ -29,6 +29,7 @@ import org.koin.core.context.GlobalContext.stopKoin
 import org.koin.dsl.module
 import org.koin.test.KoinTest
 import java.time.Instant
+import java.time.LocalDate
 import java.util.*
 import kotlin.test.assertEquals
 
@@ -433,7 +434,7 @@ class FriendRoutesTest : KoinTest {
                 fullName = "John Doe",
                 phoneNumber = "0712453678",
                 username = "user2", 
-                birthDate = java.time.LocalDate.of(1990, 1, 1),
+                birthDate = LocalDate.of(1990, 1, 1),
                 country = "USA"
             ),
             UserDTO(
@@ -441,7 +442,7 @@ class FriendRoutesTest : KoinTest {
                 fullName = "Jane Smith",
                 phoneNumber = "0712453678",
                 username = "user3", 
-                birthDate = java.time.LocalDate.of(1992, 5, 15),
+                birthDate = LocalDate.of(1992, 5, 15),
                 country = "UK"
             )
         )

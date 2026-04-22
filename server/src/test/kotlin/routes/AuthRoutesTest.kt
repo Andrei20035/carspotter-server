@@ -2,12 +2,12 @@ package routes
 
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
-import com.carspotter.configureSerialization
-import com.carspotter.data.dto.AuthCredentialDTO
-import com.carspotter.data.model.AuthProvider
-import com.carspotter.data.service.auth_credential.IAuthCredentialService
-import com.carspotter.data.service.auth_credential.JwtService
-import com.carspotter.routes.authRoutes
+import com.carspotter.config.configureSerialization
+import com.carspotter.features.auth.dto.AuthDTO
+import com.carspotter.features.auth.AuthProvider
+import com.carspotter.features.auth.IAuthService
+import com.carspotter.features.auth.JwtService
+import com.carspotter.features.auth.authRoutes
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
@@ -32,7 +32,7 @@ import java.util.*
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class AuthRoutesTest : KoinTest {
 
-    private lateinit var authCredentialService: IAuthCredentialService
+    private lateinit var authCredentialService: IAuthService
     private lateinit var jwtService: JwtService
 
     @BeforeAll
@@ -103,7 +103,7 @@ class AuthRoutesTest : KoinTest {
         val provider = AuthProvider.REGULAR
         val credentialId = UUID.randomUUID()
 
-        val mockCredential = AuthCredentialDTO(
+        val mockCredential = AuthDTO(
             id = credentialId,
             email = email,
             provider = provider,
@@ -138,7 +138,7 @@ class AuthRoutesTest : KoinTest {
         val googleId = "1234"
         val credentialId = UUID.randomUUID()
 
-        val mockCredential = AuthCredentialDTO(
+        val mockCredential = AuthDTO(
             id = credentialId,
             email = email,
             provider = provider,
@@ -186,7 +186,7 @@ class AuthRoutesTest : KoinTest {
         val credentialId = UUID.randomUUID()
         val provider = AuthProvider.GOOGLE
 
-        val mockCredential = AuthCredentialDTO(
+        val mockCredential = AuthDTO(
             id = credentialId,
             email = email,
             provider = provider,

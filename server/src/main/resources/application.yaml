@@ -7,18 +7,18 @@ ktor:
     host: 0.0.0.0
   environment: ${KTOR_ENV}
 
-database:
-  development:
-    url: ${DEV_DB_URL}
-    user: ${DEV_USER}
-    password: ${DEV_PASSWORD}
-
-  testing:
-    url: ${TEST_DB_URL}
-    user: ${TEST_DB_USER}
-    password: ${TEST_DB_PASSWORD}
-
-  production:
-    url: ${PROD_DB_URL}
-    user: ${PROD_USER}
-    password: ${PROD_PASSWORD}
+#database:
+#  development:
+#    url: ${DEV_DB_URL}
+#    user: ${DEV_USER}
+#    password: ${DEV_PASSWORD}
+#
+#  testing:
+#    url: ${TEST_DB_URL}
+#    user: ${TEST_DB_USER}
+#    password: ${TEST_DB_PASSWORD}
+#
+#  production:
+#    url: ${PROD_DB_URL}
+#    user: ${PROD_USER}
+#    password: ${PROD_PASSWORD}

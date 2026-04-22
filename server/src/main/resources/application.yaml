@@ -3,9 +3,8 @@ ktor:
     modules:
       - com.carspotter.ApplicationKt.module
   deployment:
-    port: ${PORT}
+    port: 8080
     host: 0.0.0.0
-  environment: ${KTOR_ENV}
 
 #database:
 #  development:

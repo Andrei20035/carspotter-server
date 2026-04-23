@@ -1,1 +1,0 @@
-ALTER TABLE auth_credentials ALTER COLUMN google_id TYPE TEXT;

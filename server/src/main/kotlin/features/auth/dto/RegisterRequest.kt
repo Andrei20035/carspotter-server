@@ -5,7 +5,8 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class RegisterRequest(
-    val email: String,
-    val password: String?,
-    val provider: AuthProvider
+    val email: String? = null,
+    val password: String? = null,
+    val provider: AuthProvider,
+    val googleIdToken: String? = null
 )

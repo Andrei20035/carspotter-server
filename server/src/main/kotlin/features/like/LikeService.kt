@@ -2,6 +2,7 @@ package com.carspotter.features.like
 
 import com.carspotter.features.user.dto.UserDTO
 import com.carspotter.features.comment.dto.toDTO
+import com.carspotter.features.user.dto.toDTO
 import java.util.*
 
 interface ILikeService {

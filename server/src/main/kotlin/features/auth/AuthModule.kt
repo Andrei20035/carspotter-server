@@ -5,9 +5,8 @@ import org.koin.dsl.module
 val authModule = module {
 
     single<IAuthDAO> { AuthDAO() }
-    single<IAuthRepository> { AuthRepository(get()) }
-
     single<GoogleTokenVerifier> { GoogleTokenVerifierImpl() }
+    single<IAuthService> { AuthService(get(), get()) }
 
     single {
         val secret = System.getenv("JWT_SECRET")
@@ -19,5 +18,4 @@ val authModule = module {
         JwtService(secret, issuer, audience)
     }
 
-    single<IAuthService> { AuthService(get(), get()) }
 }

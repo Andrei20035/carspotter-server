@@ -1,4 +1,4 @@
-package com.carspotter.features.auth.dto
+package com.carspotter.features.user.dto
 
 import com.carspotter.core.serialization.UUIDSerializer
 import kotlinx.serialization.Serializable

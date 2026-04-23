@@ -7,7 +7,7 @@ enum class AuthProvider {
 }
 
 data class AuthCredential(
-    val id: UUID = UUID.randomUUID(),
+    val id: UUID? = null,
     val email: String,
     val password: String?,
     val provider: AuthProvider,

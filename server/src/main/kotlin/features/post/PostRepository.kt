@@ -4,6 +4,7 @@ import com.carspotter.features.friend.IFriendDAO
 import com.carspotter.features.post.dto.PersistPostDTO
 import com.carspotter.features.post.dto.FeedResponse
 import com.carspotter.features.comment.dto.toDTO
+import com.carspotter.features.post.dto.toDTO
 import java.time.Instant
 import java.util.*
 

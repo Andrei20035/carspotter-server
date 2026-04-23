@@ -7,15 +7,9 @@ import org.jetbrains.exposed.sql.javatime.CurrentTimestamp
 import org.jetbrains.exposed.sql.javatime.timestamp
 
 object FriendTable : Table("friends") {
-    val userId = uuid("user_id").references(UserTable.id, onDelete = ReferenceOption.CASCADE)
-    val friendId = uuid("friend_id").references(UserTable.id, onDelete = ReferenceOption.CASCADE)
+    val userId1 = uuid("user_id_1").references(UserTable.id, onDelete = ReferenceOption.CASCADE)
+    val userId2 = uuid("user_id_2").references(UserTable.id, onDelete = ReferenceOption.CASCADE)
     val createdAt = timestamp("created_at").defaultExpression(CurrentTimestamp)
 
-
-    override val primaryKey = PrimaryKey(userId, friendId)
-
-    init {
-        check("chk_no_self_friendship") { userId neq friendId }
-    }
-
+    override val primaryKey = PrimaryKey(userId1, userId2)
 }

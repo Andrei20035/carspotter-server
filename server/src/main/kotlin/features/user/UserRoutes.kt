@@ -3,7 +3,7 @@ package com.carspotter.features.user
 import com.carspotter.features.user.dto.CreateUserRequest
 import com.carspotter.features.user.dto.UpdateProfilePictureRequest
 import com.carspotter.features.user.dto.toUser
-import com.carspotter.features.auth.dto.CreateUserResponse
+import com.carspotter.features.user.dto.CreateUserResponse
 import com.carspotter.features.auth.JwtService
 import com.carspotter.core.util.getUuidClaim
 import io.ktor.http.*

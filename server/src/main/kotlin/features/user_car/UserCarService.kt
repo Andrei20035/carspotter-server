@@ -3,6 +3,8 @@ package com.carspotter.features.user_car
 import com.carspotter.features.user_car.dto.UserCarDTO
 import com.carspotter.features.user.dto.UserDTO
 import com.carspotter.features.comment.dto.toDTO
+import com.carspotter.features.user.dto.toDTO
+import com.carspotter.features.user_car.dto.toDTO
 import java.util.*
 
 interface IUserCarService {

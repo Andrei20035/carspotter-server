@@ -79,7 +79,7 @@ fun Route.userRoutes() {
                     )
 
                     val response = CreateUserResponse(
-                        jwtToken = newJwtToken.values.first(),
+                        jwtToken = newJwtToken.toString(),
                         userId = newUserId
                     )
 

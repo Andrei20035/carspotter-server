@@ -9,11 +9,12 @@ import io.ktor.server.auth.jwt.*
 import io.ktor.server.response.*
 import java.util.UUID
 
-fun Application.configureSecurity() {
-    val jwtAudience = requireEnv("JWT_AUDIENCE")
-    val jwtIssuer   = requireEnv("JWT_ISSUER")
-    val jwtSecret   = requireEnv("JWT_SECRET")
-    val jwtRealm    = "CarSpotter-server"
+fun Application.configureSecurity(
+    jwtAudience: String = requireConfig("JWT_AUDIENCE"),
+    jwtIssuer: String = requireConfig("JWT_ISSUER"),
+    jwtSecret: String = requireConfig("JWT_SECRET"),
+) {
+    val jwtRealm = "CarSpotter-server"
 
     val jwtVerifier = JWT
         .require(Algorithm.HMAC256(jwtSecret))
@@ -58,5 +59,7 @@ fun Application.configureSecurity() {
     }
 }
 
-private fun requireEnv(name: String): String =
-    System.getenv(name) ?: error("$name environment variable is not set")
+private fun requireConfig(name: String): String =
+    System.getProperty(name)
+        ?: System.getenv(name)
+        ?: error("$name environment variable is not set")

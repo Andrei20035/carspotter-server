@@ -22,8 +22,6 @@ class CarModelDAO : ICarModelDAO {
                 .insertReturning(listOf(CarModelTable.id)) {
                     it[brand] = carModel.brand
                     it[model] = carModel.model
-                    it[startYear] = carModel.startYear
-                    it[endYear] = carModel.endYear
                 }.singleOrNull()?.get(CarModelTable.id)?.value ?: throw IllegalStateException("Failed to insert car model")
         }
     }
@@ -38,8 +36,6 @@ class CarModelDAO : ICarModelDAO {
                         id = row[CarModelTable.id].value,
                         brand = row[CarModelTable.brand],
                         model = row[CarModelTable.model],
-                        startYear = row[CarModelTable.startYear],
-                        endYear = row[CarModelTable.endYear]
                     )
                 }.singleOrNull()
         }
@@ -86,8 +82,6 @@ class CarModelDAO : ICarModelDAO {
                         id = row[CarModelTable.id].value,
                         brand = row[CarModelTable.brand],
                         model = row[CarModelTable.model],
-                        startYear = row[CarModelTable.startYear],
-                        endYear = row[CarModelTable.endYear]
                     )
                 }
         }

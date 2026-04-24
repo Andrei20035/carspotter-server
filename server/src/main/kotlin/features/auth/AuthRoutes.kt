@@ -18,11 +18,6 @@ fun Route.authRoutes() {
     val googleTokenVerifier: GoogleTokenVerifier by application.inject()
     val jwtService: JwtService by application.inject()
 
-//    POST /auth/register
-//    POST /auth/login
-//    PUT /auth/password
-//    DELETE /auth/account
-
     route("/auth") {
         post("/register") {
             val request = call.receive<RegisterRequest>()
@@ -114,36 +109,54 @@ fun Route.authRoutes() {
         post("/login") {
             val request = call.receive<LoginRequest>()
 
-            if (request.email.isBlank()) {
-                call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Email must not be empty"))
-                return@post
-            }
-
-            if (!isValidEmail(request.email)) {
-                call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid email format"))
-                return@post
-            }
-
             val result = when (request.provider) {
                 AuthProvider.REGULAR -> {
-                    if (request.password.isNullOrBlank()) {
-                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Password must not be empty"))
-                        return@post
-                    }
-                    authService.regularLogin(request.email, request.password)
-                }
+                    val email = request.email
+                        ?.trim()
+                        ?.lowercase()
+                        ?: run {
+                            call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Email is required"))
+                            return@post
+                        }
 
-                AuthProvider.GOOGLE -> {
-                    if (request.googleIdToken.isNullOrBlank()) {
-                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Google ID must not be empty"))
+                    if (!isValidEmail(email)) {
+                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid email format"))
                         return@post
                     }
-                    authService.googleLogin(request.email, request.googleIdToken)
+
+                    val password = request.password
+                        ?: run {
+                            call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Password is required"))
+                            return@post
+                        }
+
+                    if (!isValidPassword(password)) {
+                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Password must be at least 8 characters long"))
+                        return@post
+                    }
+                    authService.regularLogin(email, password)
+                }
+                AuthProvider.GOOGLE -> {
+                    val googleIdToken = request.googleIdToken
+                        ?: run {
+                            call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Google ID token is required"))
+                            return@post
+                        }
+                    authService.googleLogin(googleIdToken)
                 }
             }
-
             if (result != null) {
-                call.respond(jwtService.generateJwtToken(credentialId = result.id, email = result.email))
+                val token = jwtService.generateJwtToken(
+                    credentialId = result.id,
+                    email = result.email
+                )
+                call.respond(
+                    HttpStatusCode.OK,
+                    AuthResponse(
+                        token = token,
+                        onboardingStep = OnboardingStep.COMPLETED
+                    )
+                )
             } else {
                 call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Invalid credentials"))
             }
@@ -152,33 +165,62 @@ fun Route.authRoutes() {
         authenticate("jwt") {
             delete("/account") {
                 val credentialId = call.getUuidClaim("credentialId")
-                    ?: return@delete call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Invalid or missing credentialId"))
-
+                    ?: return@delete call.respond(
+                        HttpStatusCode.Unauthorized,
+                        mapOf("error" to "Invalid or missing credentialId")
+                    )
+                val credential = authService.getCredentialsById(credentialId)
+                    ?: return@delete call.respond(
+                        HttpStatusCode.NotFound,
+                        mapOf("error" to "Account not found")
+                    )
                 val deletedRows = authService.deleteCredentials(credentialId)
-
                 if (deletedRows > 0) {
-                    call.respond(HttpStatusCode.OK, mapOf("message" to "Account deleted successfully"))
+                    call.respond(
+                        HttpStatusCode.OK,
+                        mapOf("message" to "Account deleted successfully")
+                    )
                 } else {
-                    call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Failed to delete account"))
+                    call.respond(
+                        HttpStatusCode.NotFound,
+                        mapOf("error" to "Account not found")
+                    )
                 }
             }
 
             put("/password") {
                 val credentialId = call.getUuidClaim("credentialId")
-                    ?: return@put call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Invalid or missing credentialId"))
+                    ?: return@put call.respond(
+                        HttpStatusCode.Unauthorized,
+                        mapOf("error" to "Invalid or missing credentialId")
+                    )
 
                 val request = call.receive<UpdatePasswordRequest>()
 
-                if(request.newPassword.isBlank()) {
-                    call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid new password"))
+                if (request.oldPassword.isBlank()) {
+                    call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Current password is required"))
                     return@put
                 }
-                val updatedRows = authService.updatePassword(credentialId, request.newPassword)
 
-                if (updatedRows > 0) {
-                    call.respond(HttpStatusCode.OK, mapOf("message" to "Password updated successfully"))
-                } else {
-                    call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Failed to update password"))
+                if (request.newPassword.isBlank() || request.newPassword.length < 8) {
+                    call.respond(HttpStatusCode.BadRequest, mapOf("error" to "New password must be at least 8 characters"))
+                    return@put
+                }
+
+                try {
+                    val updatedRows = authService.updatePassword(
+                        credentialId = credentialId,
+                        oldPassword = request.oldPassword,
+                        newPassword = request.newPassword
+                    )
+
+                    if (updatedRows > 0) {
+                        call.respond(HttpStatusCode.OK, mapOf("message" to "Password updated successfully"))
+                    } else {
+                        call.respond(HttpStatusCode.NotFound, mapOf("error" to "Credentials not found"))
+                    }
+                } catch (e: IllegalArgumentException) {
+                    call.respond(HttpStatusCode.BadRequest, mapOf("error" to e.message))
                 }
             }
         }

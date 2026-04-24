@@ -7,7 +7,7 @@ data class UserCar(
     val id: UUID = UUID.randomUUID(),
     val userId: UUID,
     val carModelId: UUID,
-    val imagePath: String? = null,
+    val imagePath: String,
     val createdAt: Instant? = null,
     val updatedAt: Instant? = null,
 )

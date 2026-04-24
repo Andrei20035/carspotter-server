@@ -17,8 +17,9 @@ data class PostRequest(
 fun PostRequest.addId(userId: UUID) = CreatePostDTO(
     userId = userId,
     carModelId = this.carModelId,
-    imagePath = this.imagePath,
+    imageBytes = this.imagePath.toByteArray(),
     description = this.description,
     latitude = this.latitude,
     longitude = this.longitude,
+    contentType = this.imagePath.substringAfterLast('.')
 )

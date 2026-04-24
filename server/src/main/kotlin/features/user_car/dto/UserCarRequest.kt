@@ -11,7 +11,7 @@ data class UserCarRequest(
     val userId: UUID,
     @Serializable(with = UUIDSerializer::class)
     val carModelId: UUID,
-    val imagePath: String? = null,
+    val imagePath: String,
 )
 
 fun UserCarRequest.toUserCar(userId: UUID) = UserCar(

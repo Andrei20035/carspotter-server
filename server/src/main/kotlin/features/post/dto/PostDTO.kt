@@ -14,11 +14,13 @@ data class PostDTO(
     @Serializable(with = UUIDSerializer::class)
     val userId: UUID,
     @Serializable(with = UUIDSerializer::class)
-    val carModelId: UUID,
+    val carModelId: UUID? = null,
+    val customBrand: String? = null,
+    val customModel: String? = null,
     val imagePath: String,
     val description: String? = null,
-    val latitude: Double,
-    val longitude: Double,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
     @Serializable(with = InstantSerializer::class)
     val createdAt: Instant,
     @Serializable(with = InstantSerializer::class)
@@ -29,6 +31,8 @@ fun Post.toDTO() = PostDTO(
     id = this.id,
     userId = this.userId,
     carModelId = this.carModelId,
+    customBrand = this.customBrand,
+    customModel = this.customModel,
     imagePath = this.imagePath,
     description = this.description,
     latitude = this.latitude,

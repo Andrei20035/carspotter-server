@@ -10,6 +10,4 @@ data class CarModel(
     val id: UUID = UUID.randomUUID(),
     val brand: String,
     val model: String,
-    val startYear: Int,
-    val endYear: Int,
 )

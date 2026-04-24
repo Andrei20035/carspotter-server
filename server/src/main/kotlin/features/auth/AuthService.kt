@@ -163,11 +163,7 @@ class AuthService(
         }
     }
 
-    override suspend fun updatePassword(
-        credentialId: UUID,
-        oldPassword: String,
-        newPassword: String
-    ): Int {
+    override suspend fun updatePassword(credentialId: UUID, oldPassword: String, newPassword: String): Int {
         val authCredential = authDao.getCredentialsById(credentialId)
             ?: throw IllegalArgumentException("Credentials not found")
 

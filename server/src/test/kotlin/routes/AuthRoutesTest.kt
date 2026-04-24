@@ -1,325 +1,339 @@
-package routes
+package com.carspotter.routes
 
-import com.auth0.jwt.JWT
-import com.auth0.jwt.algorithms.Algorithm
-import com.carspotter.config.configureSerialization
-import com.carspotter.features.auth.dto.AuthDTO
+import com.carspotter.features.auth.AuthDAO
 import com.carspotter.features.auth.AuthProvider
-import com.carspotter.features.auth.IAuthService
-import com.carspotter.features.auth.JwtService
-import com.carspotter.features.auth.authRoutes
+import com.carspotter.features.auth.GoogleTokenVerifier
+import com.carspotter.features.auth.GoogleUser
+import com.carspotter.features.auth.dto.AuthResponse
+import com.carspotter.features.auth.dto.LoginRequest
+import com.carspotter.features.auth.dto.OnboardingStep
+import com.carspotter.features.auth.dto.RegisterRequest
+import com.carspotter.features.auth.dto.UpdatePasswordRequest
+import io.ktor.client.call.*
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
-import io.ktor.server.application.*
-import io.ktor.server.auth.*
-import io.ktor.server.auth.jwt.*
-import io.ktor.server.routing.*
+import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.testing.*
-import io.mockk.*
+import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.jsonObject
-import org.junit.jupiter.api.*
+import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
-import org.koin.core.context.startKoin
-import org.koin.core.context.stopKoin
-import org.koin.dsl.module
-import org.koin.test.KoinTest
-import java.util.*
-
+import org.junit.jupiter.api.BeforeAll
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestInstance
+import testutils.TestDatabaseFactory
+import testutils.setTestEnv
+import testutils.stopKoinSafely
+import testutils.testAuthModule
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-class AuthRoutesTest : KoinTest {
+class AuthRoutesTest {
 
-    private lateinit var authCredentialService: IAuthService
-    private lateinit var jwtService: JwtService
+    /** Fake configurabil pentru testele Google login. */
+    private class FakeGoogleVerifier : GoogleTokenVerifier {
+        var response: GoogleUser? = null
+        override fun verify(googleIdToken: String): GoogleUser? = response
+    }
+
+    private val googleVerifier = FakeGoogleVerifier()
 
     @BeforeAll
     fun setup() {
-        authCredentialService = mockk()
-        jwtService = mockk()
+        setTestEnv()
+        TestDatabaseFactory.start()
+    }
 
-        every { jwtService.generateJwtToken(any(), any(), any(), any()) } returns mapOf("token" to "token")
+    @AfterAll
+    fun tearDown() {
+        TestDatabaseFactory.stop()
     }
 
     @BeforeEach
-    fun setupKoin() {
-        startKoin {
-            modules(
-                module {
-                    single { authCredentialService }
-                    single { jwtService }
-                }
-            )
-        }
+    fun clean() {
+        TestDatabaseFactory.cleanDatabase()
+        googleVerifier.response = null
+        stopKoinSafely()
     }
 
-    // Helper function to configure the application for testing
-    private fun Application.configureTestApplication() {
-        System.setProperty("JWT_SECRET", "test-secret-key")
-
-        configureSerialization()
-
-        install(Authentication) {
-            jwt("jwt") {
-                realm = "Test Server"
-                verifier(
-                    JWT
-                        .require(Algorithm.HMAC256("test-secret-key"))
-                        .build()
-                )
-                validate { credential ->
-                    val credentialIdString = credential.payload.getClaim("credentialId").asString()
-                    if (credentialIdString != null) {
-                        try {
-                            UUID.fromString(credentialIdString)
-                            JWTPrincipal(credential.payload)
-                        } catch (e: IllegalArgumentException) {
-                            null
-                        }
-                    } else {
-                        null
-                    }
+    // ---- helper: rulează un test in-app cu DB real + verifier fake ----
+    private fun authTest(block: suspend ApplicationTestBuilder.(io.ktor.client.HttpClient) -> Unit) =
+        testApplication {
+            application {
+                testAuthModule(googleVerifier)
+            }
+            val client = createClient {
+                install(ContentNegotiation) {
+                    json(Json { ignoreUnknownKeys = true; isLenient = true })
                 }
             }
+            block(client)
         }
 
-        routing {
-            authRoutes()
-        }
-    }
-
-    @AfterEach
-    fun tearDownKoin() {
-        stopKoin()
-        clearAllMocks()
-    }
+    // ---- REGISTER ----
 
     @Test
-    fun `regular login with valid credentials returns token`() = testApplication {
-        val email = "test@example.com"
-        val password = "password123"
-        val provider = AuthProvider.REGULAR
-        val credentialId = UUID.randomUUID()
-
-        val mockCredential = AuthDTO(
-            id = credentialId,
-            email = email,
-            provider = provider,
-        )
-
-        coEvery { authCredentialService.regularLogin(email, password) } returns mockCredential
-        coEvery { jwtService.generateJwtToken(credentialId, null, email) } returns mapOf("token" to "fake.jwt.token")
-
-        application {
-            configureTestApplication()
-        }
-
-        val response = client.post("/auth/login") {
+    fun `POST auth register REGULAR valid returns 201 with token and PROFILE_REQUIRED`() = authTest { client ->
+        val resp = client.post("/api/auth/register") {
             contentType(ContentType.Application.Json)
-            setBody("""{"email":"$email","password":"$password","provider":"REGULAR"}""")
-        }
-
-        assertEquals(HttpStatusCode.OK, response.status)
-        val responseBody = response.bodyAsText()
-        assertTrue(responseBody.contains("token"))
-
-        coVerify(exactly = 1) { authCredentialService.regularLogin(email, password) }
-        coVerify(exactly = 1) { jwtService.generateJwtToken(credentialId, null, email) }
-
-    }
-
-    @Test
-    fun `regular login with invalid credentials returns unauthorized`() = testApplication {
-        val email = "test@example.com"
-        val password = "password123"
-        val provider = AuthProvider.REGULAR
-        val googleId = "1234"
-        val credentialId = UUID.randomUUID()
-
-        val mockCredential = AuthDTO(
-            id = credentialId,
-            email = email,
-            provider = provider,
-        )
-
-        coEvery { authCredentialService.regularLogin(email, password) } returns null
-
-        application {
-            configureTestApplication()
-        }
-
-        val response = client.post("/auth/login") {
-            contentType(ContentType.Application.Json)
-            setBody("""{"email":"$email","password":"$password","googleId":"$googleId","provider":"REGULAR"}""")
-        }
-
-        assertEquals(HttpStatusCode.Unauthorized, response.status)
-
-        coVerify(exactly = 1) { authCredentialService.regularLogin(email, password) }
-    }
-
-    @Test
-    fun `regular login with invalid email format returns bad request`() = testApplication {
-        val email = "invalid-email"
-        val password = "password123"
-
-        application {
-            configureTestApplication()
-        }
-
-        val response = client.post("/auth/login") {
-            contentType(ContentType.Application.Json)
-            setBody("""{"email":"$email","password":"$password"}""")
-        }
-
-        assertEquals(HttpStatusCode.BadRequest, response.status)
-
-        coVerify(exactly = 0) { authCredentialService.regularLogin(any(), any()) }
-    }
-
-    @Test
-    fun `google login with valid credentials returns token`() = testApplication {
-        val email = "test@example.com"
-        val googleId = "google123"
-        val credentialId = UUID.randomUUID()
-        val provider = AuthProvider.GOOGLE
-
-        val mockCredential = AuthDTO(
-            id = credentialId,
-            email = email,
-            provider = provider,
-        )
-
-        coEvery { authCredentialService.googleLogin(email, googleId) } returns mockCredential
-        coEvery { jwtService.generateJwtToken(credentialId, null, email) } returns mapOf("token" to "fake.jwt.token")
-
-        application {
-            configureTestApplication()
-        }
-
-        val response = client.post("/auth/login") {
-            contentType(ContentType.Application.Json)
-            setBody("""{"email":"$email","googleIdToken":"$googleId","provider":"GOOGLE"}""")
-        }
-
-        assertEquals(HttpStatusCode.OK, response.status)
-        val responseBody = response.bodyAsText()
-        println(responseBody)
-        assertTrue(responseBody.contains("token"))
-
-        coVerify(exactly = 1) { authCredentialService.googleLogin(email, googleId) }
-        coVerify(exactly = 1) { jwtService.generateJwtToken(credentialId, null, email) }
-    }
-
-    @Test
-    fun `register with valid data returns created status`() = testApplication {
-        val email = "newuser@example.com"
-        val password = "newpassword123"
-        val provider = AuthProvider.REGULAR
-        val credentialId = UUID.randomUUID()
-
-        coEvery {
-            authCredentialService.createCredentials(match {
-                it.email == email && it.password == password && it.provider == provider
-            })
-        } returns credentialId
-
-        val token = mapOf("token" to "mocked-jwt-token")
-
-        coEvery {
-            jwtService.generateJwtToken(
-                credentialId,
-                null,
-                email,
-                false
+            setBody(
+                RegisterRequest(
+                    email = "alice@example.com",
+                    password = "Passw0rd!",
+                    provider = AuthProvider.REGULAR
+                )
             )
-        } returns token
-
-        application {
-            configureTestApplication()
         }
-
-        val response = client.post("/auth/register") {
-            contentType(ContentType.Application.Json)
-            setBody("""{"email":"$email","password":"$password","provider":"REGULAR"}""")
-        }
-
-        assertEquals(HttpStatusCode.OK, response.status)
-
-        coVerify(exactly = 1) {
-            authCredentialService.createCredentials(match {
-                it.email == email && it.password == password && it.provider == provider
-            })
-        }
+        assertEquals(HttpStatusCode.Created, resp.status)
+        val body = resp.body<AuthResponse>()
+        assertTrue(body.token.isNotBlank())
+        assertEquals(OnboardingStep.PROFILE_REQUIRED, body.onboardingStep)
     }
 
     @Test
-    fun `update password with valid token returns success`() = testApplication {
-        val credentialId = UUID.randomUUID()
-        val newPassword = "newpassword456"
-
-        System.setProperty("JWT_SECRET", "test-secret-key")
-
-        coEvery { authCredentialService.updatePassword(credentialId, newPassword) } returns 1
-
-        application {
-            configureTestApplication()
-        }
-
-        val token = JWT.create()
-            .withClaim("credentialId", credentialId.toString())
-            .withExpiresAt(Date(System.currentTimeMillis() + 60000))
-            .sign(Algorithm.HMAC256("test-secret-key"))
-
-        val response = client.put("/auth/password") {
+    fun `register with invalid email returns 400`() = authTest { client ->
+        val resp = client.post("/api/auth/register") {
             contentType(ContentType.Application.Json)
-            header(HttpHeaders.Authorization, "Bearer $token")
-            setBody("""{"newPassword":"$newPassword"}""")
+            setBody(
+                RegisterRequest(
+                    email = "not-an-email",
+                    password = "Passw0rd!",
+                    provider = AuthProvider.REGULAR
+                )
+            )
         }
-
-        // Assert
-        assertEquals(HttpStatusCode.OK, response.status)
-
-        val expectedJson = Json.parseToJsonElement("""{"message":"Password updated successfully"}""").jsonObject
-        val actualJson = Json.parseToJsonElement(response.bodyAsText()).jsonObject
-
-        assertEquals(expectedJson, actualJson)
-
-        coVerify(exactly = 1) { authCredentialService.updatePassword(credentialId, newPassword) }
+        assertEquals(HttpStatusCode.BadRequest, resp.status)
     }
 
     @Test
-    fun `delete account should return success`() = testApplication {
-        val credentialId = UUID.randomUUID()
+    fun `register with missing password returns 400`() = authTest { client ->
+        val resp = client.post("/api/auth/register") {
+            contentType(ContentType.Application.Json)
+            setBody(
+                RegisterRequest(
+                    email = "alice@example.com",
+                    password = null,
+                    provider = AuthProvider.REGULAR
+                )
+            )
+        }
+        assertEquals(HttpStatusCode.BadRequest, resp.status)
+    }
 
-        System.setProperty("JWT_SECRET", "test-secret-key")
+    @Test
+    fun `register with short password returns 400`() = authTest { client ->
+        val resp = client.post("/api/auth/register") {
+            contentType(ContentType.Application.Json)
+            setBody(
+                RegisterRequest(
+                    email = "alice@example.com",
+                    password = "short",
+                    provider = AuthProvider.REGULAR
+                )
+            )
+        }
+        assertEquals(HttpStatusCode.BadRequest, resp.status)
+    }
 
-        coEvery { authCredentialService.deleteCredentials(credentialId) } returns 1
+    @Test
+    fun `register with duplicate email returns 400`() = authTest { client ->
+        // first, OK
+        val first = client.post("/api/auth/register") {
+            contentType(ContentType.Application.Json)
+            setBody(RegisterRequest("dup@example.com", "Passw0rd!", AuthProvider.REGULAR))
+        }
+        assertEquals(HttpStatusCode.Created, first.status)
 
-        every { jwtService.generateJwtToken(credentialId, null, "amrusu2@gmail.com", false) } returns mapOf("token" to "token")
+        // second, should fail because service throws IllegalArgumentException → route returns 400
+        val second = client.post("/api/auth/register") {
+            contentType(ContentType.Application.Json)
+            setBody(RegisterRequest("dup@example.com", "Passw0rd!", AuthProvider.REGULAR))
+        }
+        assertEquals(HttpStatusCode.BadRequest, second.status)
+    }
 
-        application {
-            configureTestApplication()
+    @Test
+    fun `after register password is stored hashed not plain text`() = runTest {
+        authTest { client ->
+            val resp = client.post("/api/auth/register") {
+                contentType(ContentType.Application.Json)
+                setBody(RegisterRequest("alice@example.com", "Passw0rd!", AuthProvider.REGULAR))
+            }
+            assertEquals(HttpStatusCode.Created, resp.status)
+
+            val dao = AuthDAO()
+            val stored = dao.getCredentialsForLogin("alice@example.com")
+            assertNotNull(stored)
+            assertNotEquals("Passw0rd!", stored!!.password)
+            assertTrue(stored.password!!.startsWith("$2"), "expected BCrypt hash")
+        }
+    }
+
+    // ---- LOGIN ----
+
+    @Test
+    fun `POST auth login REGULAR valid returns 200 with token`() = authTest { client ->
+        client.post("/api/auth/register") {
+            contentType(ContentType.Application.Json)
+            setBody(RegisterRequest("alice@example.com", "Passw0rd!", AuthProvider.REGULAR))
         }
 
-        val token = JWT.create()
-            .withClaim("credentialId", credentialId.toString())
-            .withExpiresAt(Date(System.currentTimeMillis() + 60000))
-            .sign(Algorithm.HMAC256("test-secret-key"))
+        val resp = client.post("/api/auth/login") {
+            contentType(ContentType.Application.Json)
+            setBody(LoginRequest(email = "alice@example.com", password = "Passw0rd!", provider = AuthProvider.REGULAR))
+        }
+        assertEquals(HttpStatusCode.OK, resp.status)
+        val body = resp.body<AuthResponse>()
+        assertTrue(body.token.isNotBlank())
+        assertEquals(OnboardingStep.COMPLETED, body.onboardingStep)
+    }
 
-        val response = client.delete("/auth/account") {
-            header(HttpHeaders.Authorization, "Bearer $token")
+    @Test
+    fun `login with unknown email returns 401`() = authTest { client ->
+        val resp = client.post("/api/auth/login") {
+            contentType(ContentType.Application.Json)
+            setBody(LoginRequest(email = "nobody@example.com", password = "Passw0rd!", provider = AuthProvider.REGULAR))
+        }
+        assertEquals(HttpStatusCode.Unauthorized, resp.status)
+    }
+
+    @Test
+    fun `login with wrong password returns 401`() = authTest { client ->
+        client.post("/api/auth/register") {
+            contentType(ContentType.Application.Json)
+            setBody(RegisterRequest("alice@example.com", "Passw0rd!", AuthProvider.REGULAR))
         }
 
-        assertEquals(HttpStatusCode.OK, response.status)
+        val resp = client.post("/api/auth/login") {
+            contentType(ContentType.Application.Json)
+            setBody(LoginRequest(email = "alice@example.com", password = "WrongPass!", provider = AuthProvider.REGULAR))
+        }
+        assertEquals(HttpStatusCode.Unauthorized, resp.status)
+    }
 
-        val expectedJson = Json.parseToJsonElement("""{"message":"Account deleted successfully"}""").jsonObject
-        val actualJson = Json.parseToJsonElement(response.bodyAsText()).jsonObject
+    @Test
+    fun `login with uppercase and spaces in email is normalized`() = authTest { client ->
+        client.post("/api/auth/register") {
+            contentType(ContentType.Application.Json)
+            setBody(RegisterRequest("alice@example.com", "Passw0rd!", AuthProvider.REGULAR))
+        }
 
-        assertEquals(expectedJson, actualJson)
+        val resp = client.post("/api/auth/login") {
+            contentType(ContentType.Application.Json)
+            setBody(LoginRequest(email = "  ALICE@Example.COM  ", password = "Passw0rd!", provider = AuthProvider.REGULAR))
+        }
+        assertEquals(HttpStatusCode.OK, resp.status)
+    }
 
-        coVerify(exactly = 1) { authCredentialService.deleteCredentials(credentialId) }
+    @Test
+    fun `google login with valid token returns 200`() = authTest { client ->
+        googleVerifier.response = GoogleUser(email = "bob@example.com", googleId = "gid-1")
+
+        val resp = client.post("/api/auth/login") {
+            contentType(ContentType.Application.Json)
+            setBody(LoginRequest(googleIdToken = "any-fake-token", provider = AuthProvider.GOOGLE))
+        }
+        assertEquals(HttpStatusCode.OK, resp.status)
+        val body = resp.body<AuthResponse>()
+        assertTrue(body.token.isNotBlank())
+    }
+
+    @Test
+    fun `google login with invalid token returns 401`() = authTest { client ->
+        googleVerifier.response = null
+
+        val resp = client.post("/api/auth/login") {
+            contentType(ContentType.Application.Json)
+            setBody(LoginRequest(googleIdToken = "bad-token", provider = AuthProvider.GOOGLE))
+        }
+        assertEquals(HttpStatusCode.Unauthorized, resp.status)
+    }
+
+    @Test
+    fun `google login missing token returns 400`() = authTest { client ->
+        val resp = client.post("/api/auth/login") {
+            contentType(ContentType.Application.Json)
+            setBody(LoginRequest(googleIdToken = null, provider = AuthProvider.GOOGLE))
+        }
+        assertEquals(HttpStatusCode.BadRequest, resp.status)
+    }
+
+    // ---- PUT /auth/password ----
+
+    @Test
+    fun `update password with valid token and correct old password returns 200`() = authTest { client ->
+        val token = registerAndGetToken(client, "alice@example.com", "OldPass!1")
+
+        val resp = client.put("/api/auth/password") {
+            contentType(ContentType.Application.Json)
+            bearerAuth(token)
+            setBody(UpdatePasswordRequest(oldPassword = "OldPass!1", newPassword = "NewPass!2"))
+        }
+        assertEquals(HttpStatusCode.OK, resp.status)
+
+        // old password should no longer work
+        val oldLogin = client.post("/api/auth/login") {
+            contentType(ContentType.Application.Json)
+            setBody(LoginRequest(email = "alice@example.com", password = "OldPass!1", provider = AuthProvider.REGULAR))
+        }
+        assertEquals(HttpStatusCode.Unauthorized, oldLogin.status)
+
+        // new password should work
+        val newLogin = client.post("/api/auth/login") {
+            contentType(ContentType.Application.Json)
+            setBody(LoginRequest(email = "alice@example.com", password = "NewPass!2", provider = AuthProvider.REGULAR))
+        }
+        assertEquals(HttpStatusCode.OK, newLogin.status)
+    }
+
+    @Test
+    fun `update password without token returns 401`() = authTest { client ->
+        val resp = client.put("/api/auth/password") {
+            contentType(ContentType.Application.Json)
+            setBody(UpdatePasswordRequest(oldPassword = "x", newPassword = "NewPass!2"))
+        }
+        assertEquals(HttpStatusCode.Unauthorized, resp.status)
+    }
+
+    // ---- DELETE /auth/account ----
+
+    @Test
+    fun `delete account with valid token returns 200 and removes credential from DB`() = authTest { client ->
+        val token = registerAndGetToken(client, "alice@example.com", "Passw0rd!")
+
+        val resp = client.delete("/api/auth/account") {
+            bearerAuth(token)
+        }
+        assertEquals(HttpStatusCode.OK, resp.status)
+
+        val dao = AuthDAO()
+        val stored = dao.getCredentialsForLogin("alice@example.com")
+        assertTrue(stored == null, "credential should have been deleted")
+    }
+
+    @Test
+    fun `delete account without token returns 401`() = authTest { client ->
+        val resp = client.delete("/api/auth/account")
+        assertEquals(HttpStatusCode.Unauthorized, resp.status)
+    }
+
+    // ---- helpers ----
+
+    private suspend fun registerAndGetToken(
+        client: io.ktor.client.HttpClient,
+        email: String,
+        password: String
+    ): String {
+        val resp = client.post("/api/auth/register") {
+            contentType(ContentType.Application.Json)
+            setBody(RegisterRequest(email, password, AuthProvider.REGULAR))
+        }
+        assertEquals(HttpStatusCode.Created, resp.status)
+        return resp.body<AuthResponse>().token
     }
 }

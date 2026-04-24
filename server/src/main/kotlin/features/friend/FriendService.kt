@@ -3,6 +3,7 @@ package com.carspotter.features.friend
 import com.carspotter.features.friend.dto.FriendDTO
 import com.carspotter.features.user.dto.UserDTO
 import com.carspotter.features.comment.dto.toDTO
+import com.carspotter.features.friend.dto.toDTO
 import com.carspotter.features.user.dto.toDTO
 import java.util.*
 

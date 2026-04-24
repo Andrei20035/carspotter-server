@@ -23,26 +23,27 @@ class FriendRequestDAO : IFriendRequestDAO {
                 .insertReturning(listOf(FriendRequestTable.senderId, FriendRequestTable.receiverId)) {
                     it[this.senderId] = senderId
                     it[this.receiverId] = receiverId
-                }.singleOrNull()?.get(FriendRequestTable.senderId) ?: throw IllegalStateException("Failed to add friend request to database")
+                }.singleOrNull()?.get(FriendRequestTable.senderId)
+                ?: throw IllegalStateException("Failed to add friend request to database")
         }
     }
 
     override suspend fun acceptFriendRequest(senderId: UUID, receiverId: UUID): Boolean {
+        // The friends table stores a single symmetric row and enforces
+        // user_id_1 < user_id_2 (chk_friend_pair_order). Sort the pair before inserting.
+        val (u1, u2) = if (senderId < receiverId) senderId to receiverId else receiverId to senderId
+
         return transaction {
             val deletedRows = FriendRequestTable.deleteWhere {
                 (FriendRequestTable.senderId eq senderId) and (FriendRequestTable.receiverId eq receiverId)
             }
 
-            val firstInsert = FriendTable.insert {
-                it[userId] = senderId
-                it[friendId] = receiverId
-            }
-            val secondInsert = FriendTable.insert {
-                it[userId] = receiverId
-                it[friendId] = senderId
+            val insert = FriendTable.insert {
+                it[userId1] = u1
+                it[userId2] = u2
             }
 
-            deletedRows == 1 && firstInsert.insertedCount == 1 && secondInsert.insertedCount == 1
+            deletedRows == 1 && insert.insertedCount == 1
         }
     }
 

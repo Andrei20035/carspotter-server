@@ -12,9 +12,8 @@ interface IAuthDAO {
     suspend fun createCredentials(authCredential: AuthCredential): UUID
     suspend fun getCredentialsForLogin(email: String): AuthCredential?
     suspend fun getCredentialsById(credentialId: UUID): AuthCredential?
-    suspend fun updatePassword(credentialId: UUID, newPassword: String): Int
+    suspend fun updatePassword(credentialId: UUID, newHashedPassword: String): Int
     suspend fun deleteCredentials(credentialId: UUID): Int
-    suspend fun getAllCredentials(): List<AuthCredential>
 }
 
 class AuthDAO : IAuthDAO {
@@ -34,7 +33,8 @@ class AuthDAO : IAuthDAO {
             AuthTable
                 .selectAll()
                 .where { AuthTable.email eq email }
-                .mapNotNull { row ->
+                .limit(1)
+                .map { row ->
                     AuthCredential(
                         id = row[AuthTable.id].value,
                         email = row[AuthTable.email],
@@ -43,7 +43,8 @@ class AuthDAO : IAuthDAO {
                         googleId = row[AuthTable.googleId]
                     )
                 }
-        }.singleOrNull()
+                .singleOrNull()
+        }
     }
 
     override suspend fun getCredentialsById(credentialId: UUID): AuthCredential? {
@@ -51,7 +52,8 @@ class AuthDAO : IAuthDAO {
             AuthTable
                 .selectAll()
                 .where { AuthTable.id eq credentialId }
-                .mapNotNull { row ->
+                .limit(1)
+                .map { row ->
                     AuthCredential(
                         id = row[AuthTable.id].value,
                         email = row[AuthTable.email],
@@ -63,11 +65,11 @@ class AuthDAO : IAuthDAO {
         }.singleOrNull()
     }
 
-    override suspend fun updatePassword(credentialId: UUID, newPassword: String): Int {
+    override suspend fun updatePassword(credentialId: UUID, newHashedPassword: String): Int {
         return transaction {
             AuthTable
                 .update ({ AuthTable.id eq credentialId}) {
-                    it[password] = newPassword
+                    it[password] = newHashedPassword
             }
         }
     }
@@ -78,21 +80,4 @@ class AuthDAO : IAuthDAO {
                 .deleteWhere { id eq credentialId }
         }
     }
-
-    override suspend fun getAllCredentials(): List<AuthCredential> {
-        return transaction {
-            AuthTable
-                .selectAll()
-                .mapNotNull { row ->
-                    AuthCredential(
-                        id = row[AuthTable.id].value,
-                        email = row[AuthTable.email],
-                        password = row[AuthTable.password],
-                        provider = AuthProvider.valueOf(row[AuthTable.provider].uppercase()),
-                        googleId = row[AuthTable.googleId]
-                    )
-                }
-        }
-    }
-
 }

@@ -93,7 +93,18 @@ CREATE TABLE posts (
                        ),
 
                        CONSTRAINT chk_latitude CHECK (latitude IS NULL OR latitude BETWEEN -90 AND 90),
-                       CONSTRAINT chk_longitude CHECK (longitude IS NULL OR longitude BETWEEN -180 AND 180)
+                       CONSTRAINT chk_longitude CHECK (longitude IS NULL OR longitude BETWEEN -180 AND 180),
+
+                       CONSTRAINT chk_posts_description_not_blank CHECK (description IS NULL OR LENGTH(TRIM(description)) > 0),
+                       CONSTRAINT chk_posts_description_max_length CHECK (description IS NULL OR LENGTH(description) <= 1000),
+                       CONSTRAINT chk_posts_location_pair
+                           CHECK (
+                               (latitude IS NULL AND longitude IS NULL)
+                                   OR
+                               (latitude IS NOT NULL AND longitude IS NOT NULL)
+                               ),
+                       CONSTRAINT chk_posts_custom_brand_not_blank CHECK (custom_brand IS NULL OR LENGTH(TRIM(custom_brand)) > 0),
+                       CONSTRAINT chk_posts_custom_model_not_blank CHECK (custom_model IS NULL OR LENGTH(TRIM(custom_model)) > 0)
 );
 
 CREATE INDEX idx_posts_user_created ON posts (user_id, created_at DESC);
@@ -126,6 +137,9 @@ CREATE TABLE comments (
 
                           CONSTRAINT chk_comment_text_not_blank CHECK (
                               LENGTH(TRIM(comment_text)) > 0
+                              ),
+                          CONSTRAINT chk_comment_text_max_length CHECK (
+                              LENGTH(comment_text) <= 1000
                               )
 );
 
@@ -180,12 +194,33 @@ CREATE INDEX idx_friend_requests_receiver ON friend_requests (receiver_id);
 -- ============================================================
 
 CREATE TABLE users_cars (
-                            id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                            user_id       UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
-                            car_model_id  UUID NOT NULL REFERENCES car_models(id) ON DELETE RESTRICT,
-                            image_path    TEXT NOT NULL,
-                            created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                            updated_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+
+                            id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                            user_id        UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+                            car_model_id   UUID REFERENCES car_models(id) ON DELETE RESTRICT,
+                            custom_brand   VARCHAR(50),
+                            custom_model   VARCHAR(80),
+                            image_path     TEXT NOT NULL,
+                            created_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            updated_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+                            CONSTRAINT chk_user_car_source CHECK (
+                                (
+                                    car_model_id IS NOT NULL
+                                        AND custom_brand IS NULL
+                                        AND custom_model IS NULL
+                                    )
+                                    OR
+                                (
+                                    car_model_id IS NULL
+                                        AND custom_brand IS NOT NULL
+                                        AND custom_model IS NOT NULL
+                                    )
+                                ),
+                            CONSTRAINT chk_users_cars_custom_brand_not_blank CHECK (custom_brand IS NULL OR LENGTH(TRIM(custom_brand)) > 0),
+                            CONSTRAINT chk_users_cars_custom_model_not_blank CHECK (custom_model IS NULL OR LENGTH(TRIM(custom_model)) > 0),
+                            CONSTRAINT chk_users_cars_image_path_not_blank CHECK (LENGTH(TRIM(image_path)) > 0)
+
 );
 
 CREATE TRIGGER set_users_cars_updated_at

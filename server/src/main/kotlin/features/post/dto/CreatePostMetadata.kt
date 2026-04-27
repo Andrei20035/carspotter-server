@@ -8,8 +8,10 @@ import java.util.UUID
 @Serializable
 data class CreatePostMetadata(
     @Serializable(with = UUIDSerializer::class)
-    val carModelId: UUID,
-    val latitude: Double,
-    val longitude: Double,
-    val description: String? = null
+    val carModelId: UUID? = null,
+    val customBrand: String? = null,
+    val customModel: String? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val caption: String? = null
 )

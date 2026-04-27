@@ -1,53 +1,86 @@
 package com.carspotter.features.user
 
 import com.carspotter.features.user.dto.UserDTO
-import com.carspotter.features.comment.dto.toDTO
 import com.carspotter.features.user.dto.toDTO
-import java.util.*
+import java.util.UUID
 
 interface IUserService {
-    suspend fun createUser(user: User): UUID
+    suspend fun createUserProfile(authCredentialId: UUID, user: User): UUID
     suspend fun getUserById(userId: UUID): UserDTO?
-    suspend fun getUserByUsername(username: String): List<UserDTO>
-    suspend fun getAllUsers(): List<UserDTO>
-    suspend fun updateProfilePicture(userId: UUID, imagePath: String): Int
-    suspend fun deleteUser(credentialId: UUID): Int
+    suspend fun getUserByAuthCredentialId(authCredentialId: UUID): UserDTO?
+    suspend fun updateProfilePicture(userId: UUID, imagePath: String): UserDTO
 }
 
 class UserService(
-    private val userRepository: IUserRepository
-): IUserService {
-    override suspend fun createUser(user: User): UUID {
-        return try {
-            userRepository.createUser(user)
-        } catch (e: UserCreationException) {
-            if (e.message?.contains("username") == true) {
-                throw UsernameAlreadyExistsException("Username is already taken")
-            }
-            throw e
+    private val userDao: IUserDAO
+) : IUserService {
+    companion object {
+        private const val minUsernameLength = 3
+        private const val maxUsernameLength = 50
+        private val usernameRegex = Regex("^[a-z0-9._]+$")
+    }
+
+    override suspend fun createUserProfile(authCredentialId: UUID, user: User): UUID {
+        require(user.authCredentialId == authCredentialId) { "authCredentialId mismatch" }
+        if (userDao.getUserByAuthCredentialId(authCredentialId) != null) {
+            throw UserProfileAlreadyExistsException("Profile already exists for this account")
         }
+
+        val normalizedUsername = normalizeUsername(user.username)
+        if (userDao.usernameExistsIgnoreCase(normalizedUsername)) {
+            throw UsernameAlreadyExistsException("Username is already taken")
+        }
+
+        val sanitizedProfilePicture = normalizeOptionalImagePath(user.profilePicturePath)
+
+        return userDao.createUser(
+            user.copy(
+                username = normalizedUsername,
+                profilePicturePath = sanitizedProfilePicture,
+            )
+        )
     }
 
-    override suspend fun getUserById(userId: UUID): UserDTO? {
-        return userRepository.getUserByID(userId)?.toDTO()
+    override suspend fun getUserById(userId: UUID): UserDTO? =
+        userDao.getUserById(userId)?.toDTO()
+
+    override suspend fun getUserByAuthCredentialId(authCredentialId: UUID): UserDTO? =
+        userDao.getUserByAuthCredentialId(authCredentialId)?.toDTO()
+
+    override suspend fun updateProfilePicture(userId: UUID, imagePath: String): UserDTO {
+        val normalizedImagePath = normalizeRequiredImagePath(imagePath)
+        val updatedRows = userDao.updateProfilePicture(userId, normalizedImagePath)
+        if (updatedRows == 0) {
+            throw UserNotFoundException(userId)
+        }
+        return requireNotNull(userDao.getUserById(userId)) { "Updated user could not be loaded" }.toDTO()
     }
 
-    override suspend fun getUserByUsername(username: String): List<UserDTO> {
-        return userRepository.getUserByUsername(username).map { it.toDTO() }
+    private fun normalizeUsername(username: String): String {
+        val normalized = username.trim().lowercase()
+        require(normalized.isNotBlank()) { "Username cannot be blank" }
+        require(normalized.length in minUsernameLength..maxUsernameLength) {
+            "Username must be between $minUsernameLength and $maxUsernameLength characters"
+        }
+        require(usernameRegex.matches(normalized)) {
+            "Username may contain only lowercase letters, digits, dot, and underscore"
+        }
+        return normalized
     }
 
-    override suspend fun getAllUsers(): List<UserDTO> {
-        return userRepository.getAllUsers().map { it.toDTO() }
+    private fun normalizeOptionalImagePath(imagePath: String?): String? {
+        return imagePath?.trim()?.takeIf { it.isNotEmpty() }
     }
 
-    override suspend fun updateProfilePicture(userId: UUID, imagePath: String): Int {
-        return userRepository.updateProfilePicture(userId, imagePath)
-    }
-
-    override suspend fun deleteUser(credentialId: UUID): Int {
-        return userRepository.deleteUser(credentialId)
+    private fun normalizeRequiredImagePath(imagePath: String): String {
+        val normalized = imagePath.trim()
+        require(normalized.isNotBlank()) { "Profile picture path cannot be blank" }
+        return normalized
     }
 }
 
-class UsernameAlreadyExistsException(message: String) : Exception(message)
+class UsernameAlreadyExistsException(message: String) : RuntimeException(message)
 
+class UserProfileAlreadyExistsException(message: String) : RuntimeException(message)
+
+class UserNotFoundException(userId: UUID) : RuntimeException("User $userId not found")

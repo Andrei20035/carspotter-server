@@ -1,55 +1,48 @@
 package com.carspotter.features.post
 
-import com.carspotter.core.serialization.InstantSerializer
-import com.carspotter.core.serialization.UUIDSerializer
-import kotlinx.serialization.Serializable
+import com.carspotter.features.car_model.CarModelTable
+import com.carspotter.features.user.UserTable
 import org.jetbrains.exposed.sql.ResultRow
 import java.time.Instant
 import java.util.*
 
-@Serializable
-data class FeedCursor(
-    @Serializable(with = InstantSerializer::class)
-    val lastCreatedAt: Instant,
-    @Serializable(with = UUIDSerializer::class)
-    val lastPostId: UUID
-)
-
-enum class FeedStage {
-    FRIENDS, NEARBY, GLOBAL
-}
-
 data class Post(
     val id: UUID = UUID.randomUUID(),
     val userId: UUID,
+    val username: String,
     val carModelId: UUID? = null,
-    val customBrand: String? = null,
-    val customModel: String? = null,
-    val imagePath: String,
+    val brand: String,
+    val model: String,
+    val imageKey: String,
     val latitude: Double? = null,
     val longitude: Double? = null,
-    val description: String? = null,
+    val caption: String? = null,
     val createdAt: Instant,
-    val updatedAt: Instant,
 )
 
 fun ResultRow.toPost(): Post {
+    val carBrand = if (this[PostTable.carModelId] != null) {
+        this[CarModelTable.brand]
+    } else {
+        this[PostTable.customBrand]
+    }
+    val carModel = if (this[PostTable.carModelId] != null) {
+        this[CarModelTable.model]
+    } else {
+        this[PostTable.customModel]
+    }
+
     return Post(
         id = this[PostTable.id].value,
         userId = this[PostTable.userId],
+        username = this[UserTable.username],
         carModelId = this[PostTable.carModelId],
-        imagePath = this[PostTable.imagePath],
-        description = this[PostTable.description],
+        brand = carBrand ?: error("Post ${this[PostTable.id].value} is missing brand"),
+        model = carModel ?: error("Post ${this[PostTable.id].value} is missing model"),
+        imageKey = this[PostTable.imageKey],
         latitude = this[PostTable.latitude],
         longitude = this[PostTable.longitude],
+        caption = this[PostTable.caption],
         createdAt = this[PostTable.createdAt],
-        updatedAt = this[PostTable.updatedAt]
-    )
-}
-
-fun Post.toCursor(): FeedCursor {
-    return FeedCursor(
-        lastCreatedAt = this.createdAt,
-        lastPostId = this.id,
     )
 }

@@ -1,9 +1,8 @@
-package com.carspotter.features.comment
+package features.comment
 
-import com.carspotter.features.comment.dto.CommentRequest
-import com.carspotter.features.post.IPostService
 import com.carspotter.core.util.getUuidClaim
 import com.carspotter.core.util.toUuidOrNull
+import com.carspotter.features.comment.dto.CommentRequest
 import io.ktor.http.*
 import io.ktor.server.auth.*
 import io.ktor.server.request.*
@@ -13,71 +12,53 @@ import org.koin.ktor.ext.inject
 
 fun Route.commentRoutes() {
     val commentService: ICommentService by application.inject()
-    val postService: IPostService by application.inject()
 
-        get("/comments/{postId}") {
+    route("/posts/{postId}/comments") {
+        get {
             val postId = call.parameters["postId"].toUuidOrNull()
-                ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid or missing postId"))
+                ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid postId"))
 
-            val comments = commentService.getCommentsForPost(postId)
-
-            if (comments.isEmpty()) {
-                return@get call.respond(HttpStatusCode.NoContent, mapOf("error" to "No comments found for this post"))
-            }
-
-            call.respond(HttpStatusCode.OK, comments)
+            // Listă goală e răspuns valid (200 OK + []).
+            // Nu verificăm dacă postul există — economie de o interogare.
+            call.respond(HttpStatusCode.OK, commentService.getCommentsForPost(postId))
         }
 
         authenticate("jwt") {
-            route("/comments") {
-                post {
-                    val request = call.receive<CommentRequest>()
-                    val userId = call.getUuidClaim("userId")
-                        ?: return@post call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Invalid or missing userId"))
+            post {
+                val postId = call.parameters["postId"].toUuidOrNull()
+                    ?: return@post call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid postId"))
+                val userId = call.getUuidClaim("userId")
+                    ?: return@post call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Invalid userId claim"))
 
-                    if (request.commentText.isBlank()) {
-                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Comment text cannot be blank"))
-                        return@post
-                    }
+                val req = call.receive<CommentRequest>()
 
-                    try {
-                        commentService.addComment(userId, request.postId, request.commentText)
-                        call.respond(HttpStatusCode.Created, mapOf("message" to "Comment created successfully"))
-                        return@post
-
-                    } catch (e: Exception) {
-                        call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Failed to create comment"))
-                        return@post
-                    }
-                }
-
-                delete("/{commentId}") {
-                    val commentId = call.parameters["commentId"].toUuidOrNull()
-                        ?: return@delete call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid or missing commentId"))
-
-                    val userId = call.getUuidClaim("userId")
-                        ?: return@delete call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Invalid or missing userId"))
-
-                    val comment = commentService.getCommentById(commentId)
-
-                    if (comment == null) {
-                        return@delete call.respond(HttpStatusCode.NotFound, mapOf("error" to "Comment not found"))
-                    }
-
-                    val postOwnerId = postService.getUserIdByPost(comment.postId)
-
-                    if (comment.userId != userId && postOwnerId != userId) {
-                        return@delete call.respond(HttpStatusCode.Forbidden, mapOf("error" to "You are not authorized to delete this comment"))
-                    }
-
-                    val rowsAffected = commentService.deleteComment(commentId)
-
-                    if (rowsAffected > 0) {
-                        call.respond(HttpStatusCode.OK, mapOf("message" to "Comment deleted successfully"))
-                    } else {
-                        call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Failed to delete comment"))
-                    }
+                try {
+                    val created = commentService.addComment(userId, postId, req.commentText)
+                    call.respond(HttpStatusCode.Created, created)
+                } catch (e: CommentValidationException) {
+                    call.respond(HttpStatusCode.BadRequest, mapOf("error" to e.message))
+                } catch (e: PostNotFoundException) {
+                    call.respond(HttpStatusCode.NotFound, mapOf("error" to "Post not found"))
                 }
             }
         }
     }
+
+    authenticate("jwt") {
+        delete("/comments/{commentId}") {
+            val commentId = call.parameters["commentId"].toUuidOrNull()
+                ?: return@delete call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid commentId"))
+            val userId = call.getUuidClaim("userId")
+                ?: return@delete call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Invalid userId claim"))
+
+            try {
+                commentService.deleteComment(commentId, userId)
+                call.respond(HttpStatusCode.NoContent)
+            } catch (e: CommentNotFoundException) {
+                call.respond(HttpStatusCode.NotFound, mapOf("error" to "Comment not found"))
+            } catch (e: CommentForbiddenException) {
+                call.respond(HttpStatusCode.Forbidden, mapOf("error" to "Not authorized"))
+            }
+        }
+    }
+}

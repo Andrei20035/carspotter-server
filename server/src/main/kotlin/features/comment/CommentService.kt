@@ -1,36 +1,51 @@
-package com.carspotter.features.comment
+package features.comment
 
 import com.carspotter.features.comment.dto.CommentDTO
 import com.carspotter.features.comment.dto.toDTO
-import java.util.*
+import org.jetbrains.exposed.exceptions.ExposedSQLException
+import java.util.UUID
+
+class PostNotFoundException(postId: UUID) : RuntimeException("Post $postId does not exist")
+class CommentNotFoundException(commentId: UUID) : RuntimeException("Comment $commentId not found")
+class CommentForbiddenException : RuntimeException("Not authorized to delete this comment")
+class CommentValidationException(msg: String) : RuntimeException(msg)
 
 interface ICommentService {
-    suspend fun addComment(userId: UUID, postId: UUID, commentText: String): UUID
-    suspend fun deleteComment(commentId: UUID): Int
+    suspend fun addComment(userId: UUID, postId: UUID, commentText: String): CommentDTO
+    suspend fun deleteComment(commentId: UUID, requesterId: UUID)
     suspend fun getCommentsForPost(postId: UUID): List<CommentDTO>
-    suspend fun getCommentById(commentId: UUID): CommentDTO?
 }
 
 class CommentService(
-    private val commentRepository: ICommentRepository,
-): ICommentService {
-    override suspend fun addComment(userId: UUID, postId: UUID, commentText: String): UUID {
+    private val commentDao: ICommentDAO,
+) : ICommentService {
+
+    companion object {
+        const val MAX_COMMENT_LENGTH = 1000
+    }
+
+    override suspend fun addComment(userId: UUID, postId: UUID, commentText: String): CommentDTO {
+        val text = commentText.trim()
+        if (text.isBlank()) throw CommentValidationException("Comment text cannot be blank")
+        if (text.length > MAX_COMMENT_LENGTH) {
+            throw CommentValidationException("Comment text exceeds $MAX_COMMENT_LENGTH characters")
+        }
+
         return try {
-            commentRepository.addComment(userId, postId, commentText)
-        } catch (e: IllegalStateException) {
-            throw IllegalArgumentException("Failed to add comment: $commentText", e)
+            commentDao.addComment(userId, postId, text).toDTO()
+        } catch (e: ExposedSQLException) {
+            if (e.sqlState == "23503") throw PostNotFoundException(postId)
+            throw e
         }
     }
 
-    override suspend fun deleteComment(commentId: UUID): Int {
-        return commentRepository.deleteComment(commentId)
+    override suspend fun deleteComment(commentId: UUID, requesterId: UUID) {
+        val comment = commentDao.getCommentById(commentId)
+            ?: throw CommentNotFoundException(commentId)
+        if (comment.userId != requesterId) throw CommentForbiddenException()
+        commentDao.deleteComment(commentId)
     }
 
-    override suspend fun getCommentsForPost(postId: UUID): List<CommentDTO> {
-        return commentRepository.getCommentsForPost(postId).map { it.toDTO() }
-    }
-
-    override suspend fun getCommentById(commentId: UUID): CommentDTO? {
-        return commentRepository.getCommentById(commentId)?.toDTO()
-    }
+    override suspend fun getCommentsForPost(postId: UUID): List<CommentDTO> =
+        commentDao.getCommentsForPost(postId).map { it.toDTO() }
 }

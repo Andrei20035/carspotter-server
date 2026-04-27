@@ -2,6 +2,8 @@ package testutils
 
 import com.carspotter.config.configureSecurity
 import com.carspotter.config.configureSerialization
+import com.carspotter.core.storage.IStorageService
+import com.carspotter.core.storage.LocalImageStorageService
 import com.carspotter.features.auth.AuthDAO
 import com.carspotter.features.auth.AuthService
 import com.carspotter.features.auth.GoogleTokenVerifier
@@ -9,11 +11,42 @@ import com.carspotter.features.auth.IAuthDAO
 import com.carspotter.features.auth.IAuthService
 import com.carspotter.features.auth.JwtService
 import com.carspotter.features.auth.authRoutes
+import com.carspotter.features.car_model.CarModelDAO
+import com.carspotter.features.car_model.CarModelService
+import com.carspotter.features.car_model.ICarModelDAO
+import com.carspotter.features.car_model.ICarModelService
+import com.carspotter.features.car_model.carModelRoutes
+import com.carspotter.features.post.IPostDAO
+import com.carspotter.features.post.IPostService
+import com.carspotter.features.post.PostDAO
+import com.carspotter.features.post.PostServiceImpl
+import com.carspotter.features.post.postRoutes
+import com.carspotter.features.user.IUserDAO
+import com.carspotter.features.user.IUserService
+import com.carspotter.features.user.UserDao
+import com.carspotter.features.user.UserService
+import com.carspotter.features.user.userRoutes
+import com.carspotter.features.user_car.IUserCarDAO
+import com.carspotter.features.user_car.IUserCarService
+import com.carspotter.features.user_car.UserCarDAO
+import com.carspotter.features.user_car.UserCarServiceImpl
+import com.carspotter.features.user_car.userCarRoutes
+import features.comment.CommentDAO
+import features.comment.ICommentDAO
+import features.comment.CommentService
+import features.comment.ICommentService
+import features.comment.commentRoutes
+import features.like.ILikeDAO
+import features.like.ILikeService
+import features.like.LikeDAO
+import features.like.LikeService
+import features.like.likeRoutes
 import io.ktor.server.application.*
 import io.ktor.server.routing.*
 import org.koin.core.context.stopKoin
 import org.koin.dsl.module
 import org.koin.ktor.plugin.Koin
+import java.nio.file.Files
 
 object TestEnv {
     const val JWT_SECRET = "test-secret-please-change"
@@ -85,6 +118,181 @@ fun Application.testAuthModule(googleTokenVerifier: GoogleTokenVerifier) {
     routing {
         route("/api") {
             authRoutes()
+        }
+    }
+}
+
+/**
+ * Modul Ktor pentru testele rutei /car-models.
+ * NU invocă configureDatabases (DB-ul e deja pornit de TestDatabaseFactory).
+ * NU pornește Koin pentru auth — ține doar dependențele necesare aici.
+ */
+fun Application.testCarModelModule() {
+    val koinTestModule = module {
+        single<ICarModelDAO> { CarModelDAO() }
+        single<ICarModelService> { CarModelService(get()) }
+    }
+
+    install(Koin) {
+        modules(koinTestModule)
+    }
+
+    configureSerialization()
+
+    install(RoutingRoot)
+
+    routing {
+        route("/api") {
+            carModelRoutes()
+        }
+    }
+}
+
+/**
+ * Modul Ktor pentru testele rutei /posts/{postId}/comments și /comments/{id}.
+ * Folosește același config JWT ca testele de auth.
+ */
+fun Application.testCommentModule() {
+    val koinTestModule = module {
+        single<ICommentDAO> { CommentDAO() }
+        single<ICommentService> { CommentService(get()) }
+        single {
+            JwtService(
+                jwtSecret = TestEnv.JWT_SECRET,
+                jwtIssuer = TestEnv.JWT_ISSUER,
+                jwtAudience = TestEnv.JWT_AUDIENCE
+            )
+        }
+    }
+
+    install(Koin) { modules(koinTestModule) }
+
+    configureSerialization()
+    configureSecurity()  // instalează autentificarea "jwt" cu setările din TestEnv
+
+    install(RoutingRoot)
+
+    routing {
+        route("/api") {
+            commentRoutes()
+        }
+    }
+}
+
+/**
+ * Modul Ktor pentru testele rutelor /posts/{postId}/likes.
+ * Folosește același config JWT ca testele de auth.
+ */
+fun Application.testLikeModule() {
+    val koinTestModule = module {
+        single<ILikeDAO> { LikeDAO() }
+        single<ILikeService> { LikeService(get()) }
+        single {
+            JwtService(
+                jwtSecret = TestEnv.JWT_SECRET,
+                jwtIssuer = TestEnv.JWT_ISSUER,
+                jwtAudience = TestEnv.JWT_AUDIENCE
+            )
+        }
+    }
+
+    install(Koin) { modules(koinTestModule) }
+
+    configureSerialization()
+    configureSecurity()
+
+    install(RoutingRoot)
+
+    routing {
+        route("/api") {
+            likeRoutes()
+        }
+    }
+}
+
+fun Application.testPostModule() {
+    val uploadsDir = Files.createTempDirectory("posts-route-test-uploads")
+    val koinTestModule = module {
+        single<ICarModelDAO> { CarModelDAO() }
+        single<IPostDAO> { PostDAO() }
+        single<IStorageService> { LocalImageStorageService(uploadsDir, "http://localhost:8080") }
+        single<IPostService> { PostServiceImpl(get(), get(), get()) }
+        single {
+            JwtService(
+                jwtSecret = TestEnv.JWT_SECRET,
+                jwtIssuer = TestEnv.JWT_ISSUER,
+                jwtAudience = TestEnv.JWT_AUDIENCE
+            )
+        }
+    }
+
+    install(Koin) { modules(koinTestModule) }
+
+    configureSerialization()
+    configureSecurity()
+
+    install(RoutingRoot)
+
+    routing {
+        route("/api") {
+            postRoutes()
+        }
+    }
+}
+
+fun Application.testUserCarModule() {
+    val uploadsDir = Files.createTempDirectory("user-car-route-test-uploads")
+    val koinTestModule = module {
+        single<ICarModelDAO> { CarModelDAO() }
+        single<IUserCarDAO> { UserCarDAO() }
+        single<IStorageService> { LocalImageStorageService(uploadsDir, "http://localhost:8080") }
+        single<IUserCarService> { UserCarServiceImpl(get(), get(), get()) }
+        single {
+            JwtService(
+                jwtSecret = TestEnv.JWT_SECRET,
+                jwtIssuer = TestEnv.JWT_ISSUER,
+                jwtAudience = TestEnv.JWT_AUDIENCE
+            )
+        }
+    }
+
+    install(Koin) { modules(koinTestModule) }
+
+    configureSerialization()
+    configureSecurity()
+
+    install(RoutingRoot)
+
+    routing {
+        route("/api") {
+            userCarRoutes()
+        }
+    }
+}
+
+fun Application.testUserModule() {
+    val koinTestModule = module {
+        single<IUserDAO> { UserDao() }
+        single<IUserService> { UserService(get()) }
+        single {
+            JwtService(
+                jwtSecret = TestEnv.JWT_SECRET,
+                jwtIssuer = TestEnv.JWT_ISSUER,
+                jwtAudience = TestEnv.JWT_AUDIENCE
+            )
+        }
+    }
+
+    install(Koin) { modules(koinTestModule) }
+
+    configureSerialization()
+    configureSecurity()
+
+    install(RoutingRoot)
+
+    routing {
+        route("/api") {
+            userRoutes()
         }
     }
 }

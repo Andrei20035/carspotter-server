@@ -10,10 +10,10 @@ import com.carspotter.config.configureSockets
 import com.carspotter.core.di.appModule
 import com.carspotter.features.auth.authModule
 import com.carspotter.features.car_model.carModelModule
-import com.carspotter.features.comment.commentModule
+import features.comment.commentModule
 import com.carspotter.features.friend.friendModule
 import com.carspotter.features.friend_request.friendRequestModule
-import com.carspotter.features.like.likeModule
+import features.like.likeModule
 import com.carspotter.features.post.postModule
 import com.carspotter.features.user.userModule
 import com.carspotter.features.user_car.userCarModule

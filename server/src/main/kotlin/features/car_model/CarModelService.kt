@@ -1,50 +1,25 @@
 package com.carspotter.features.car_model
 
-import java.util.*
+import com.carspotter.features.car_model.dto.CarModelOption
 
 interface ICarModelService {
-    suspend fun getCarModelId(brand: String, model: String): UUID?
     suspend fun getAllCarBrands(): List<String>
-    suspend fun getCarModelsForBrand(brand: String): List<String>
-    suspend fun createCarModel(carModel: CarModel): UUID
-    suspend fun getCarModelById(carModelId: UUID): CarModel?
-    suspend fun getAllCarModels(): List<CarModel>
-    suspend fun deleteCarModel(carModelId: UUID): Int
+    suspend fun getCarModelsForBrand(brand: String): List<CarModelOption>
 }
 
 class CarModelService(
-    private val carModelRepository: ICarModelRepository
-): ICarModelService {
-    override suspend fun getCarModelId(brand: String, model: String): UUID? {
-        return carModelRepository.getCarModelId(brand, model)
+    private val carModelDao: ICarModelDAO
+) : ICarModelService {
+
+    override suspend fun getAllCarBrands(): List<String> =
+        carModelDao.getAllCarBrands()
+
+    override suspend fun getCarModelsForBrand(brand: String): List<CarModelOption> {
+        val normalizedBrand = normalizeCarText(brand)
+        return carModelDao.getCarModelsForBrand(normalizedBrand)
     }
 
-    override suspend fun getAllCarBrands(): List<String> {
-        return carModelRepository.getAllCarBrands()
+    private fun normalizeCarText(value: String): String {
+        return value.trim().lowercase()
     }
-
-    override suspend fun getCarModelsForBrand(brand: String): List<String> {
-        return carModelRepository.getCarModelsForBrand(brand)
-    }
-
-    override suspend fun createCarModel(carModel: CarModel): UUID {
-        return try {
-            carModelRepository.createCarModel(carModel)
-        } catch (e: IllegalStateException) {
-            throw IllegalArgumentException( "Failed to add car model: ${carModel.brand} ${carModel.model}", e)
-        }
-    }
-
-    override suspend fun getCarModelById(carModelId: UUID): CarModel? {
-        return carModelRepository.getCarModel(carModelId)
-    }
-
-    override suspend fun getAllCarModels(): List<CarModel> {
-        return carModelRepository.getAllCarModels()
-    }
-
-    override suspend fun deleteCarModel(carModelId: UUID): Int {
-        return carModelRepository.deleteCarModel(carModelId)
-    }
-
 }

@@ -1,43 +1,42 @@
-package com.carspotter.features.like
+package features.like
 
-import com.carspotter.features.user.dto.UserDTO
-import com.carspotter.features.comment.dto.toDTO
-import com.carspotter.features.user.dto.toDTO
-import java.util.*
+import org.jetbrains.exposed.exceptions.ExposedSQLException
+import java.util.UUID
+
+class LikePostNotFoundException(postId: UUID) : RuntimeException("Post $postId not found")
 
 interface ILikeService {
-    suspend fun likePost(userId: UUID, postId: UUID): UUID
-    suspend fun unlikePost(userId: UUID, postId: UUID): Int
-    suspend fun getLikesForPost(postId: UUID): List<UserDTO>
+    suspend fun toggleLike(userId: UUID, postId: UUID): LikeStatusDTO
+    suspend fun getLikeStatus(postId: UUID, userId: UUID?): LikeStatusDTO
 }
 
-class LikeServiceImpl(
-    private val likeRepository: ILikeRepository
-): ILikeService {
-    override suspend fun likePost(userId: UUID, postId: UUID): UUID {
-        val exists = likeRepository.hasUserLikedPost(userId, postId)
+class LikeService(
+    private val likeDao: ILikeDAO,
+) : ILikeService {
 
-        if (exists) {
-            throw DuplicateLikeException("User $userId has already liked post $postId")
+    override suspend fun toggleLike(userId: UUID, postId: UUID): LikeStatusDTO {
+        val alreadyLiked = likeDao.hasUserLikedPost(userId, postId)
+
+        if (alreadyLiked) {
+            likeDao.unlikePost(userId, postId)
+        } else {
+            try {
+                likeDao.likePost(userId, postId)
+            } catch (e: ExposedSQLException) {
+                // sqlState 23503 = FK violation → postId nu există
+                if (e.sqlState == "23503") throw LikePostNotFoundException(postId)
+                throw e
+            }
         }
 
-        return try {
-            likeRepository.likePost(userId, postId)
-        } catch (e: IllegalStateException) {
-            throw LikeCreationException("Failed to like post $postId for user $userId", e)
-        }
+        val count = likeDao.getLikeCount(postId)
+        val liked = !alreadyLiked
+        return LikeStatusDTO(liked = liked, count = count)
     }
 
-    override suspend fun unlikePost(userId: UUID, postId: UUID): Int {
-        val exists = likeRepository.hasUserLikedPost(userId, postId)
-        if(!exists) return 0
-        return likeRepository.unlikePost(userId, postId)
-    }
-
-    override suspend fun getLikesForPost(postId: UUID): List<UserDTO> {
-        return likeRepository.getLikesForPost(postId).map { it.toDTO() }
+    override suspend fun getLikeStatus(postId: UUID, userId: UUID?): LikeStatusDTO {
+        val count = likeDao.getLikeCount(postId)
+        val liked = userId?.let { likeDao.hasUserLikedPost(it, postId) } ?: false
+        return LikeStatusDTO(liked = liked, count = count)
     }
 }
-
-class LikeCreationException(message: String, cause: Throwable? = null) : RuntimeException(message, cause)
-class DuplicateLikeException(message: String, cause: Throwable? = null) : Exception(message, cause)

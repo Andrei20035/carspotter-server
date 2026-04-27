@@ -2,10 +2,10 @@ package com.carspotter.config
 
 import com.carspotter.features.auth.authRoutes
 import com.carspotter.features.car_model.carModelRoutes
-import com.carspotter.features.comment.commentRoutes
+import features.comment.commentRoutes
 import com.carspotter.features.friend.friendRoutes
 import com.carspotter.features.friend_request.friendRequestRoutes
-import com.carspotter.features.like.likeRoutes
+import features.like.likeRoutes
 import com.carspotter.features.post.postRoutes
 import com.carspotter.features.user.userRoutes
 import com.carspotter.features.user_car.userCarRoutes

@@ -1,98 +1,42 @@
 package com.carspotter.features.car_model
 
+import com.carspotter.features.car_model.dto.CarModelOption
 import org.jetbrains.exposed.sql.*
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.transaction
-import java.util.*
 
 interface ICarModelDAO {
-    suspend fun getCarModelId(brand: String, model: String): UUID?
     suspend fun getAllCarBrands(): List<String>
-    suspend fun getCarModelsForBrand(brand: String): List<String>
-    suspend fun createCarModel(carModel: CarModel): UUID
-    suspend fun getCarModel(carModelId: UUID): CarModel?
-    suspend fun getAllCarModels(): List<CarModel>
-    suspend fun deleteCarModel(carModelId: UUID): Int
+    suspend fun getCarModelsForBrand(brand: String): List<CarModelOption>
+    suspend fun exists(carModelId: java.util.UUID): Boolean
 }
 
 class CarModelDAO : ICarModelDAO {
-    override suspend fun createCarModel(carModel: CarModel): UUID {
-        return transaction {
-            CarModelTable
-                .insertReturning(listOf(CarModelTable.id)) {
-                    it[brand] = carModel.brand
-                    it[model] = carModel.model
-                }.singleOrNull()?.get(CarModelTable.id)?.value ?: throw IllegalStateException("Failed to insert car model")
-        }
+    override suspend fun getAllCarBrands(): List<String> = transaction {
+        CarModelTable
+            .select(CarModelTable.brand)
+            .withDistinct()
+            .orderBy(CarModelTable.brand to SortOrder.ASC)
+            .map { it[CarModelTable.brand] }
     }
 
-    override suspend fun getCarModel(carModelId: UUID): CarModel? {
-        return transaction {
-            CarModelTable
-                .selectAll()
-                .where { CarModelTable.id eq carModelId }
-                .mapNotNull { row ->
-                    CarModel(
-                        id = row[CarModelTable.id].value,
-                        brand = row[CarModelTable.brand],
-                        model = row[CarModelTable.model],
-                    )
-                }.singleOrNull()
-        }
+    override suspend fun getCarModelsForBrand(brand: String): List<CarModelOption> = transaction {
+        CarModelTable
+            .select(CarModelTable.id, CarModelTable.model)
+            .where { CarModelTable.brand eq brand }
+            .orderBy(CarModelTable.model to SortOrder.ASC)
+            .map {
+                CarModelOption(
+                    id = it[CarModelTable.id].value,
+                    model = it[CarModelTable.model],
+                )
+            }
     }
 
-    override suspend fun getCarModelId(brand: String, model: String): UUID? {
-        return transaction {
-            CarModelTable
-                .selectAll()
-                .where { (CarModelTable.brand eq brand) and (CarModelTable.model eq model) }
-                .mapNotNull { it[CarModelTable.id].value }
-                .singleOrNull()
-        }
+    override suspend fun exists(carModelId: java.util.UUID): Boolean = transaction {
+        CarModelTable
+            .select(CarModelTable.id)
+            .where { CarModelTable.id eq carModelId }
+            .limit(1)
+            .any()
     }
-
-    override suspend fun getAllCarBrands(): List<String> {
-        return transaction {
-            CarModelTable
-                .select(CarModelTable.brand)
-                .withDistinct()
-                .orderBy(CarModelTable.brand to SortOrder.ASC)
-                .map { it[CarModelTable.brand] }
-        }
-    }
-
-    override suspend fun getCarModelsForBrand(brand: String): List<String> {
-        return transaction {
-            CarModelTable
-                .select(CarModelTable.model)
-                .orderBy(CarModelTable.model to SortOrder.ASC)
-                .where { CarModelTable.brand eq brand }
-                .withDistinct()
-                .map { it[CarModelTable.model] }
-        }
-    }
-
-    override suspend fun getAllCarModels(): List<CarModel> {
-        return transaction {
-            CarModelTable
-                .selectAll()
-                .orderBy(CarModelTable.brand to SortOrder.ASC, CarModelTable.model to SortOrder.ASC)
-                .mapNotNull { row ->
-                    CarModel(
-                        id = row[CarModelTable.id].value,
-                        brand = row[CarModelTable.brand],
-                        model = row[CarModelTable.model],
-                    )
-                }
-        }
-    }
-
-    override suspend fun deleteCarModel(carModelId: UUID): Int {
-        return transaction {
-            CarModelTable
-                .deleteWhere { id eq carModelId }
-        }
-    }
-
-
 }

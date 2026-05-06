@@ -129,10 +129,21 @@ class AuthService(
     }
 
     override suspend fun googleLogin(googleIdToken: String): AuthDTO? {
+        println("googleLogin called")
+        println("googleLogin token exists: ${googleIdToken.isNotBlank()}")
+
         val googleUser = googleTokenVerifier.verify(googleIdToken)
             ?: return null
 
+        println("googleLogin verified: ${googleUser != null}")
+        println("googleLogin email: ${googleUser?.email}")
+        println("googleLogin googleId exists: ${!googleUser?.googleId.isNullOrBlank()}")
+
         val existingCredential = authDao.getCredentialsForLogin(googleUser.email)
+
+        println("existingCredential exists: ${existingCredential != null}")
+        println("existingCredential provider: ${existingCredential?.provider}")
+        println("existingCredential googleId matches: ${existingCredential?.googleId == googleUser.googleId}")
 
         return when {
             existingCredential != null &&
@@ -143,7 +154,7 @@ class AuthService(
 
             existingCredential != null &&
                     existingCredential.provider != AuthProvider.GOOGLE -> {
-                null
+                throw IllegalArgumentException("This email is already registered with password login.")
             }
 
             existingCredential == null -> {

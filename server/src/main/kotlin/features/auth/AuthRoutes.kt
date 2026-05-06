@@ -109,52 +109,62 @@ fun Route.authRoutes() {
         post("/login") {
             val request = call.receive<LoginRequest>()
 
-            val result = when (request.provider) {
-                AuthProvider.REGULAR -> {
-                    val email = request.email
-                        ?.trim()
-                        ?.lowercase()
-                        ?: run {
-                            call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Email is required"))
+            val result = try {
+                when (request.provider) {
+                    AuthProvider.REGULAR -> {
+                        val email = request.email
+                            ?.trim()
+                            ?.lowercase()
+                            ?: run {
+                                call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Email is required"))
+                                return@post
+                            }
+
+                        if (!isValidEmail(email)) {
+                            call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid email format"))
                             return@post
                         }
 
-                    if (!isValidEmail(email)) {
-                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid email format"))
-                        return@post
+                        val password = request.password
+                            ?: run {
+                                call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Password is required"))
+                                return@post
+                            }
+
+                        if (!isValidPassword(password)) {
+                            call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Password must be at least 8 characters long"))
+                            return@post
+                        }
+                        authService.regularLogin(email, password)
                     }
-
-                    val password = request.password
-                        ?: run {
-                            call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Password is required"))
-                            return@post
-                        }
-
-                    if (!isValidPassword(password)) {
-                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Password must be at least 8 characters long"))
-                        return@post
+                    AuthProvider.GOOGLE -> {
+                        val googleIdToken = request.googleIdToken
+                            ?: run {
+                                call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Google ID token is required"))
+                                return@post
+                            }
+                        println("LOGIN GOOGLE token exists: ${googleIdToken.isNotBlank()}")
+                        authService.googleLogin(googleIdToken)
                     }
-                    authService.regularLogin(email, password)
                 }
-                AuthProvider.GOOGLE -> {
-                    val googleIdToken = request.googleIdToken
-                        ?: run {
-                            call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Google ID token is required"))
-                            return@post
-                        }
-                    authService.googleLogin(googleIdToken)
-                }
+            } catch (e: IllegalArgumentException) {
+                call.respond(HttpStatusCode.BadRequest, mapOf("error" to e.message))
+                return@post
             }
             if (result != null) {
                 val token = jwtService.generateJwtToken(
+                    userId = result.userId,
                     credentialId = result.id,
                     email = result.email
                 )
+                val onboardingStep =
+                    if (result.userId == null) OnboardingStep.PROFILE_REQUIRED
+                    else OnboardingStep.COMPLETED
                 call.respond(
                     HttpStatusCode.OK,
                     AuthResponse(
                         token = token,
-                        onboardingStep = OnboardingStep.COMPLETED
+                        onboardingStep = onboardingStep
                     )
                 )
             } else {

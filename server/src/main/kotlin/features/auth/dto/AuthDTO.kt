@@ -8,6 +8,7 @@ data class AuthDTO(
     val id: UUID,
     val email: String,
     val provider: AuthProvider,
+    val userId: UUID? = null,
 )
 
 fun AuthCredential.toDTO(): AuthDTO {
@@ -15,5 +16,6 @@ fun AuthCredential.toDTO(): AuthDTO {
         id = this.id!!,
         email = this.email,
         provider = this.provider,
+        userId = this.id
     )
 }

@@ -49,7 +49,7 @@ import org.koin.ktor.plugin.Koin
 import java.nio.file.Files
 
 object TestEnv {
-    const val JWT_SECRET = "test-secret-please-change"
+    val JWT_SECRET: String = "test-${java.util.UUID.randomUUID()}"
     const val JWT_ISSUER = "test-issuer"
     const val JWT_AUDIENCE = "test-audience"
 }

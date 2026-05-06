@@ -571,29 +571,29 @@ curl -X POST http://localhost:8080/api/posts/$POST_ID/likes \
 The Docker Postgres init script creates separate development, testing, and production databases/users. When using `server/docker-compose.yml`, provide:
 
 ```env
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
+POSTGRES_USER=
+POSTGRES_PASSWORD=
 
-DEV_DB=carspotter_dev
-DEV_USER=carspotter_dev
-DEV_PASSWORD=change-me
-DEV_DB_URL=postgresql://postgres:5432/carspotter_dev
+DEV_DB=
+DEV_USER=
+DEV_PASSWORD=
+DEV_DB_URL=
 
-TEST_DB=carspotter_test
-TEST_DB_USER=carspotter_test
-TEST_DB_PASSWORD=change-me
-TEST_DB_URL=postgresql://postgres:5432/carspotter_test
+TEST_DB=
+TEST_DB_USER=
+TEST_DB_PASSWORD=
+TEST_DB_URL=
 
-PROD_DB=carspotter_prod
-PROD_USER=carspotter_prod
-PROD_PASSWORD=change-me
-PROD_DB_URL=postgresql://postgres:5432/carspotter_prod
+PROD_DB=
+PROD_USER=
+PROD_PASSWORD=
+PROD_DB_URL=
 
 KTOR_ENV=development
-JWT_SECRET=replace-with-a-long-random-secret
-JWT_ISSUER=carspotter
-JWT_AUDIENCE=carspotter-mobile
-GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+JWT_SECRET=
+JWT_ISSUER=
+JWT_AUDIENCE=
+GOOGLE_CLIENT_ID=
 LOCAL_STORAGE_BASE_DIR=uploads
 PUBLIC_BASE_URL=http://localhost:8080
 ```

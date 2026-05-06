@@ -4,6 +4,12 @@ build/
 !**/src/main/**/build/
 !**/src/test/**/build/
 server/.env
+server/local.properties
+server/.kotlin/
+*.local
+*.log
+.DS_Store
+**/.DS_Store
 
 ### STS ###
 .apt_generated
@@ -26,6 +32,8 @@ out/
 !**/src/main/**/out/
 !**/src/test/**/out/
 .env
+*.env
+!.env.example
 */scripts/scrapper/cars.csv
 ### NetBeans ###
 /nbproject/private/

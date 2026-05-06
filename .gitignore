@@ -10,6 +10,8 @@ server/.kotlin/
 *.log
 .DS_Store
 **/.DS_Store
+.idea
+.junie
 
 ### STS ###
 .apt_generated

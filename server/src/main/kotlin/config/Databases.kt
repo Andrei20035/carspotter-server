@@ -56,4 +56,5 @@ fun Application.configureDatabases() {
     Database.connect(dataSource)
 
     environment.log.info("Database connected and migrations applied using Flyway for env=$ktorEnv")
+
 }

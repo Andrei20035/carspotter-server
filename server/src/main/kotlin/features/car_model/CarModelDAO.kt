@@ -22,7 +22,7 @@ class CarModelDAO : ICarModelDAO {
     override suspend fun getCarModelsForBrand(brand: String): List<CarModelOption> = transaction {
         CarModelTable
             .select(CarModelTable.id, CarModelTable.model)
-            .where { CarModelTable.brand eq brand }
+            .where { CarModelTable.brand.lowerCase() eq brand }
             .orderBy(CarModelTable.model to SortOrder.ASC)
             .map {
                 CarModelOption(

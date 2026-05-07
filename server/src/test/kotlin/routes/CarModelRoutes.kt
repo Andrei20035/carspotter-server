@@ -138,6 +138,18 @@ class CarModelRoutesTest {
     }
 
     @Test
+    fun `GET models works when stored brand is uppercase like imported CSV`() = carModelTest { client ->
+        CarModelTestSeed.insertModel("ARO", "10 Series")
+        CarModelTestSeed.insertModel("ARO", "24 Series")
+
+        val resp = client.get("/api/car-models/brands/ARO/models")
+
+        assertEquals(HttpStatusCode.OK, resp.status)
+        val body: List<CarModelOption> = resp.body()
+        assertEquals(listOf("10 Series", "24 Series"), body.map { it.model })
+    }
+
+    @Test
     fun `GET models works with URL-encoded multi-word brand`() = carModelTest { client ->
         CarModelTestSeed.seedDefault()
 

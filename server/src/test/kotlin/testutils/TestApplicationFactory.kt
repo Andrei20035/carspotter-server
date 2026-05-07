@@ -271,9 +271,11 @@ fun Application.testUserCarModule() {
 }
 
 fun Application.testUserModule() {
+    val uploadsDir = Files.createTempDirectory("user-route-test-uploads")
     val koinTestModule = module {
         single<IUserDAO> { UserDao() }
         single<IUserService> { UserService(get()) }
+        single<IStorageService> { LocalImageStorageService(uploadsDir, "http://localhost:8080") }
         single {
             JwtService(
                 jwtSecret = TestEnv.JWT_SECRET,

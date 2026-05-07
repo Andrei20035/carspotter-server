@@ -12,7 +12,8 @@ server/.kotlin/
 **/.DS_Store
 .idea
 .junie
-
+server/scripts/
+server/cars.csv
 ### STS ###
 .apt_generated
 .classpath

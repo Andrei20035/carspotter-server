@@ -108,15 +108,15 @@ class CarModelDaoTest {
     }
 
     @Test
-    fun `getCarModelsForBrand returns empty list for brand with different case`() = runTest {
-        // Confirmăm că DAO-ul NU normalizează — normalizarea e responsabilitatea service-ului.
-        // DB are doar "bmw" lowercase. Cererea cu "BMW" trebuie să întoarcă listă goală
-        // dacă vine direct la DAO fără normalizare prealabilă.
-        CarModelTestSeed.insertModel("bmw", "m3")
+    fun `getCarModelsForBrand matches stored brand ignoring case`() = runTest {
+        // Datele reale importate din CSV pot veni uppercase (ex: ARO).
+        // Service-ul normalizează inputul la lowercase, iar DAO-ul trebuie să găsească brandul stocat.
+        CarModelTestSeed.insertModel("ARO", "10 Series")
+        CarModelTestSeed.insertModel("ARO", "24 Series")
 
-        val models = dao.getCarModelsForBrand("BMW")
+        val models = dao.getCarModelsForBrand("aro")
 
-        assertTrue(models.isEmpty(), "DAO is case-sensitive by design; service handles normalization")
+        assertEquals(listOf("10 Series", "24 Series"), models.map { it.model })
     }
 
     // ---------- unique constraint ----------

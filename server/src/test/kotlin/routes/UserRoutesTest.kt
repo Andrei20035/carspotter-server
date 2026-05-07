@@ -12,7 +12,12 @@ import io.ktor.client.request.get
 import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.client.request.forms.MultiPartFormDataContent
+import io.ktor.client.request.forms.formData
+import io.ktor.http.ContentDisposition
 import io.ktor.http.ContentType
+import io.ktor.http.Headers
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
@@ -22,6 +27,7 @@ import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -75,6 +81,31 @@ class UserRoutesTest {
 
     private fun profileToken(credentialId: UUID, userId: UUID, email: String): String =
         jwt.generateJwtToken(credentialId = credentialId, userId = userId, email = email)
+
+    private fun profilePictureMultipartBody(imageBytes: ByteArray?): MultiPartFormDataContent =
+        MultiPartFormDataContent(
+            formData {
+                if (imageBytes != null) {
+                    append(
+                        "image",
+                        imageBytes,
+                        Headers.build {
+                            append(HttpHeaders.ContentType, ContentType.Image.JPEG.toString())
+                            append(
+                                HttpHeaders.ContentDisposition,
+                                ContentDisposition.File.withParameter(
+                                    ContentDisposition.Parameters.Name,
+                                    "image"
+                                ).withParameter(
+                                    ContentDisposition.Parameters.FileName,
+                                    "profile.jpg"
+                                ).toString()
+                            )
+                        }
+                    )
+                }
+            }
+        )
 
     @Test
     fun `POST users returns 201 with body and minted JWT`() = userTest { client ->
@@ -234,6 +265,23 @@ class UserRoutesTest {
         assertEquals(HttpStatusCode.OK, response.status)
         val body: UserDTO = response.body()
         assertEquals("/uploads/alice.jpg", body.profilePicturePath)
+    }
+
+    @Test
+    fun `PATCH users me profile-picture accepts multipart image upload`() = userTest { client ->
+        val credential = UserTestSeed.seedAuthCredential("alice@example.com")
+        val userId = UserTestSeed.seedUser(credential.authCredentialId, username = "alice")
+        val token = profileToken(credential.authCredentialId, userId, credential.email)
+
+        val response = client.patch("/api/users/me/profile-picture") {
+            bearerAuth(token)
+            setBody(profilePictureMultipartBody("fake-profile-image".toByteArray()))
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body: UserDTO = response.body()
+        assertNotNull(body.profilePicturePath)
+        assertTrue(body.profilePicturePath!!.contains("/uploads/profile-pictures/"))
     }
 
     @Test

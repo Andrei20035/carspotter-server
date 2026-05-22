@@ -1,11 +1,9 @@
 package com.carspotter.features.auth
 
 import at.favre.lib.crypto.bcrypt.BCrypt
-import com.auth0.jwt.JWT
-import com.auth0.jwt.algorithms.Algorithm
 import com.carspotter.features.auth.dto.AuthDTO
 import com.carspotter.features.auth.dto.toDTO
-import com.carspotter.features.comment.dto.toDTO
+import com.carspotter.features.user.IUserService
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier
 import com.google.api.client.http.javanet.NetHttpTransport
@@ -60,6 +58,7 @@ interface IAuthService {
 
 class AuthService(
     private val authDao: IAuthDAO,
+    private val userService: IUserService,
     private val googleTokenVerifier: GoogleTokenVerifier = GoogleTokenVerifierImpl()
 ) : IAuthService {
 
@@ -122,7 +121,7 @@ class AuthService(
             .verified
 
         return if (passwordValid) {
-            authCredential.toDTO()
+            authCredential.toDTO(authCredential.currentUserId())
         } else {
             null
         }
@@ -149,7 +148,7 @@ class AuthService(
             existingCredential != null &&
                     existingCredential.provider == AuthProvider.GOOGLE &&
                     existingCredential.googleId == googleUser.googleId -> {
-                existingCredential.toDTO()
+                existingCredential.toDTO(existingCredential.currentUserId())
             }
 
             existingCredential != null &&
@@ -206,7 +205,11 @@ class AuthService(
     override suspend fun getCredentialsById(credentialId: UUID): AuthCredential? {
         return authDao.getCredentialsById(credentialId)
     }
+
+    private suspend fun AuthCredential.currentUserId(): UUID? {
+        val credentialId = id ?: return null
+        return userService.getUserByAuthCredentialId(credentialId)?.id
+    }
 }
 
 class CredentialCreationException(message: String, cause: Throwable? = null) : RuntimeException(message, cause)
-

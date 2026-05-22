@@ -190,7 +190,7 @@ class AuthRoutesTest {
         assertEquals(HttpStatusCode.OK, resp.status)
         val body = resp.body<AuthResponse>()
         assertTrue(body.token.isNotBlank())
-        assertEquals(OnboardingStep.COMPLETED, body.onboardingStep)
+        assertEquals(OnboardingStep.PROFILE_REQUIRED, body.onboardingStep)
     }
 
     @Test

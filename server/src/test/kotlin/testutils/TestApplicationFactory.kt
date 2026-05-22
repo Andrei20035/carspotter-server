@@ -95,8 +95,10 @@ private fun setEnv(key: String, value: String) {
 fun Application.testAuthModule(googleTokenVerifier: GoogleTokenVerifier) {
     val koinTestModule = module {
         single<IAuthDAO> { AuthDAO() }
+        single<IUserDAO> { UserDao() }
+        single<IUserService> { UserService(get()) }
         single<GoogleTokenVerifier> { googleTokenVerifier }
-        single<IAuthService> { AuthService(get(), get()) }
+        single<IAuthService> { AuthService(get(), get(), get()) }
         single {
             JwtService(
                 jwtSecret = TestEnv.JWT_SECRET,

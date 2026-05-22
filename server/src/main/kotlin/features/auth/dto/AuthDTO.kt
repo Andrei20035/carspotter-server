@@ -11,11 +11,11 @@ data class AuthDTO(
     val userId: UUID? = null,
 )
 
-fun AuthCredential.toDTO(): AuthDTO {
+fun AuthCredential.toDTO(userId: UUID? = null): AuthDTO {
     return AuthDTO(
         id = this.id!!,
         email = this.email,
         provider = this.provider,
-        userId = this.id
+        userId = userId
     )
 }

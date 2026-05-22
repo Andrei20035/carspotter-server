@@ -14,6 +14,7 @@ server/.kotlin/
 .junie
 server/scripts/
 server/cars.csv
+uploads
 ### STS ###
 .apt_generated
 .classpath

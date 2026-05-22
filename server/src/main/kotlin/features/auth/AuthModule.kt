@@ -6,7 +6,7 @@ val authModule = module {
 
     single<IAuthDAO> { AuthDAO() }
     single<GoogleTokenVerifier> { GoogleTokenVerifierImpl() }
-    single<IAuthService> { AuthService(get(), get()) }
+    single<IAuthService> { AuthService(get(), get(), get()) }
 
     single {
         val secret = System.getenv("JWT_SECRET")

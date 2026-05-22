@@ -8,6 +8,8 @@ import com.carspotter.features.auth.CredentialCreationException
 import com.carspotter.features.auth.GoogleTokenVerifier
 import com.carspotter.features.auth.GoogleUser
 import com.carspotter.features.auth.IAuthDAO
+import com.carspotter.features.user.IUserService
+import com.carspotter.features.user.dto.UserDTO
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -26,8 +28,9 @@ class AuthServiceTest {
 
     private fun newService(
         dao: IAuthDAO = mockk(relaxed = true),
+        userService: IUserService = mockk(relaxed = true),
         verifier: GoogleTokenVerifier = mockk(relaxed = true)
-    ): AuthService = AuthService(dao, verifier)
+    ): AuthService = AuthService(dao, userService, verifier)
 
     // ---------- createCredentials ----------
 
@@ -147,6 +150,37 @@ class AuthServiceTest {
     @Test
     fun `regularLogin returns DTO for correct password`() = runTest {
         val dao = mockk<IAuthDAO>()
+        val userService = mockk<IUserService>()
+        val hashed = BCrypt.withDefaults().hashToString(12, "Passw0rd!".toCharArray())
+        val id = UUID.randomUUID()
+        val userId = UUID.randomUUID()
+        coEvery { dao.getCredentialsForLogin("alice@example.com") } returns AuthCredential(
+            id = id,
+            email = "alice@example.com",
+            password = hashed,
+            provider = AuthProvider.REGULAR,
+            googleId = null
+        )
+        coEvery { userService.getUserByAuthCredentialId(id) } returns UserDTO(
+            id = userId,
+            fullName = "Alice Example",
+            username = "alice",
+            country = "Romania"
+        )
+
+        val service = newService(dao = dao, userService = userService)
+        val dto = service.regularLogin("  Alice@Example.COM  ", "Passw0rd!")
+
+        assertNotNull(dto)
+        assertEquals(id, dto!!.id)
+        assertEquals(userId, dto.userId)
+        assertEquals("alice@example.com", dto.email)
+    }
+
+    @Test
+    fun `regularLogin returns DTO without userId when profile is missing`() = runTest {
+        val dao = mockk<IAuthDAO>()
+        val userService = mockk<IUserService>()
         val hashed = BCrypt.withDefaults().hashToString(12, "Passw0rd!".toCharArray())
         val id = UUID.randomUUID()
         coEvery { dao.getCredentialsForLogin("alice@example.com") } returns AuthCredential(
@@ -156,13 +190,13 @@ class AuthServiceTest {
             provider = AuthProvider.REGULAR,
             googleId = null
         )
+        coEvery { userService.getUserByAuthCredentialId(id) } returns null
 
-        val service = newService(dao = dao)
-        val dto = service.regularLogin("  Alice@Example.COM  ", "Passw0rd!")
+        val service = newService(dao = dao, userService = userService)
+        val dto = service.regularLogin("alice@example.com", "Passw0rd!")
 
         assertNotNull(dto)
-        assertEquals(id, dto!!.id)
-        assertEquals("alice@example.com", dto.email)
+        assertNull(dto!!.userId)
     }
 
     @Test
@@ -247,7 +281,7 @@ class AuthServiceTest {
     }
 
     @Test
-    fun `googleLogin with existing REGULAR email returns null`() = runTest {
+    fun `googleLogin with existing REGULAR email throws`() = runTest {
         val dao = mockk<IAuthDAO>()
         val verifier = mockk<GoogleTokenVerifier>()
 
@@ -264,15 +298,18 @@ class AuthServiceTest {
         )
 
         val service = newService(dao = dao, verifier = verifier)
-        val dto = service.googleLogin("valid-token")
-        assertNull(dto)
+        assertThrows(IllegalArgumentException::class.java) {
+            runBlocking { service.googleLogin("valid-token") }
+        }
     }
 
     @Test
     fun `googleLogin with existing GOOGLE matching googleId returns DTO`() = runTest {
         val dao = mockk<IAuthDAO>()
+        val userService = mockk<IUserService>()
         val verifier = mockk<GoogleTokenVerifier>()
         val existingId = UUID.randomUUID()
+        val userId = UUID.randomUUID()
 
         coEvery { verifier.verify(any()) } returns GoogleUser(
             email = "bob@example.com",
@@ -285,12 +322,19 @@ class AuthServiceTest {
             provider = AuthProvider.GOOGLE,
             googleId = "gid-1"
         )
+        coEvery { userService.getUserByAuthCredentialId(existingId) } returns UserDTO(
+            id = userId,
+            fullName = "Bob Example",
+            username = "bob",
+            country = "Romania"
+        )
 
-        val service = newService(dao = dao, verifier = verifier)
+        val service = newService(dao = dao, userService = userService, verifier = verifier)
         val dto = service.googleLogin("valid-token")
 
         assertNotNull(dto)
         assertEquals(existingId, dto!!.id)
+        assertEquals(userId, dto.userId)
     }
 
     @Test

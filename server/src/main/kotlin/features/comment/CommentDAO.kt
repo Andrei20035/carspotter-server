@@ -12,6 +12,9 @@ interface ICommentDAO {
     suspend fun deleteComment(commentId: UUID): Int
     suspend fun getCommentsForPost(postId: UUID): List<Comment>
     suspend fun getCommentById(commentId: UUID): Comment?
+
+    /** Batched comment counts for a set of posts. Returns a map postId -> count (posts with no comments are absent). */
+    suspend fun getCommentCountsForPosts(postIds: List<UUID>): Map<UUID, Long>
 }
 
 class CommentDAO : ICommentDAO {
@@ -74,5 +77,15 @@ class CommentDAO : ICommentDAO {
             .where { CommentTable.id eq commentId }
             .singleOrNull()
             ?.toComment()
+    }
+
+    override suspend fun getCommentCountsForPosts(postIds: List<UUID>): Map<UUID, Long> = transaction {
+        if (postIds.isEmpty()) return@transaction emptyMap()
+        val countExpr = CommentTable.id.count()
+        CommentTable
+            .select(CommentTable.postId, countExpr)
+            .where { CommentTable.postId inList postIds }
+            .groupBy(CommentTable.postId)
+            .associate { it[CommentTable.postId] to it[countExpr] }
     }
 }

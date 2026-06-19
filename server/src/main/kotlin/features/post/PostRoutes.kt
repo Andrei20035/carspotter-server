@@ -23,14 +23,23 @@ fun Route.postRoutes() {
     val postService: IPostService by application.inject()
     val json = Json { ignoreUnknownKeys = true }
 
-    get("/posts/feed") {
-        val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: DEFAULT_LIMIT
-        val offset = call.request.queryParameters["offset"]?.toLongOrNull() ?: 0L
+    // Public feed, but authenticate optionally so we can populate `likedByCurrentUser`
+    // when a valid token is present.
+    authenticate("jwt", optional = true) {
+        get("/posts/feed") {
+            val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: DEFAULT_LIMIT
+            val cursorCreatedAt = call.request.queryParameters["cursorCreatedAt"]
+            val cursorPostId = call.request.queryParameters["cursorPostId"]
+            val currentUserId = call.getUuidClaim("userId")
 
-        try {
-            call.respond(HttpStatusCode.OK, postService.listFeed(limit, offset))
-        } catch (e: IllegalArgumentException) {
-            call.respond(HttpStatusCode.BadRequest, mapOf("error" to (e.message ?: "Invalid request")))
+            try {
+                call.respond(
+                    HttpStatusCode.OK,
+                    postService.listFeed(limit, cursorCreatedAt, cursorPostId, currentUserId),
+                )
+            } catch (e: IllegalArgumentException) {
+                call.respond(HttpStatusCode.BadRequest, mapOf("error" to (e.message ?: "Invalid request")))
+            }
         }
     }
 

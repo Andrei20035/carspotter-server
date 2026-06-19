@@ -3,17 +3,28 @@ package com.carspotter.features.post
 import com.carspotter.core.storage.IStorageService
 import com.carspotter.features.car_model.ICarModelDAO
 import com.carspotter.features.post.dto.CreatePostDTO
+import com.carspotter.features.post.dto.FeedCursorDTO
+import com.carspotter.features.post.dto.FeedResponseDTO
 import com.carspotter.features.post.dto.PersistPostDTO
 import com.carspotter.features.post.dto.PostDTO
 import com.carspotter.features.post.dto.toDTO
+import com.carspotter.features.post.dto.toFeedDTO
+import features.comment.ICommentDAO
+import features.like.ILikeDAO
 import org.slf4j.LoggerFactory
+import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
 
 interface IPostService {
     suspend fun createPost(request: CreatePostDTO): UUID
     suspend fun findPostById(postId: UUID): PostDTO?
-    suspend fun listFeed(limit: Int, offset: Long): List<PostDTO>
+    suspend fun listFeed(
+        limit: Int,
+        cursorCreatedAt: String?,
+        cursorPostId: String?,
+        currentUserId: UUID?,
+    ): FeedResponseDTO
     suspend fun listPostsByUser(userId: UUID, limit: Int, offset: Long): List<PostDTO>
     suspend fun deletePostAsAuthor(postId: UUID, authorId: UUID)
 }
@@ -22,6 +33,8 @@ class PostServiceImpl(
     private val postDao: IPostDAO,
     private val storageService: IStorageService,
     private val carModelDao: ICarModelDAO,
+    private val likeDao: ILikeDAO,
+    private val commentDao: ICommentDAO,
 ) : IPostService {
     companion object {
         private val logger = LoggerFactory.getLogger(PostServiceImpl::class.java)
@@ -77,8 +90,62 @@ class PostServiceImpl(
     override suspend fun findPostById(postId: UUID): PostDTO? =
         postDao.findById(postId)?.let(::toResponse)
 
-    override suspend fun listFeed(limit: Int, offset: Long): List<PostDTO> =
-        postDao.listFeed(validateLimit(limit), validateOffset(offset)).map(::toResponse)
+    override suspend fun listFeed(
+        limit: Int,
+        cursorCreatedAt: String?,
+        cursorPostId: String?,
+        currentUserId: UUID?,
+    ): FeedResponseDTO {
+        val effectiveLimit = validateLimit(limit)
+        val cursor = parseCursor(cursorCreatedAt, cursorPostId)
+
+        // Fetch one extra row to determine whether another page exists.
+        val rows = postDao.listFeed(effectiveLimit + 1, cursor?.first, cursor?.second)
+        val hasMore = rows.size > effectiveLimit
+        val page = if (hasMore) rows.take(effectiveLimit) else rows
+
+        val postIds = page.map { it.id }
+        val likeCounts = likeDao.getLikeCountsForPosts(postIds)
+        val commentCounts = commentDao.getCommentCountsForPosts(postIds)
+        val likedPostIds = if (currentUserId != null) {
+            likeDao.getLikedPostIds(currentUserId, postIds)
+        } else {
+            emptySet()
+        }
+
+        val posts = page.map { post ->
+            post.toFeedDTO(
+                imageUrl = storageService.resolveUrl(post.imageKey),
+                likeCount = likeCounts[post.id] ?: 0L,
+                commentCount = commentCounts[post.id] ?: 0L,
+                likedByCurrentUser = post.id in likedPostIds,
+            )
+        }
+
+        val nextCursor = if (hasMore) {
+            page.last().let { FeedCursorDTO(it.createdAt, it.id) }
+        } else {
+            null
+        }
+
+        return FeedResponseDTO(posts = posts, nextCursor = nextCursor, hasMore = hasMore)
+    }
+
+    /**
+     * Parses the (created_at, id) cursor. Both parts must be present together or both omitted
+     * (first page). Malformed values are rejected with [IllegalArgumentException].
+     */
+    private fun parseCursor(cursorCreatedAt: String?, cursorPostId: String?): Pair<Instant, UUID>? {
+        if (cursorCreatedAt == null && cursorPostId == null) return null
+        require(cursorCreatedAt != null && cursorPostId != null) {
+            "Both cursorCreatedAt and cursorPostId must be provided together"
+        }
+        val createdAt = runCatching { Instant.parse(cursorCreatedAt) }
+            .getOrElse { throw IllegalArgumentException("Invalid cursorCreatedAt") }
+        val postId = runCatching { UUID.fromString(cursorPostId) }
+            .getOrElse { throw IllegalArgumentException("Invalid cursorPostId") }
+        return createdAt to postId
+    }
 
     override suspend fun listPostsByUser(userId: UUID, limit: Int, offset: Long): List<PostDTO> =
         postDao.listByUser(userId, validateLimit(limit), validateOffset(offset)).map(::toResponse)

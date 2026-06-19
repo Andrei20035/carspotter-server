@@ -1,0 +1,122 @@
+[
+  {
+    "user_ref": "user_test_1",
+    "auth_ref": "auth_test_1",
+    "full_name": "Alex Popescu",
+    "username": "alexp21",
+    "country": "Romania",
+    "birth_date": "1998-03-12",
+    "phone_number": null,
+    "profile_picture_path": "seed/profile_pictures/alexp21.jpg",
+    "spot_score": 0,
+    "gender": "male"
+  },
+  {
+    "user_ref": "user_test_2",
+    "auth_ref": "auth_test_2",
+    "full_name": "Ianis Luca",
+    "username": "ianluke",
+    "country": "Romania",
+    "birth_date": "1997-07-28",
+    "phone_number": null,
+    "profile_picture_path": "seed/profile_pictures/ianluke.jpg",
+    "spot_score": 0,
+    "gender": "male"
+  },
+  {
+    "user_ref": "user_test_3",
+    "auth_ref": "auth_test_3",
+    "full_name": "Iustin Radu",
+    "username": "iustin64",
+    "country": "Romania",
+    "birth_date": "2000-11-05",
+    "phone_number": null,
+    "profile_picture_path": "seed/profile_pictures/iustin64.jpg",
+    "spot_score": 0,
+    "gender": "male"
+  },
+  {
+    "user_ref": "user_test_4",
+    "auth_ref": "auth_test_4",
+    "full_name": "Toma Marinescu",
+    "username": "tommy82",
+    "country": "Romania",
+    "birth_date": "1996-01-19",
+    "phone_number": null,
+    "profile_picture_path": "seed/profile_pictures/tommy82.jpg",
+    "spot_score": 0,
+    "gender": "male"
+  },
+  {
+    "user_ref": "user_test_5",
+    "auth_ref": "auth_test_5",
+    "full_name": "Mihnea Stoica",
+    "username": "mihnea.gt",
+    "country": "Romania",
+    "birth_date": "1995-09-03",
+    "phone_number": null,
+    "profile_picture_path": "seed/profile_pictures/mihnea.jpg",
+    "spot_score": 0,
+    "gender": "male"
+  },
+  {
+    "user_ref": "user_test_6",
+    "auth_ref": "auth_test_6",
+    "full_name": "Carina Dumitru",
+    "username": "carina.k",
+    "country": "Romania",
+    "birth_date": "1999-05-22",
+    "phone_number": null,
+    "profile_picture_path": "seed/profile_pictures/carina.jpg",
+    "spot_score": 0,
+    "gender": "female"
+  },
+  {
+    "user_ref": "user_test_7",
+    "auth_ref": "auth_test_7",
+    "full_name": "Noemi Constantin",
+    "username": "noemi.v",
+    "country": "Romania",
+    "birth_date": "2001-02-14",
+    "phone_number": null,
+    "profile_picture_path": "seed/profile_pictures/noemi.jpg",
+    "spot_score": 0,
+    "gender": "female"
+  },
+  {
+    "user_ref": "user_test_8",
+    "auth_ref": "auth_test_8",
+    "full_name": "Luca Serban",
+    "username": "lucas.spots",
+    "country": "Romania",
+    "birth_date": "1994-12-30",
+    "phone_number": null,
+    "profile_picture_path": "seed/profile_pictures/lucas.jpg",
+    "spot_score": 0,
+    "gender": "male"
+  },
+  {
+    "user_ref": "user_test_9",
+    "auth_ref": "auth_test_9",
+    "full_name": "Vlad Marin",
+    "username": "vlad.m",
+    "country": "Romania",
+    "birth_date": "1998-08-17",
+    "phone_number": null,
+    "profile_picture_path": "seed/profile_pictures/vlad.jpg",
+    "spot_score": 0,
+    "gender": "male"
+  },
+  {
+    "user_ref": "user_test_10",
+    "auth_ref": "auth_test_10",
+    "full_name": "Amara Preda",
+    "username": "amara22",
+    "country": "Romania",
+    "birth_date": "1997-04-09",
+    "phone_number": null,
+    "profile_picture_path": "seed/profile_pictures/amara22.jpg",
+    "spot_score": 0,
+    "gender": "female"
+  }
+]

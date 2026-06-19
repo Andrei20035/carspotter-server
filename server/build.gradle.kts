@@ -97,3 +97,12 @@ tasks.named<ShadowJar>("shadowJar") {
     archiveVersion.set("")
     mergeServiceFiles()
 }
+
+// Local seed importer: ./gradlew seed
+tasks.register<JavaExec>("seed") {
+    group = "application"
+    description = "Imports seed/ JSON + compressed images into the local dev database"
+    mainClass.set("com.carspotter.seed.SeedImporterKt")
+    classpath = sourceSets["main"].runtimeClasspath
+    workingDir = projectDir
+}

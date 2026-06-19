@@ -24,6 +24,9 @@ data class PostDTO(
     val longitude: Double? = null,
     @Serializable(with = InstantSerializer::class)
     val createdAt: Instant,
+    val likeCount: Long = 0,
+    val commentCount: Long = 0,
+    val likedByCurrentUser: Boolean = false,
 )
 
 fun Post.toDTO(imageUrl: String) = PostDTO(
@@ -38,4 +41,27 @@ fun Post.toDTO(imageUrl: String) = PostDTO(
     latitude = this.latitude,
     longitude = this.longitude,
     createdAt = this.createdAt,
+)
+
+/** Feed variant that also carries engagement counters and the current user's like state. */
+fun Post.toFeedDTO(
+    imageUrl: String,
+    likeCount: Long,
+    commentCount: Long,
+    likedByCurrentUser: Boolean,
+) = PostDTO(
+    id = this.id,
+    userId = this.userId,
+    username = this.username,
+    carModelId = this.carModelId,
+    brand = this.brand,
+    model = this.model,
+    imageUrl = imageUrl,
+    caption = this.caption,
+    latitude = this.latitude,
+    longitude = this.longitude,
+    createdAt = this.createdAt,
+    likeCount = likeCount,
+    commentCount = commentCount,
+    likedByCurrentUser = likedByCurrentUser,
 )

@@ -217,8 +217,10 @@ fun Application.testPostModule() {
     val koinTestModule = module {
         single<ICarModelDAO> { CarModelDAO() }
         single<IPostDAO> { PostDAO() }
+        single<ILikeDAO> { LikeDAO() }
+        single<ICommentDAO> { CommentDAO() }
         single<IStorageService> { LocalImageStorageService(uploadsDir, "http://localhost:8080") }
-        single<IPostService> { PostServiceImpl(get(), get(), get()) }
+        single<IPostService> { PostServiceImpl(get(), get(), get(), get(), get()) }
         single {
             JwtService(
                 jwtSecret = TestEnv.JWT_SECRET,

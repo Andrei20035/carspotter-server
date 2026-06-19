@@ -15,6 +15,10 @@ server/.kotlin/
 server/scripts/
 server/cars.csv
 uploads
+server/seed/posts
+server/seed/profile_pictures
+server/seed/compressed
+
 ### STS ###
 .apt_generated
 .classpath

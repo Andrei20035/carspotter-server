@@ -9,6 +9,8 @@
     "description": "Clean CL63 AMG spotted in traffic today.",
     "latitude": 50.8503,
     "longitude": 4.3517,
+    "town": "Brussels",
+    "country": "Belgium",
     "created_at": "2026-06-19T10:00:00Z"
   },
   {
@@ -21,6 +23,8 @@
     "description": "Widebody Lamborghini Urus finished in a unique bronze spec.",
     "latitude": 45.7489,
     "longitude": 21.2087,
+    "town": "Timisoara",
+    "country": "Romania",
     "created_at": "2026-06-18T23:00:00Z"
   },
   {
@@ -33,6 +37,8 @@
     "description": "Another clean Lamborghini Urus spotted in Bucharest.",
     "latitude": 44.4521,
     "longitude": 26.0835,
+    "town": "Bucharest",
+    "country": "Romania",
     "created_at": "2026-06-18T12:00:00Z"
   },
   {
@@ -45,6 +51,8 @@
     "description": "Lamborghini Revuelto spotted in Oradea.",
     "latitude": 47.0722,
     "longitude": 21.9211,
+    "town": "Oradea",
+    "country": "Romania",
     "created_at": "2026-06-18T01:00:00Z"
   },
   {
@@ -57,6 +65,8 @@
     "description": "Beautiful 911 Turbo S sitting low in Timisoara.",
     "latitude": 45.7489,
     "longitude": 21.2087,
+    "town": "Timisoara",
+    "country": "Romania",
     "created_at": "2026-06-17T14:00:00Z"
   },
   {
@@ -69,6 +79,8 @@
     "description": "McLaren GT looking unreal on Slovak roads.",
     "latitude": 48.1486,
     "longitude": 17.1077,
+    "town": "Bratislava",
+    "country": "Slovakia",
     "created_at": "2026-06-17T18:00:00Z"
   },
   {
@@ -81,6 +93,8 @@
     "description": "Old-school V8 power spotted in Bucharest.",
     "latitude": 44.4396,
     "longitude": 26.0963,
+    "town": "Bucharest",
+    "country": "Romania",
     "created_at": "2026-06-17T07:00:00Z"
   },
   {
@@ -93,6 +107,8 @@
     "description": "Classic Turbo shape hiding in plain sight.",
     "latitude": 44.4521,
     "longitude": 26.0835,
+    "town": "Bucharest",
+    "country": "Romania",
     "created_at": "2026-06-16T20:00:00Z"
   },
   {
@@ -103,8 +119,10 @@
     "custom_brand": "Bentley",
     "custom_model": "Flying Spur",
     "description": "Proper luxury sedan spotted in Buzau.",
-    "latitude": 45.1500,
+    "latitude": 45.15,
     "longitude": 26.8167,
+    "town": "Buzau",
+    "country": "Romania",
     "created_at": "2026-06-16T09:00:00Z"
   },
   {
@@ -117,6 +135,8 @@
     "description": "Ghost presence on a quiet street in Iasi.",
     "latitude": 47.1585,
     "longitude": 27.6014,
+    "town": "Iasi",
+    "country": "Romania",
     "created_at": "2026-06-15T22:00:00Z"
   },
   {
@@ -127,8 +147,10 @@
     "custom_brand": "BMW",
     "custom_model": "M3 Competition Touring",
     "description": "The dream daily wagon, spotted in Bucharest.",
-    "latitude": 44.4660,
-    "longitude": 26.0850,
+    "latitude": 44.466,
+    "longitude": 26.085,
+    "town": "Bucharest",
+    "country": "Romania",
     "created_at": "2026-06-16T02:00:00Z"
   },
   {
@@ -140,7 +162,9 @@
     "custom_model": "RS7",
     "description": "Wide RS7 stance somewhere in Munich.",
     "latitude": 48.1351,
-    "longitude": 11.5820,
+    "longitude": 11.582,
+    "town": "Munich",
+    "country": "Germany",
     "created_at": "2026-06-15T15:00:00Z"
   },
   {
@@ -153,6 +177,8 @@
     "description": "Massive Cullinan presence in Cluj-Napoca.",
     "latitude": 46.7712,
     "longitude": 23.6236,
+    "town": "Cluj-Napoca",
+    "country": "Romania",
     "created_at": "2026-06-15T04:00:00Z"
   },
   {
@@ -165,6 +191,8 @@
     "description": "Another Urus spotted roaming through Iasi.",
     "latitude": 47.1585,
     "longitude": 27.6014,
+    "town": "Iasi",
+    "country": "Romania",
     "created_at": "2026-06-14T17:00:00Z"
   },
   {
@@ -177,6 +205,8 @@
     "description": "AMG GT parked outside a restaurant in Bucharest.",
     "latitude": 44.4555,
     "longitude": 26.0975,
+    "town": "Bucharest",
+    "country": "Romania",
     "created_at": "2026-06-14T06:00:00Z"
   },
   {
@@ -189,6 +219,8 @@
     "description": "Clean 911 spotted in downtown Timisoara.",
     "latitude": 45.7489,
     "longitude": 21.2087,
+    "town": "Timisoara",
+    "country": "Romania",
     "created_at": "2026-06-14T10:00:00Z"
   },
   {
@@ -199,8 +231,10 @@
     "custom_brand": "Koenigsegg",
     "custom_model": "Jesko",
     "description": "Couldn't believe my eyes. Jesko in Bucharest.",
-    "latitude": 44.4810,
+    "latitude": 44.481,
     "longitude": 26.0897,
+    "town": "Bucharest",
+    "country": "Romania",
     "created_at": "2026-06-13T23:00:00Z"
   },
   {
@@ -213,6 +247,8 @@
     "description": "918 Spyder spotted on the streets of Rome.",
     "latitude": 41.9028,
     "longitude": 12.4964,
+    "town": "Rome",
+    "country": "Italy",
     "created_at": "2026-06-13T12:00:00Z"
   },
   {
@@ -224,7 +260,9 @@
     "custom_model": "SF90 Spider",
     "description": "SF90 Spider cruising through the French countryside.",
     "latitude": 43.7102,
-    "longitude": 7.2620,
+    "longitude": 7.262,
+    "town": "Nice",
+    "country": "France",
     "created_at": "2026-06-13T01:00:00Z"
   },
   {
@@ -237,6 +275,8 @@
     "description": "Ferrari Testarossa parked in Bucharest.",
     "latitude": 44.4268,
     "longitude": 26.1025,
+    "town": "Bucharest",
+    "country": "Romania",
     "created_at": "2026-06-12T14:00:00Z"
   },
   {
@@ -249,6 +289,8 @@
     "description": "Maybach GLS passing through a village near Targu Mures.",
     "latitude": 46.5425,
     "longitude": 24.5575,
+    "town": "Targu Mures",
+    "country": "Romania",
     "created_at": "2026-06-12T18:00:00Z"
   },
   {
@@ -259,8 +301,10 @@
     "custom_brand": "BMW",
     "custom_model": "M2",
     "description": "Compact, loud and fast. BMW M2 in Bucharest.",
-    "latitude": 44.4920,
-    "longitude": 26.1210,
+    "latitude": 44.492,
+    "longitude": 26.121,
+    "town": "Bucharest",
+    "country": "Romania",
     "created_at": "2026-06-12T07:00:00Z"
   },
   {
@@ -273,6 +317,8 @@
     "description": "Bugatti Tourbillon on display in Vienna.",
     "latitude": 48.2082,
     "longitude": 16.3738,
+    "town": "Vienna",
+    "country": "Austria",
     "created_at": "2026-06-11T20:00:00Z"
   },
   {
@@ -285,6 +331,8 @@
     "description": "Veloce12 spotted inside an underground garage in Paris.",
     "latitude": 48.8566,
     "longitude": 2.3522,
+    "town": "Paris",
+    "country": "France",
     "created_at": "2026-06-11T09:00:00Z"
   },
   {
@@ -297,6 +345,8 @@
     "description": "599 GTB parked along the streets of Monaco.",
     "latitude": 43.7384,
     "longitude": 7.4246,
+    "town": "Monaco",
+    "country": "Monaco",
     "created_at": "2026-06-10T22:00:00Z"
   },
   {
@@ -308,7 +358,9 @@
     "custom_model": "Huracan Tecnica",
     "description": "Huracan Tecnica spotted in Milan.",
     "latitude": 45.4642,
-    "longitude": 9.1900,
+    "longitude": 9.19,
+    "town": "Milan",
+    "country": "Italy",
     "created_at": "2026-06-10T15:00:00Z"
   },
   {
@@ -320,7 +372,9 @@
     "custom_model": "Daytona SP3",
     "description": "Daytona SP3 attracting a crowd in Milan.",
     "latitude": 45.4642,
-    "longitude": 9.1900,
+    "longitude": 9.19,
+    "town": "Milan",
+    "country": "Italy",
     "created_at": "2026-06-11T02:00:00Z"
   },
   {
@@ -333,6 +387,8 @@
     "description": "Ferrari F40 parked in Monaco.",
     "latitude": 43.7384,
     "longitude": 7.4246,
+    "town": "Monaco",
+    "country": "Monaco",
     "created_at": "2026-06-10T04:00:00Z"
   },
   {
@@ -345,6 +401,8 @@
     "description": "Revuelto shining under the Monaco sun.",
     "latitude": 43.7384,
     "longitude": 7.4246,
+    "town": "Monaco",
+    "country": "Monaco",
     "created_at": "2026-06-09T17:00:00Z"
   },
   {
@@ -357,6 +415,8 @@
     "description": "Pagani Huayra casually parked in Monaco.",
     "latitude": 43.7384,
     "longitude": 7.4246,
+    "town": "Monaco",
+    "country": "Monaco",
     "created_at": "2026-06-09T06:00:00Z"
   },
   {
@@ -369,6 +429,8 @@
     "description": "Nevera spotted charging in Monaco.",
     "latitude": 43.7384,
     "longitude": 7.4246,
+    "town": "Monaco",
+    "country": "Monaco",
     "created_at": "2026-06-09T10:00:00Z"
   },
   {
@@ -381,6 +443,8 @@
     "description": "Ferrari Enzo spotted on the streets of Monaco.",
     "latitude": 43.7384,
     "longitude": 7.4246,
+    "town": "Monaco",
+    "country": "Monaco",
     "created_at": "2026-06-08T23:00:00Z"
   },
   {
@@ -393,6 +457,8 @@
     "description": "Frozen grey M4 Competition spotted in Bucharest.",
     "latitude": 44.4526,
     "longitude": 26.0865,
+    "town": "Bucharest",
+    "country": "Romania",
     "created_at": "2026-06-08T12:00:00Z"
   },
   {
@@ -405,6 +471,8 @@
     "description": "Ferrari's newest V12 spotted in Budapest.",
     "latitude": 47.4979,
     "longitude": 19.0402,
+    "town": "Budapest",
+    "country": "Hungary",
     "created_at": "2026-06-08T01:00:00Z"
   },
   {
@@ -415,8 +483,10 @@
     "custom_brand": "Porsche",
     "custom_model": "911 GT3 Touring",
     "description": "GT3 Touring spotted on a sunny day in Bucharest.",
-    "latitude": 44.4660,
-    "longitude": 26.0850,
+    "latitude": 44.466,
+    "longitude": 26.085,
+    "town": "Bucharest",
+    "country": "Romania",
     "created_at": "2026-06-07T14:00:00Z"
   },
   {
@@ -429,6 +499,8 @@
     "description": "Orange Vantage standing out from the crowd.",
     "latitude": 44.4268,
     "longitude": 26.1025,
+    "town": "Bucharest",
+    "country": "Romania",
     "created_at": "2026-06-07T18:00:00Z"
   },
   {
@@ -441,6 +513,8 @@
     "description": "Purple R8 with an aggressive setup in Bucharest.",
     "latitude": 44.4555,
     "longitude": 26.0975,
+    "town": "Bucharest",
+    "country": "Romania",
     "created_at": "2026-06-07T07:00:00Z"
   },
   {
@@ -451,8 +525,10 @@
     "custom_brand": "BMW",
     "custom_model": "850i (E31)",
     "description": "Rare BMW E31 spotted near the city center.",
-    "latitude": 44.4810,
+    "latitude": 44.481,
     "longitude": 26.0897,
+    "town": "Bucharest",
+    "country": "Romania",
     "created_at": "2026-06-06T20:00:00Z"
   },
   {
@@ -465,6 +541,8 @@
     "description": "M4 Competition looking sharp in Bucharest traffic.",
     "latitude": 44.4396,
     "longitude": 26.0963,
+    "town": "Bucharest",
+    "country": "Romania",
     "created_at": "2026-06-06T09:00:00Z"
   },
   {
@@ -477,6 +555,8 @@
     "description": "First Temerario I've seen in Bucharest.",
     "latitude": 44.4521,
     "longitude": 26.0835,
+    "town": "Bucharest",
+    "country": "Romania",
     "created_at": "2026-06-05T22:00:00Z"
   },
   {
@@ -487,8 +567,10 @@
     "custom_brand": "Audi",
     "custom_model": "RS6 Avant",
     "description": "RS6 Avant doing RS6 things in Bucharest.",
-    "latitude": 44.4920,
-    "longitude": 26.1210,
+    "latitude": 44.492,
+    "longitude": 26.121,
+    "town": "Bucharest",
+    "country": "Romania",
     "created_at": "2026-06-06T02:00:00Z"
   },
   {
@@ -501,6 +583,8 @@
     "description": "Corvette Z06 spotted late in the afternoon.",
     "latitude": 44.4268,
     "longitude": 26.1025,
+    "town": "Bucharest",
+    "country": "Romania",
     "created_at": "2026-06-05T15:00:00Z"
   }
 ]

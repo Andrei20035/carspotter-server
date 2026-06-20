@@ -78,6 +78,8 @@ private data class SeedPost(
     val description: String? = null,
     val latitude: Double? = null,
     val longitude: Double? = null,
+    val town: String? = null,
+    val country: String? = null,
     @SerialName("created_at") val createdAt: String,
 )
 
@@ -174,6 +176,8 @@ fun main() {
                 it[caption] = p.description
                 it[latitude] = p.latitude
                 it[longitude] = p.longitude
+                it[town] = p.town
+                it[country] = p.country
                 it[PostTable.createdAt] = createdAt
             }.single()
             postCount++

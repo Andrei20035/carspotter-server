@@ -10,5 +10,7 @@ class PersistPostDTO(
     val imageObjectKey: String,
     val latitude: Double?,
     val longitude: Double?,
+    val town: String?,
+    val country: String?,
     val caption: String?
 )

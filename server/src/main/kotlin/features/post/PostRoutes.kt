@@ -110,6 +110,8 @@ fun Route.postRoutes() {
                         customModel = meta.customModel,
                         latitude = meta.latitude,
                         longitude = meta.longitude,
+                        town = meta.town,
+                        country = meta.country,
                         caption = meta.caption,
                         imageBytes = bytes,
                         contentType = ct,

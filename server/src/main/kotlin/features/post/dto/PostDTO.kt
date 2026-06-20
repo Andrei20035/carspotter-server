@@ -14,6 +14,7 @@ data class PostDTO(
     @Serializable(with = UUIDSerializer::class)
     val userId: UUID,
     val username: String,
+    val authorProfilePictureUrl: String? = null,
     @Serializable(with = UUIDSerializer::class)
     val carModelId: UUID? = null,
     val brand: String,
@@ -22,6 +23,8 @@ data class PostDTO(
     val caption: String? = null,
     val latitude: Double? = null,
     val longitude: Double? = null,
+    val town: String? = null,
+    val country: String? = null,
     @Serializable(with = InstantSerializer::class)
     val createdAt: Instant,
     val likeCount: Long = 0,
@@ -33,6 +36,7 @@ fun Post.toDTO(imageUrl: String) = PostDTO(
     id = this.id,
     userId = this.userId,
     username = this.username,
+    authorProfilePictureUrl = this.authorProfilePictureUrl,
     carModelId = this.carModelId,
     brand = this.brand,
     model = this.model,
@@ -40,6 +44,8 @@ fun Post.toDTO(imageUrl: String) = PostDTO(
     caption = this.caption,
     latitude = this.latitude,
     longitude = this.longitude,
+    town = this.town,
+    country = this.country,
     createdAt = this.createdAt,
 )
 
@@ -53,6 +59,7 @@ fun Post.toFeedDTO(
     id = this.id,
     userId = this.userId,
     username = this.username,
+    authorProfilePictureUrl = this.authorProfilePictureUrl,
     carModelId = this.carModelId,
     brand = this.brand,
     model = this.model,
@@ -60,6 +67,8 @@ fun Post.toFeedDTO(
     caption = this.caption,
     latitude = this.latitude,
     longitude = this.longitude,
+    town = this.town,
+    country = this.country,
     createdAt = this.createdAt,
     likeCount = likeCount,
     commentCount = commentCount,

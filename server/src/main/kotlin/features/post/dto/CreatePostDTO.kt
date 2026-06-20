@@ -9,6 +9,8 @@ data class CreatePostDTO(
     val customModel: String?,
     val latitude: Double?,
     val longitude: Double?,
+    val town: String?,
+    val country: String?,
     val caption: String?,
     val imageBytes: ByteArray,
     val contentType: String

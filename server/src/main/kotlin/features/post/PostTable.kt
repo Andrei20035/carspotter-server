@@ -16,6 +16,10 @@ object PostTable : UUIDTable("posts") {
     val caption = text("description").nullable()
     val latitude = double("latitude").nullable()
     val longitude = double("longitude").nullable()
+    // Reverse-geocoded place name for the GPS coordinates above. Nullable: may be
+    // unresolved on a slow connection or when the user has no location permission.
+    val town = varchar("town", 100).nullable()
+    val country = varchar("country", 100).nullable()
     val createdAt = timestamp("created_at").defaultExpression(CurrentTimestamp)
     val updatedAt = timestamp("updated_at").defaultExpression(CurrentTimestamp)
 }

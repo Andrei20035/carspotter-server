@@ -78,6 +78,8 @@ class PostServiceImpl(
                     imageObjectKey = objectKey,
                     latitude = request.latitude,
                     longitude = request.longitude,
+                    town = request.town?.trim()?.ifEmpty { null },
+                    country = request.country?.trim()?.ifEmpty { null },
                     caption = request.caption?.trim(),
                 )
             )
@@ -100,7 +102,8 @@ class PostServiceImpl(
         val cursor = parseCursor(cursorCreatedAt, cursorPostId)
 
         // Fetch one extra row to determine whether another page exists.
-        val rows = postDao.listFeed(effectiveLimit + 1, cursor?.first, cursor?.second)
+        // An authenticated viewer never sees their own posts in the feed.
+        val rows = postDao.listFeed(effectiveLimit + 1, cursor?.first, cursor?.second, excludeUserId = currentUserId)
         val hasMore = rows.size > effectiveLimit
         val page = if (hasMore) rows.take(effectiveLimit) else rows
 

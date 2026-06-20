@@ -13,5 +13,7 @@ data class CreatePostMetadata(
     val customModel: String? = null,
     val latitude: Double? = null,
     val longitude: Double? = null,
+    val town: String? = null,
+    val country: String? = null,
     val caption: String? = null
 )

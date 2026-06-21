@@ -24,12 +24,12 @@ data class CommentDTO(
     val updatedAt: Instant,
 )
 
-fun Comment.toDTO() = CommentDTO(
+fun Comment.toDTO(profilePictureUrl: String? = profilePicturePath) = CommentDTO(
     id = this.id,
     userId = this.userId,
     postId = this.postId,
     username = this.username,
-    profilePicturePath = this.profilePicturePath,
+    profilePicturePath = profilePictureUrl,
     commentText = this.commentText,
     createdAt = this.createdAt,
     updatedAt = this.updatedAt,

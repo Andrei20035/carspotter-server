@@ -6,6 +6,7 @@ import features.comment.commentRoutes
 import com.carspotter.features.friend.friendRoutes
 import com.carspotter.features.friend_request.friendRequestRoutes
 import features.like.likeRoutes
+import features.report.reportRoutes
 import com.carspotter.features.post.postRoutes
 import com.carspotter.features.user.userRoutes
 import com.carspotter.features.user_car.userCarRoutes
@@ -29,6 +30,7 @@ fun Application.configureRouting() {
             friendRequestRoutes()
             friendRoutes()
             likeRoutes()
+            reportRoutes()
             postRoutes()
             userCarRoutes()
             userRoutes()

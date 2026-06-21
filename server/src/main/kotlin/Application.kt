@@ -14,6 +14,7 @@ import features.comment.commentModule
 import com.carspotter.features.friend.friendModule
 import com.carspotter.features.friend_request.friendRequestModule
 import features.like.likeModule
+import features.report.reportModule
 import com.carspotter.features.post.postModule
 import com.carspotter.features.user.userModule
 import com.carspotter.features.user_car.userCarModule
@@ -41,6 +42,7 @@ fun Application.module() {
             friendModule,
             friendRequestModule,
             likeModule,
+            reportModule,
             userCarModule
         )
     }

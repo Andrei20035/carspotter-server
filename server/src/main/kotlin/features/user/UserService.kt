@@ -1,5 +1,6 @@
 package com.carspotter.features.user
 
+import com.carspotter.core.storage.IStorageService
 import com.carspotter.features.user.dto.UserDTO
 import com.carspotter.features.user.dto.toDTO
 import java.util.UUID
@@ -12,7 +13,8 @@ interface IUserService {
 }
 
 class UserService(
-    private val userDao: IUserDAO
+    private val userDao: IUserDAO,
+    private val storageService: IStorageService,
 ) : IUserService {
     companion object {
         private const val minUsernameLength = 3
@@ -42,10 +44,10 @@ class UserService(
     }
 
     override suspend fun getUserById(userId: UUID): UserDTO? =
-        userDao.getUserById(userId)?.toDTO()
+        userDao.getUserById(userId)?.toResponse()
 
     override suspend fun getUserByAuthCredentialId(authCredentialId: UUID): UserDTO? =
-        userDao.getUserByAuthCredentialId(authCredentialId)?.toDTO()
+        userDao.getUserByAuthCredentialId(authCredentialId)?.toResponse()
 
     override suspend fun updateProfilePicture(userId: UUID, imagePath: String): UserDTO {
         val normalizedImagePath = normalizeRequiredImagePath(imagePath)
@@ -53,7 +55,7 @@ class UserService(
         if (updatedRows == 0) {
             throw UserNotFoundException(userId)
         }
-        return requireNotNull(userDao.getUserById(userId)) { "Updated user could not be loaded" }.toDTO()
+        return requireNotNull(userDao.getUserById(userId)) { "Updated user could not be loaded" }.toResponse()
     }
 
     private fun normalizeUsername(username: String): String {
@@ -69,13 +71,19 @@ class UserService(
     }
 
     private fun normalizeOptionalImagePath(imagePath: String?): String? {
-        return imagePath?.trim()?.takeIf { it.isNotEmpty() }
+        return imagePath?.trim()?.takeIf { it.isNotEmpty() }?.let(storageService::normalizeObjectKey)
     }
 
     private fun normalizeRequiredImagePath(imagePath: String): String {
         val normalized = imagePath.trim()
         require(normalized.isNotBlank()) { "Profile picture path cannot be blank" }
-        return normalized
+        return storageService.normalizeObjectKey(normalized)
+    }
+
+    private fun User.toResponse(): UserDTO {
+        return toDTO(
+            profilePictureUrl = profilePicturePath?.let(storageService::resolveUrl),
+        )
     }
 }
 

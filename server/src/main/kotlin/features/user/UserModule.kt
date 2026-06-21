@@ -4,5 +4,5 @@ import org.koin.dsl.module
 
 val userModule = module {
     single<IUserDAO> { UserDao() }
-    single<IUserService> { UserService(get()) }
+    single<IUserService> { UserService(get(), get()) }
 }

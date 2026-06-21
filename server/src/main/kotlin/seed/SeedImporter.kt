@@ -106,7 +106,7 @@ fun main() {
     println("Loaded ${auths.size} auth, ${users.size} users, ${posts.size} posts")
 
     transaction {
-        cleanupExistingSeed(auths.map { it.email.trim().lowercase() }, storage, publicBaseUrl)
+        cleanupExistingSeed(auths.map { it.email.trim().lowercase() }, storage)
 
         // 1) auth_credentials
         val authIdByRef = HashMap<String, UUID>()
@@ -134,16 +134,16 @@ fun main() {
             val credentialId = authIdByRef[u.authRef]
                 ?: error("user ${u.userRef} references unknown auth_ref ${u.authRef}")
 
-            val profileUrl = u.profilePicturePath?.let { srcRef ->
+            val profileKey = u.profilePicturePath?.let { srcRef ->
                 val bytes = readSeedImage(compressedDir.resolve("profile_pictures"), srcRef)
                 val key = imageKey("profile-pictures", LocalDate.now())
                 runBlocking { storage.uploadImage(bytes, key, JPEG) }
-                storage.resolveUrl(key) // users store the FULL URL (matches the app)
+                key
             }
 
             val id = UserTable.insertReturning(listOf(UserTable.id)) {
                 it[authCredentialId] = credentialId
-                it[profilePicturePath] = profileUrl
+                it[profilePicturePath] = profileKey
                 it[fullName] = u.fullName
                 it[phoneNumber] = u.phoneNumber
                 it[birthDate] = LocalDate.parse(u.birthDate)
@@ -205,15 +205,15 @@ private fun readSeedImage(dir: Path, jsonPath: String): ByteArray {
 }
 
 /** Deletes previously-seeded accounts (by email) + their uploaded files, so re-runs stay clean. */
-private fun cleanupExistingSeed(emails: List<String>, storage: LocalImageStorageService, publicBaseUrl: String) {
+private fun cleanupExistingSeed(emails: List<String>, storage: LocalImageStorageService) {
     val authIds = AuthTable.selectAll().where { AuthTable.email inList emails }
         .map { it[AuthTable.id].value }
     if (authIds.isEmpty()) return
 
     val userIds = UserTable.selectAll().where { UserTable.authCredentialId inList authIds }
         .map { row ->
-            row[UserTable.profilePicturePath]?.let { url ->
-                val key = url.substringAfter("/uploads/", missingDelimiterValue = "")
+            row[UserTable.profilePicturePath]?.let { pathOrUrl ->
+                val key = storage.normalizeObjectKey(pathOrUrl)
                 if (key.isNotEmpty()) runBlocking { storage.deleteImage(key) }
             }
             row[UserTable.id].value

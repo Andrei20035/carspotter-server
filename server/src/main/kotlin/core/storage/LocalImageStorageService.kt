@@ -1,5 +1,6 @@
 package com.carspotter.core.storage
 
+import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.io.path.deleteIfExists
@@ -32,13 +33,29 @@ class LocalImageStorageService(
     }
 
     override fun resolveUrl(objectKey: String): String {
+        if (objectKey.contains("://") && !objectKey.contains("/uploads/")) {
+            return objectKey
+        }
+
         val normalizedBaseUrl = publicBaseUrl.removeSuffix("/")
-        val normalizedObjectKey = objectKey.removePrefix("/")
+        val normalizedObjectKey = normalizeObjectKey(objectKey)
         return "$normalizedBaseUrl/uploads/$normalizedObjectKey"
     }
 
+    override fun normalizeObjectKey(pathOrUrl: String): String {
+        val trimmed = pathOrUrl.trim()
+        val path = runCatching { URI(trimmed).path }.getOrNull()
+            ?.takeIf { trimmed.contains("://") }
+            ?: trimmed
+
+        return path
+            .substringAfter("/uploads/", path)
+            .removePrefix("uploads/")
+            .removePrefix("/")
+    }
+
     private fun resolveSafePath(objectKey: String): Path {
-        val normalizedObjectKey = objectKey.removePrefix("/")
+        val normalizedObjectKey = normalizeObjectKey(objectKey)
         val resolved = baseDir.resolve(normalizedObjectKey).normalize()
 
         require(resolved.startsWith(baseDir.normalize())) {

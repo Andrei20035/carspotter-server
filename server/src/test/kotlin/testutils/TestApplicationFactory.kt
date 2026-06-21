@@ -41,6 +41,11 @@ import features.like.ILikeService
 import features.like.LikeDAO
 import features.like.LikeService
 import features.like.likeRoutes
+import features.report.IReportDAO
+import features.report.IReportService
+import features.report.ReportDAO
+import features.report.ReportService
+import features.report.reportRoutes
 import io.ktor.server.application.*
 import io.ktor.server.routing.*
 import org.koin.core.context.stopKoin
@@ -93,10 +98,12 @@ private fun setEnv(key: String, value: String) {
  * NU invocă configureSockets / configureHTTP (inutile pentru testele /auth).
  */
 fun Application.testAuthModule(googleTokenVerifier: GoogleTokenVerifier) {
+    val uploadsDir = Files.createTempDirectory("auth-route-test-uploads")
     val koinTestModule = module {
         single<IAuthDAO> { AuthDAO() }
         single<IUserDAO> { UserDao() }
-        single<IUserService> { UserService(get()) }
+        single<IStorageService> { LocalImageStorageService(uploadsDir, "http://localhost:8080") }
+        single<IUserService> { UserService(get(), get()) }
         single<GoogleTokenVerifier> { googleTokenVerifier }
         single<IAuthService> { AuthService(get(), get(), get()) }
         single {
@@ -155,9 +162,11 @@ fun Application.testCarModelModule() {
  * Folosește același config JWT ca testele de auth.
  */
 fun Application.testCommentModule() {
+    val uploadsDir = Files.createTempDirectory("comment-route-test-uploads")
     val koinTestModule = module {
         single<ICommentDAO> { CommentDAO() }
-        single<ICommentService> { CommentService(get()) }
+        single<IStorageService> { LocalImageStorageService(uploadsDir, "http://localhost:8080") }
+        single<ICommentService> { CommentService(get(), get()) }
         single {
             JwtService(
                 jwtSecret = TestEnv.JWT_SECRET,
@@ -208,6 +217,37 @@ fun Application.testLikeModule() {
     routing {
         route("/api") {
             likeRoutes()
+        }
+    }
+}
+
+/**
+ * Modul Ktor pentru testele rutei /posts/{postId}/reports.
+ * Folosește același config JWT ca testele de auth.
+ */
+fun Application.testReportModule() {
+    val koinTestModule = module {
+        single<IReportDAO> { ReportDAO() }
+        single<IReportService> { ReportService(get()) }
+        single {
+            JwtService(
+                jwtSecret = TestEnv.JWT_SECRET,
+                jwtIssuer = TestEnv.JWT_ISSUER,
+                jwtAudience = TestEnv.JWT_AUDIENCE
+            )
+        }
+    }
+
+    install(Koin) { modules(koinTestModule) }
+
+    configureSerialization()
+    configureSecurity()
+
+    install(RoutingRoot)
+
+    routing {
+        route("/api") {
+            reportRoutes()
         }
     }
 }
@@ -278,8 +318,8 @@ fun Application.testUserModule() {
     val uploadsDir = Files.createTempDirectory("user-route-test-uploads")
     val koinTestModule = module {
         single<IUserDAO> { UserDao() }
-        single<IUserService> { UserService(get()) }
         single<IStorageService> { LocalImageStorageService(uploadsDir, "http://localhost:8080") }
+        single<IUserService> { UserService(get(), get()) }
         single {
             JwtService(
                 jwtSecret = TestEnv.JWT_SECRET,

@@ -119,6 +119,7 @@ class PostServiceImpl(
         val posts = page.map { post ->
             post.toFeedDTO(
                 imageUrl = storageService.resolveUrl(post.imageKey),
+                authorProfilePictureUrl = post.authorProfilePictureUrl?.let(storageService::resolveUrl),
                 likeCount = likeCounts[post.id] ?: 0L,
                 commentCount = commentCounts[post.id] ?: 0L,
                 likedByCurrentUser = post.id in likedPostIds,
@@ -220,7 +221,10 @@ class PostServiceImpl(
         return offset
     }
 
-    private fun toResponse(post: Post): PostDTO = post.toDTO(storageService.resolveUrl(post.imageKey))
+    private fun toResponse(post: Post): PostDTO = post.toDTO(
+        imageUrl = storageService.resolveUrl(post.imageKey),
+        authorProfilePictureUrl = post.authorProfilePictureUrl?.let(storageService::resolveUrl),
+    )
 }
 
 class PostCreationException(message: String, cause: Throwable? = null) : RuntimeException(message, cause)

@@ -99,7 +99,7 @@ class CommentRoutesTest {
 
     @Test
     fun `GET returns comments with username avatar and timestamp ordered ASC`() = commentTest { client ->
-        val alice = CommentTestSeed.seedUser(username = "alice", profilePicturePath = "/uploads/alice.jpg")
+        val alice = CommentTestSeed.seedUser(username = "alice", profilePicturePath = "profile-pictures/alice.jpg")
         val bob = CommentTestSeed.seedUser(username = "bob", email = "bob@example.com")
         val post = CommentTestSeed.seedPost(alice.userId)
 
@@ -114,7 +114,7 @@ class CommentRoutesTest {
         assertEquals(2, body.size)
         assertEquals("first", body[0].commentText)
         assertEquals("alice", body[0].username)
-        assertEquals("/uploads/alice.jpg", body[0].profilePicturePath)
+        assertEquals("http://localhost:8080/uploads/profile-pictures/alice.jpg", body[0].profilePicturePath)
         assertNotNull(body[0].createdAt)
         assertEquals("second", body[1].commentText)
         assertEquals("bob", body[1].username)
@@ -149,7 +149,7 @@ class CommentRoutesTest {
 
     @Test
     fun `POST returns 201 with full CommentDTO including username`() = commentTest { client ->
-        val alice = CommentTestSeed.seedUser(username = "alice", profilePicturePath = "/uploads/alice.jpg")
+        val alice = CommentTestSeed.seedUser(username = "alice", profilePicturePath = "profile-pictures/alice.jpg")
         val post = CommentTestSeed.seedPost(alice.userId)
         val token = tokenFor(alice.authId, alice.userId, alice.email)
 
@@ -165,7 +165,7 @@ class CommentRoutesTest {
         assertEquals(alice.userId, body.userId)
         assertEquals(post.postId, body.postId)
         assertEquals("alice", body.username)
-        assertEquals("/uploads/alice.jpg", body.profilePicturePath)
+        assertEquals("http://localhost:8080/uploads/profile-pictures/alice.jpg", body.profilePicturePath)
         assertEquals("great car!", body.commentText)
         assertNotNull(body.createdAt)
     }

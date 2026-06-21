@@ -104,7 +104,7 @@ fun Route.userRoutes() {
                         val imageKey = createProfilePictureImageKey(payload.contentType)
                         storageService.uploadImage(payload.imageBytes, imageKey, payload.contentType)
                         try {
-                            userService.updateProfilePicture(userId, storageService.resolveUrl(imageKey))
+                            userService.updateProfilePicture(userId, imageKey)
                         } catch (e: Exception) {
                             runCatching { storageService.deleteImage(imageKey) }
                             throw e

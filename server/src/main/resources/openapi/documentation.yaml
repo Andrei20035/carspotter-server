@@ -624,6 +624,50 @@ paths:
         '401':
           description: Unauthorized
 
+  /posts/{postId}/reports:
+    post:
+      summary: Report post
+      description: >
+        Report a post for a typed reason. One report per user/post/reason; a
+        repeat report is accepted as an idempotent no-op.
+      tags:
+        - Reports
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  enum:
+                    - INCORRECT_CAR_MODEL
+                    - DUPLICATE_POST
+                    - INAPPROPRIATE_CONTENT
+              required:
+                - reason
+      responses:
+        '201':
+          description: Report recorded
+        '200':
+          description: Already reported (idempotent)
+        '400':
+          description: Invalid postId or reason
+        '401':
+          description: Unauthorized
+        '404':
+          description: Post not found
+
   /posts:
     get:
       summary: Get all posts

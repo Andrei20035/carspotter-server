@@ -15,5 +15,7 @@ interface IStorageService {
 
     suspend fun deleteImage(objectKey: String)
 
+    fun normalizeObjectKey(pathOrUrl: String): String
+
     fun resolveUrl(objectKey: String): String
 }

@@ -22,11 +22,11 @@ data class UserDTO(
     val updatedAt: Instant? = null
 )
 
-fun User.toDTO(): UserDTO {
+fun User.toDTO(profilePictureUrl: String? = profilePicturePath): UserDTO {
     return UserDTO(
         id = this.id,
         fullName = this.fullName,
-        profilePicturePath = this.profilePicturePath,
+        profilePicturePath = profilePictureUrl,
         username = this.username,
         country = this.country,
         spotScore = this.spotScore,

@@ -32,11 +32,14 @@ data class PostDTO(
     val likedByCurrentUser: Boolean = false,
 )
 
-fun Post.toDTO(imageUrl: String) = PostDTO(
+fun Post.toDTO(
+    imageUrl: String,
+    authorProfilePictureUrl: String? = this.authorProfilePictureUrl,
+) = PostDTO(
     id = this.id,
     userId = this.userId,
     username = this.username,
-    authorProfilePictureUrl = this.authorProfilePictureUrl,
+    authorProfilePictureUrl = authorProfilePictureUrl,
     carModelId = this.carModelId,
     brand = this.brand,
     model = this.model,
@@ -52,6 +55,7 @@ fun Post.toDTO(imageUrl: String) = PostDTO(
 /** Feed variant that also carries engagement counters and the current user's like state. */
 fun Post.toFeedDTO(
     imageUrl: String,
+    authorProfilePictureUrl: String?,
     likeCount: Long,
     commentCount: Long,
     likedByCurrentUser: Boolean,
@@ -59,7 +63,7 @@ fun Post.toFeedDTO(
     id = this.id,
     userId = this.userId,
     username = this.username,
-    authorProfilePictureUrl = this.authorProfilePictureUrl,
+    authorProfilePictureUrl = authorProfilePictureUrl,
     carModelId = this.carModelId,
     brand = this.brand,
     model = this.model,

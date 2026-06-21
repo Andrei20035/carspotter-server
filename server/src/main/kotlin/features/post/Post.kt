@@ -10,8 +10,7 @@ data class Post(
     val id: UUID = UUID.randomUUID(),
     val userId: UUID,
     val username: String,
-    // Author's profile picture. Stored as a full URL in the users table (matches the app),
-    // so it can be returned to the feed as-is.
+    // Author's profile picture object key from the users table. Resolved at DTO boundaries.
     val authorProfilePictureUrl: String? = null,
     val carModelId: UUID? = null,
     val brand: String,

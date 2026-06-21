@@ -1,5 +1,6 @@
 package service
 
+import com.carspotter.core.storage.LocalImageStorageService
 import com.carspotter.features.user.IUserDAO
 import com.carspotter.features.user.UserNotFoundException
 import com.carspotter.features.user.UserProfileAlreadyExistsException
@@ -16,11 +17,15 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import testutils.UserTestSeed
+import java.nio.file.Path
 import java.util.UUID
 
 class UserServiceTest {
 
-    private fun newService(dao: IUserDAO = mockk(relaxed = true)) = UserService(dao)
+    private fun newService(dao: IUserDAO = mockk(relaxed = true)) = UserService(
+        dao,
+        LocalImageStorageService(Path.of("/tmp/user-service-test-uploads"), "http://localhost:8080"),
+    )
 
     @Test
     fun `createUserProfile rejects blank username`() = runTest {
@@ -124,7 +129,7 @@ class UserServiceTest {
     fun `updateProfilePicture throws UserNotFoundException when user does not exist`() = runTest {
         val dao = mockk<IUserDAO>()
         val userId = UUID.randomUUID()
-        coEvery { dao.updateProfilePicture(userId, "/uploads/a.jpg") } returns 0
+        coEvery { dao.updateProfilePicture(userId, "a.jpg") } returns 0
 
         val service = newService(dao)
         assertThrows(UserNotFoundException::class.java) {
@@ -138,7 +143,7 @@ class UserServiceTest {
         val userId = UUID.randomUUID()
         val authCredentialId = UUID.randomUUID()
         val updatedPath = slot<String>()
-        val updatedUser = UserTestSeed.buildUser(authCredentialId, username = "alice", profilePicturePath = "/uploads/a.jpg").copy(id = userId)
+        val updatedUser = UserTestSeed.buildUser(authCredentialId, username = "alice", profilePicturePath = "a.jpg").copy(id = userId)
 
         coEvery { dao.updateProfilePicture(userId, capture(updatedPath)) } returns 1
         coEvery { dao.getUserById(userId) } returns updatedUser
@@ -146,7 +151,29 @@ class UserServiceTest {
         val service = newService(dao)
         val dto = service.updateProfilePicture(userId, "  /uploads/a.jpg  ")
 
-        assertEquals("/uploads/a.jpg", updatedPath.captured)
-        assertEquals("/uploads/a.jpg", dto.profilePicturePath)
+        assertEquals("a.jpg", updatedPath.captured)
+        assertEquals("http://localhost:8080/uploads/a.jpg", dto.profilePicturePath)
+    }
+
+    @Test
+    fun `updateProfilePicture normalizes absolute uploads URL before storing`() = runTest {
+        val dao = mockk<IUserDAO>()
+        val userId = UUID.randomUUID()
+        val authCredentialId = UUID.randomUUID()
+        val updatedPath = slot<String>()
+        val updatedUser = UserTestSeed.buildUser(
+            authCredentialId,
+            username = "alice",
+            profilePicturePath = "profile-pictures/a.jpg",
+        ).copy(id = userId)
+
+        coEvery { dao.updateProfilePicture(userId, capture(updatedPath)) } returns 1
+        coEvery { dao.getUserById(userId) } returns updatedUser
+
+        val service = newService(dao)
+        val dto = service.updateProfilePicture(userId, "http://10.0.2.2:8080/uploads/profile-pictures/a.jpg")
+
+        assertEquals("profile-pictures/a.jpg", updatedPath.captured)
+        assertEquals("http://localhost:8080/uploads/profile-pictures/a.jpg", dto.profilePicturePath)
     }
 }

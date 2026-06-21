@@ -1,5 +1,6 @@
 package service
 
+import com.carspotter.core.storage.LocalImageStorageService
 import features.comment.Comment
 import features.comment.ICommentDAO
 import features.comment.CommentForbiddenException
@@ -17,13 +18,17 @@ import org.jetbrains.exposed.exceptions.ExposedSQLException
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
+import java.nio.file.Path
 import java.sql.SQLException
 import java.time.Instant
 import java.util.UUID
 
 class CommentServiceTest {
 
-    private fun newService(dao: ICommentDAO = mockk(relaxed = true)) = CommentService(dao)
+    private fun newService(dao: ICommentDAO = mockk(relaxed = true)) = CommentService(
+        dao,
+        LocalImageStorageService(Path.of("/tmp/comment-service-test-uploads"), "http://localhost:8080"),
+    )
 
     private fun fakeComment(
         id: UUID = UUID.randomUUID(),

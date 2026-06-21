@@ -1,6 +1,7 @@
 package com.carspotter.routes
 
 import com.carspotter.features.auth.JwtService
+import com.carspotter.features.user.UserDao
 import com.carspotter.features.user.dto.CreateUserRequest
 import com.carspotter.features.user.dto.CreateUserResponse
 import com.carspotter.features.user.dto.UpdateProfilePictureRequest
@@ -264,7 +265,8 @@ class UserRoutesTest {
 
         assertEquals(HttpStatusCode.OK, response.status)
         val body: UserDTO = response.body()
-        assertEquals("/uploads/alice.jpg", body.profilePicturePath)
+        assertEquals("http://localhost:8080/uploads/alice.jpg", body.profilePicturePath)
+        assertEquals("alice.jpg", UserDao().getUserById(userId)!!.profilePicturePath)
     }
 
     @Test
@@ -281,7 +283,10 @@ class UserRoutesTest {
         assertEquals(HttpStatusCode.OK, response.status)
         val body: UserDTO = response.body()
         assertNotNull(body.profilePicturePath)
-        assertTrue(body.profilePicturePath!!.contains("/uploads/profile-pictures/"))
+        assertTrue(body.profilePicturePath!!.startsWith("http://localhost:8080/uploads/profile-pictures/"))
+        val storedPath = UserDao().getUserById(userId)!!.profilePicturePath
+        assertNotNull(storedPath)
+        assertTrue(storedPath!!.startsWith("profile-pictures/"))
     }
 
     @Test

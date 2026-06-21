@@ -79,6 +79,7 @@ object TestDatabaseFactory {
                         friend_requests,
                         friends,
                         likes,
+                        reports,
                         comments,
                         posts,
                         users_cars,

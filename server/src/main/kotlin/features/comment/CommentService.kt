@@ -1,5 +1,6 @@
 package features.comment
 
+import com.carspotter.core.storage.IStorageService
 import com.carspotter.features.comment.dto.CommentDTO
 import com.carspotter.features.comment.dto.toDTO
 import org.jetbrains.exposed.exceptions.ExposedSQLException
@@ -18,6 +19,7 @@ interface ICommentService {
 
 class CommentService(
     private val commentDao: ICommentDAO,
+    private val storageService: IStorageService,
 ) : ICommentService {
 
     companion object {
@@ -32,7 +34,7 @@ class CommentService(
         }
 
         return try {
-            commentDao.addComment(userId, postId, text).toDTO()
+            commentDao.addComment(userId, postId, text).toResponse()
         } catch (e: ExposedSQLException) {
             if (e.sqlState == "23503") throw PostNotFoundException(postId)
             throw e
@@ -47,5 +49,9 @@ class CommentService(
     }
 
     override suspend fun getCommentsForPost(postId: UUID): List<CommentDTO> =
-        commentDao.getCommentsForPost(postId).map { it.toDTO() }
+        commentDao.getCommentsForPost(postId).map { it.toResponse() }
+
+    private fun Comment.toResponse(): CommentDTO = toDTO(
+        profilePictureUrl = profilePicturePath?.let(storageService::resolveUrl),
+    )
 }

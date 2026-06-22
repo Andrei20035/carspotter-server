@@ -15,17 +15,29 @@ import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.update
 import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.greaterEq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.less
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.neq
 import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 import java.util.UUID
 
 interface IPostDAO {
     suspend fun insert(post: PersistPostDTO): UUID
     suspend fun findById(postId: UUID): Post?
     suspend fun listFeed(limit: Int, cursorCreatedAt: Instant?, cursorPostId: UUID?, excludeUserId: UUID?): List<Post>
-    suspend fun listByUser(userId: UUID, limit: Int, offset: Long): List<Post>
+    suspend fun listByUser(userId: UUID, limit: Int, cursorCreatedAt: Instant?, cursorPostId: UUID?): List<Post>
     suspend fun deleteById(postId: UUID): Int
+
+    /**
+     * Count how many CAMERA posts [userId] made on [localDay] (computed using [zoneId]).
+     * Uses a UTC range query so it works correctly with DST-aware zones.
+     */
+    suspend fun countCameraPostsOnDay(userId: UUID, localDay: LocalDate, zoneId: ZoneId): Long
+
+    /** Returns only the userId (owner) of the given post, or null if not found. Lightweight alternative to findById. */
+    suspend fun getOwnerId(postId: UUID): UUID?
 }
 
 class PostDAO : IPostDAO {
@@ -45,6 +57,8 @@ class PostDAO : IPostDAO {
         PostTable.longitude,
         PostTable.town,
         PostTable.country,
+        PostTable.postSource,
+        PostTable.createdAtTimezone,
         PostTable.createdAt,
     )
 
@@ -65,6 +79,8 @@ class PostDAO : IPostDAO {
             it[longitude] = post.longitude
             it[town] = post.town
             it[country] = post.country
+            it[postSource] = post.source.name
+            it[createdAtTimezone] = post.createdAtTimezone
         }.singleOrNull()?.get(PostTable.id)?.value
             ?: error("Failed to insert post")
     }
@@ -108,16 +124,45 @@ class PostDAO : IPostDAO {
             .map(ResultRow::toPost)
     }
 
-    override suspend fun listByUser(userId: UUID, limit: Int, offset: Long): List<Post> = transaction {
-        baseQuery()
-            .where { PostTable.userId eq userId }
+    override suspend fun listByUser(userId: UUID, limit: Int, cursorCreatedAt: Instant?, cursorPostId: UUID?): List<Post> = transaction {
+        val query = baseQuery().where { PostTable.userId eq userId }
+
+        if (cursorCreatedAt != null && cursorPostId != null) {
+            query.andWhere {
+                (PostTable.createdAt less cursorCreatedAt) or
+                    ((PostTable.createdAt eq cursorCreatedAt) and (PostTable.id less cursorPostId))
+            }
+        }
+
+        query
             .orderBy(PostTable.createdAt to SortOrder.DESC, PostTable.id to SortOrder.DESC)
             .limit(limit)
-            .offset(offset)
             .map(ResultRow::toPost)
     }
 
     override suspend fun deleteById(postId: UUID): Int = transaction {
         PostTable.deleteWhere { id eq postId }
+    }
+
+    override suspend fun countCameraPostsOnDay(userId: UUID, localDay: LocalDate, zoneId: ZoneId): Long = transaction {
+        val dayStart: Instant = localDay.atStartOfDay(zoneId).toInstant()
+        val dayEnd: Instant = localDay.plusDays(1).atStartOfDay(zoneId).toInstant()
+        PostTable
+            .select(PostTable.id)
+            .where {
+                (PostTable.userId eq userId) and
+                (PostTable.postSource eq PostSource.CAMERA.name) and
+                (PostTable.createdAt greaterEq dayStart) and
+                (PostTable.createdAt less dayEnd)
+            }
+            .count()
+    }
+
+    override suspend fun getOwnerId(postId: UUID): UUID? = transaction {
+        PostTable
+            .select(PostTable.userId)
+            .where { PostTable.id eq postId }
+            .singleOrNull()
+            ?.get(PostTable.userId)
     }
 }

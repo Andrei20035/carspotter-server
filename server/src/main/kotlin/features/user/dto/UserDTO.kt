@@ -16,13 +16,14 @@ data class UserDTO(
     val username: String,
     val country: String,
     val spotScore: Int = 0,
+    val postCount: Int = 0,
     @Serializable(with = InstantSerializer::class)
     val createdAt: Instant? = null,
     @Serializable(with = InstantSerializer::class)
     val updatedAt: Instant? = null
 )
 
-fun User.toDTO(profilePictureUrl: String? = profilePicturePath): UserDTO {
+fun User.toDTO(profilePictureUrl: String? = profilePicturePath, postCount: Int = 0): UserDTO {
     return UserDTO(
         id = this.id,
         fullName = this.fullName,
@@ -30,6 +31,7 @@ fun User.toDTO(profilePictureUrl: String? = profilePicturePath): UserDTO {
         username = this.username,
         country = this.country,
         spotScore = this.spotScore,
+        postCount = postCount,
         createdAt = this.createdAt,
         updatedAt = this.updatedAt
     )

@@ -20,6 +20,8 @@ object PostTable : UUIDTable("posts") {
     // unresolved on a slow connection or when the user has no location permission.
     val town = varchar("town", 100).nullable()
     val country = varchar("country", 100).nullable()
+    val postSource = varchar("source", 16).default(PostSource.GALLERY.name)
+    val createdAtTimezone = varchar("created_at_timezone", 64).nullable()
     val createdAt = timestamp("created_at").defaultExpression(CurrentTimestamp)
     val updatedAt = timestamp("updated_at").defaultExpression(CurrentTimestamp)
 }

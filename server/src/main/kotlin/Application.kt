@@ -15,7 +15,9 @@ import com.carspotter.features.friend.friendModule
 import com.carspotter.features.friend_request.friendRequestModule
 import features.like.likeModule
 import features.report.reportModule
+import com.carspotter.features.leaderboard.leaderboardModule
 import com.carspotter.features.post.postModule
+import com.carspotter.features.scoring.scoringModule
 import com.carspotter.features.user.userModule
 import com.carspotter.features.user_car.userCarModule
 import io.ktor.server.application.*
@@ -36,6 +38,7 @@ fun Application.module() {
         modules(appModule,
             authModule,
             userModule,
+            scoringModule,
             commentModule,
             postModule,
             carModelModule,
@@ -43,7 +46,8 @@ fun Application.module() {
             friendRequestModule,
             likeModule,
             reportModule,
-            userCarModule
+            userCarModule,
+            leaderboardModule
         )
     }
 

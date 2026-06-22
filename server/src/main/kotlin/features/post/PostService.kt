@@ -9,6 +9,7 @@ import com.carspotter.features.post.dto.PersistPostDTO
 import com.carspotter.features.post.dto.PostDTO
 import com.carspotter.features.post.dto.toDTO
 import com.carspotter.features.post.dto.toFeedDTO
+import com.carspotter.features.scoring.IScoringService
 import features.comment.ICommentDAO
 import features.like.ILikeDAO
 import org.slf4j.LoggerFactory
@@ -25,7 +26,7 @@ interface IPostService {
         cursorPostId: String?,
         currentUserId: UUID?,
     ): FeedResponseDTO
-    suspend fun listPostsByUser(userId: UUID, limit: Int, offset: Long): List<PostDTO>
+    suspend fun listPostsByUser(userId: UUID, limit: Int, cursorCreatedAt: String?, cursorPostId: String?): FeedResponseDTO
     suspend fun deletePostAsAuthor(postId: UUID, authorId: UUID)
 }
 
@@ -35,6 +36,7 @@ class PostServiceImpl(
     private val carModelDao: ICarModelDAO,
     private val likeDao: ILikeDAO,
     private val commentDao: ICommentDAO,
+    private val scoringService: IScoringService,
 ) : IPostService {
     companion object {
         private val logger = LoggerFactory.getLogger(PostServiceImpl::class.java)
@@ -69,7 +71,7 @@ class PostServiceImpl(
         )
 
         return try {
-            postDao.insert(
+            val postId = postDao.insert(
                 PersistPostDTO(
                     userId = request.authorId,
                     carModelId = request.carModelId,
@@ -81,8 +83,18 @@ class PostServiceImpl(
                     town = request.town?.trim()?.ifEmpty { null },
                     country = request.country?.trim()?.ifEmpty { null },
                     caption = request.caption?.trim(),
+                    source = request.source,
+                    createdAtTimezone = request.createdAtTimezone,
                 )
             )
+            // Award SpotScore and advance streak for camera posts.
+            scoringService.onPostCreated(
+                userId = request.authorId,
+                source = request.source,
+                createdAtUtc = Instant.now(),
+                createdAtTimezone = request.createdAtTimezone,
+            )
+            postId
         } catch (e: Exception) {
             runCatching { storageService.deleteImage(objectKey) }
             throw PostCreationException("Failed to create post for user ${request.authorId}", e)
@@ -151,8 +163,32 @@ class PostServiceImpl(
         return createdAt to postId
     }
 
-    override suspend fun listPostsByUser(userId: UUID, limit: Int, offset: Long): List<PostDTO> =
-        postDao.listByUser(userId, validateLimit(limit), validateOffset(offset)).map(::toResponse)
+    override suspend fun listPostsByUser(userId: UUID, limit: Int, cursorCreatedAt: String?, cursorPostId: String?): FeedResponseDTO {
+        val effectiveLimit = validateLimit(limit)
+        val cursor = parseCursor(cursorCreatedAt, cursorPostId)
+
+        val rows = postDao.listByUser(userId, effectiveLimit + 1, cursor?.first, cursor?.second)
+        val hasMore = rows.size > effectiveLimit
+        val page = if (hasMore) rows.take(effectiveLimit) else rows
+
+        val posts = page.map { post ->
+            post.toFeedDTO(
+                imageUrl = storageService.resolveUrl(post.imageKey),
+                authorProfilePictureUrl = post.authorProfilePictureUrl?.let(storageService::resolveUrl),
+                likeCount = 0L,
+                commentCount = 0L,
+                likedByCurrentUser = false,
+            )
+        }
+
+        val nextCursor = if (hasMore) {
+            page.last().let { FeedCursorDTO(it.createdAt, it.id) }
+        } else {
+            null
+        }
+
+        return FeedResponseDTO(posts = posts, nextCursor = nextCursor, hasMore = hasMore)
+    }
 
     override suspend fun deletePostAsAuthor(postId: UUID, authorId: UUID) {
         val post = postDao.findById(postId) ?: throw PostNotFoundException(postId)
@@ -160,6 +196,10 @@ class PostServiceImpl(
             throw PostForbiddenException(postId, authorId)
         }
 
+        // TODO(scoring): retroactive recompute on delete is intentionally deferred.
+        // Reversing camera-post SpotScore/streak contributions requires replaying the full scoring
+        // history and is expensive. For v1 we accept the mild over-inflation on rare deletions.
+        // Cascade deletes on likes/comments mean engagement rows vanish but owner points stay.
         postDao.deleteById(postId)
         runCatching { storageService.deleteImage(post.imageKey) }
             .onFailure { logger.warn("Post {} deleted but image cleanup failed", postId, it) }
@@ -214,11 +254,6 @@ class PostServiceImpl(
         }
         require(limit in 1..maxLimit) { "limit must be between 1 and $maxLimit" }
         return limit
-    }
-
-    private fun validateOffset(offset: Long): Long {
-        require(offset >= 0) { "offset must be >= 0" }
-        return offset
     }
 
     private fun toResponse(post: Post): PostDTO = post.toDTO(

@@ -2,6 +2,7 @@ package com.carspotter.features.post
 
 import com.carspotter.core.util.getUuidClaim
 import com.carspotter.core.util.toUuidOrNull
+import com.carspotter.features.post.PostSource
 import com.carspotter.features.post.dto.CreatePostDTO
 import com.carspotter.features.post.dto.CreatePostMetadata
 import io.ktor.http.HttpStatusCode
@@ -47,10 +48,11 @@ fun Route.postRoutes() {
         val userId = call.parameters["userId"].toUuidOrNull()
             ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid userId"))
         val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: DEFAULT_LIMIT
-        val offset = call.request.queryParameters["offset"]?.toLongOrNull() ?: 0L
+        val cursorCreatedAt = call.request.queryParameters["cursorCreatedAt"]
+        val cursorPostId = call.request.queryParameters["cursorPostId"]
 
         try {
-            call.respond(HttpStatusCode.OK, postService.listPostsByUser(userId, limit, offset))
+            call.respond(HttpStatusCode.OK, postService.listPostsByUser(userId, limit, cursorCreatedAt, cursorPostId))
         } catch (e: IllegalArgumentException) {
             call.respond(HttpStatusCode.BadRequest, mapOf("error" to (e.message ?: "Invalid request")))
         }
@@ -115,6 +117,8 @@ fun Route.postRoutes() {
                         caption = meta.caption,
                         imageBytes = bytes,
                         contentType = ct,
+                        source = PostSource.fromStringOrGallery(meta.source),
+                        createdAtTimezone = meta.createdAtTimezone,
                     )
                 )
 

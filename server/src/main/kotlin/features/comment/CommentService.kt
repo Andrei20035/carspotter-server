@@ -3,6 +3,8 @@ package features.comment
 import com.carspotter.core.storage.IStorageService
 import com.carspotter.features.comment.dto.CommentDTO
 import com.carspotter.features.comment.dto.toDTO
+import com.carspotter.features.post.IPostDAO
+import com.carspotter.features.scoring.IScoringService
 import org.jetbrains.exposed.exceptions.ExposedSQLException
 import java.util.UUID
 
@@ -20,6 +22,8 @@ interface ICommentService {
 class CommentService(
     private val commentDao: ICommentDAO,
     private val storageService: IStorageService,
+    private val postDao: IPostDAO,
+    private val scoringService: IScoringService,
 ) : ICommentService {
 
     companion object {
@@ -33,8 +37,17 @@ class CommentService(
             throw CommentValidationException("Comment text exceeds $MAX_COMMENT_LENGTH characters")
         }
 
+        // Check before inserting: is this user's first comment on this post?
+        val isFirstComment = !commentDao.hasUserCommentedOnPost(userId, postId)
+        val ownerId = postDao.getOwnerId(postId)
+
         return try {
-            commentDao.addComment(userId, postId, text).toResponse()
+            val comment = commentDao.addComment(userId, postId, text).toResponse()
+            // Award first-commenter points if this is the user's first comment and not a self-comment.
+            if (isFirstComment && ownerId != null && ownerId != userId) {
+                scoringService.onFirstCommentByUser(postOwnerId = ownerId, commenterId = userId)
+            }
+            comment
         } catch (e: ExposedSQLException) {
             if (e.sqlState == "23503") throw PostNotFoundException(postId)
             throw e

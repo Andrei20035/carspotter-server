@@ -15,5 +15,7 @@ data class CreatePostMetadata(
     val longitude: Double? = null,
     val town: String? = null,
     val country: String? = null,
-    val caption: String? = null
+    val caption: String? = null,
+    val source: String? = null,
+    val createdAtTimezone: String? = null,
 )

@@ -14,6 +14,9 @@ data class User(
     val username: String,
     val country: String,
     val spotScore: Int = 0,
+    val currentStreak: Int = 0,
+    val longestStreak: Int = 0,
+    val lastStreakDate: LocalDate? = null,
     val createdAt: Instant? = null,
     val updatedAt: Instant? = null,
 )

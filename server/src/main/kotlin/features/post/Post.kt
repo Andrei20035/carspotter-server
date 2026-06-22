@@ -21,6 +21,8 @@ data class Post(
     val town: String? = null,
     val country: String? = null,
     val caption: String? = null,
+    val source: PostSource = PostSource.GALLERY,
+    val createdAtTimezone: String? = null,
     val createdAt: Instant,
 )
 
@@ -50,6 +52,8 @@ fun ResultRow.toPost(): Post {
         town = this[PostTable.town],
         country = this[PostTable.country],
         caption = this[PostTable.caption],
+        source = PostSource.fromStringOrGallery(this[PostTable.postSource]),
+        createdAtTimezone = this[PostTable.createdAtTimezone],
         createdAt = this[PostTable.createdAt],
     )
 }

@@ -16,6 +16,9 @@ object UserTable : UUIDTable("users") {
     val username = varchar("username", 50)
     val country = varchar("country", 50)
     val spotScore = integer("spot_score").default(0)
+    val currentStreak = integer("current_streak").default(0)
+    val longestStreak = integer("longest_streak").default(0)
+    val lastStreakDate = date("last_streak_date").nullable()
     val createdAt = timestamp("created_at").defaultExpression(CurrentTimestamp)
     val updatedAt = timestamp("updated_at").defaultExpression(CurrentTimestamp)
 }

@@ -43,11 +43,17 @@ class UserService(
         )
     }
 
-    override suspend fun getUserById(userId: UUID): UserDTO? =
-        userDao.getUserById(userId)?.toResponse()
+    override suspend fun getUserById(userId: UUID): UserDTO? {
+        val user = userDao.getUserById(userId) ?: return null
+        val postCount = userDao.countPostsByUser(userId)
+        return user.toResponse(postCount = postCount.toInt())
+    }
 
-    override suspend fun getUserByAuthCredentialId(authCredentialId: UUID): UserDTO? =
-        userDao.getUserByAuthCredentialId(authCredentialId)?.toResponse()
+    override suspend fun getUserByAuthCredentialId(authCredentialId: UUID): UserDTO? {
+        val user = userDao.getUserByAuthCredentialId(authCredentialId) ?: return null
+        val postCount = userDao.countPostsByUser(user.id)
+        return user.toResponse(postCount = postCount.toInt())
+    }
 
     override suspend fun updateProfilePicture(userId: UUID, imagePath: String): UserDTO {
         val normalizedImagePath = normalizeRequiredImagePath(imagePath)
@@ -55,7 +61,9 @@ class UserService(
         if (updatedRows == 0) {
             throw UserNotFoundException(userId)
         }
-        return requireNotNull(userDao.getUserById(userId)) { "Updated user could not be loaded" }.toResponse()
+        val user = requireNotNull(userDao.getUserById(userId)) { "Updated user could not be loaded" }
+        val postCount = userDao.countPostsByUser(userId)
+        return user.toResponse(postCount = postCount.toInt())
     }
 
     private fun normalizeUsername(username: String): String {
@@ -80,9 +88,10 @@ class UserService(
         return storageService.normalizeObjectKey(normalized)
     }
 
-    private fun User.toResponse(): UserDTO {
+    private fun User.toResponse(postCount: Int = 0): UserDTO {
         return toDTO(
             profilePictureUrl = profilePicturePath?.let(storageService::resolveUrl),
+            postCount = postCount,
         )
     }
 }

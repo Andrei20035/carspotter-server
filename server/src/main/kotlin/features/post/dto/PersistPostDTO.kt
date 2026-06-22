@@ -1,5 +1,6 @@
 package com.carspotter.features.post.dto
 
+import com.carspotter.features.post.PostSource
 import java.util.UUID
 
 class PersistPostDTO(
@@ -12,5 +13,7 @@ class PersistPostDTO(
     val longitude: Double?,
     val town: String?,
     val country: String?,
-    val caption: String?
+    val caption: String?,
+    val source: PostSource = PostSource.GALLERY,
+    val createdAtTimezone: String? = null,
 )

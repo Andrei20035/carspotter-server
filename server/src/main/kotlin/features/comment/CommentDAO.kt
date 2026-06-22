@@ -15,6 +15,9 @@ interface ICommentDAO {
 
     /** Batched comment counts for a set of posts. Returns a map postId -> count (posts with no comments are absent). */
     suspend fun getCommentCountsForPosts(postIds: List<UUID>): Map<UUID, Long>
+
+    /** Returns true if [userId] has at least one comment on [postId]. */
+    suspend fun hasUserCommentedOnPost(userId: UUID, postId: UUID): Boolean
 }
 
 class CommentDAO : ICommentDAO {
@@ -87,5 +90,13 @@ class CommentDAO : ICommentDAO {
             .where { CommentTable.postId inList postIds }
             .groupBy(CommentTable.postId)
             .associate { it[CommentTable.postId] to it[countExpr] }
+    }
+
+    override suspend fun hasUserCommentedOnPost(userId: UUID, postId: UUID): Boolean = transaction {
+        CommentTable
+            .select(CommentTable.id)
+            .where { (CommentTable.userId eq userId) and (CommentTable.postId eq postId) }
+            .limit(1)
+            .any()
     }
 }

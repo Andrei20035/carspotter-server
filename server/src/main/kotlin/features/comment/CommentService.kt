@@ -39,13 +39,18 @@ class CommentService(
 
         // Check before inserting: is this user's first comment on this post?
         val isFirstComment = !commentDao.hasUserCommentedOnPost(userId, postId)
-        val ownerId = postDao.getOwnerId(postId)
+        val ownerInfo = postDao.getOwnerAndSource(postId)
 
         return try {
             val comment = commentDao.addComment(userId, postId, text).toResponse()
             // Award first-commenter points if this is the user's first comment and not a self-comment.
-            if (isFirstComment && ownerId != null && ownerId != userId) {
-                scoringService.onFirstCommentByUser(postOwnerId = ownerId, commenterId = userId)
+            if (isFirstComment && ownerInfo != null && ownerInfo.ownerId != userId) {
+                scoringService.onFirstCommentByUser(
+                    postOwnerId = ownerInfo.ownerId,
+                    postId = postId,
+                    commenterId = userId,
+                    source = ownerInfo.source,
+                )
             }
             comment
         } catch (e: ExposedSQLException) {

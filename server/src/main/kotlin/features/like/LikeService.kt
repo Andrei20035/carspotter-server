@@ -20,11 +20,16 @@ class LikeService(
 
     override suspend fun toggleLike(userId: UUID, postId: UUID): LikeStatusDTO {
         val alreadyLiked = likeDao.hasUserLikedPost(userId, postId)
-        val ownerId = postDao.getOwnerId(postId) ?: throw LikePostNotFoundException(postId)
+        val ownerInfo = postDao.getOwnerAndSource(postId) ?: throw LikePostNotFoundException(postId)
 
         if (alreadyLiked) {
             likeDao.unlikePost(userId, postId)
-            scoringService.onPostUnliked(postOwnerId = ownerId, unlikerId = userId)
+            scoringService.onPostUnliked(
+                postOwnerId = ownerInfo.ownerId,
+                postId = postId,
+                unlikerId = userId,
+                source = ownerInfo.source,
+            )
         } else {
             try {
                 likeDao.likePost(userId, postId)
@@ -33,7 +38,12 @@ class LikeService(
                 if (e.sqlState == "23503") throw LikePostNotFoundException(postId)
                 throw e
             }
-            scoringService.onPostLiked(postOwnerId = ownerId, likerId = userId)
+            scoringService.onPostLiked(
+                postOwnerId = ownerInfo.ownerId,
+                postId = postId,
+                likerId = userId,
+                source = ownerInfo.source,
+            )
         }
 
         val count = likeDao.getLikeCount(postId)

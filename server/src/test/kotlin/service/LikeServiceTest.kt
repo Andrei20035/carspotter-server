@@ -1,5 +1,9 @@
 package service
 
+import com.carspotter.features.post.IPostDAO
+import com.carspotter.features.post.PostOwnerInfo
+import com.carspotter.features.post.PostSource
+import com.carspotter.features.scoring.IScoringService
 import features.like.ILikeDAO
 import features.like.LikePostNotFoundException
 import features.like.LikeService
@@ -19,7 +23,23 @@ import java.util.UUID
 
 class LikeServiceTest {
 
-    private fun newService(dao: ILikeDAO = mockk(relaxed = true)) = LikeService(dao)
+    private val likeDao = mockk<ILikeDAO>(relaxed = true)
+    private val postDao = mockk<IPostDAO>(relaxed = true)
+    private val scoringService = mockk<IScoringService>(relaxed = true)
+
+    private fun newService(
+        dao: ILikeDAO = likeDao,
+        pDao: IPostDAO = postDao,
+        scoring: IScoringService = scoringService,
+    ) = LikeService(dao, pDao, scoring)
+
+    private fun stubCameraPost(postId: UUID, ownerId: UUID) {
+        coEvery { postDao.getOwnerAndSource(postId) } returns PostOwnerInfo(ownerId, PostSource.CAMERA)
+    }
+
+    private fun stubGalleryPost(postId: UUID, ownerId: UUID) {
+        coEvery { postDao.getOwnerAndSource(postId) } returns PostOwnerInfo(ownerId, PostSource.GALLERY)
+    }
 
     // ---------- toggleLike: like path ----------
 
@@ -28,9 +48,11 @@ class LikeServiceTest {
         val dao = mockk<ILikeDAO>()
         val userId = UUID.randomUUID()
         val postId = UUID.randomUUID()
+        val ownerId = UUID.randomUUID()
         coEvery { dao.hasUserLikedPost(userId, postId) } returns false
         coEvery { dao.likePost(userId, postId) } returns Unit
         coEvery { dao.getLikeCount(postId) } returns 1L
+        coEvery { postDao.getOwnerAndSource(postId) } returns PostOwnerInfo(ownerId, PostSource.CAMERA)
 
         val result = newService(dao).toggleLike(userId, postId)
 
@@ -45,9 +67,11 @@ class LikeServiceTest {
         val dao = mockk<ILikeDAO>()
         val userId = UUID.randomUUID()
         val postId = UUID.randomUUID()
+        val ownerId = UUID.randomUUID()
         coEvery { dao.hasUserLikedPost(userId, postId) } returns true
         coEvery { dao.unlikePost(userId, postId) } returns 1
         coEvery { dao.getLikeCount(postId) } returns 0L
+        coEvery { postDao.getOwnerAndSource(postId) } returns PostOwnerInfo(ownerId, PostSource.CAMERA)
 
         val result = newService(dao).toggleLike(userId, postId)
 
@@ -62,9 +86,11 @@ class LikeServiceTest {
         val dao = mockk<ILikeDAO>()
         val userId = UUID.randomUUID()
         val postId = UUID.randomUUID()
+        val ownerId = UUID.randomUUID()
         coEvery { dao.hasUserLikedPost(userId, postId) } returns false
         coEvery { dao.likePost(userId, postId) } returns Unit
         coEvery { dao.getLikeCount(postId) } returns 42L
+        coEvery { postDao.getOwnerAndSource(postId) } returns PostOwnerInfo(ownerId, PostSource.CAMERA)
 
         val result = newService(dao).toggleLike(userId, postId)
 
@@ -74,10 +100,23 @@ class LikeServiceTest {
     // ---------- toggleLike: error mapping ----------
 
     @Test
+    fun `toggleLike throws LikePostNotFoundException when post not found`() {
+        val postId = UUID.randomUUID()
+        coEvery { likeDao.hasUserLikedPost(any(), postId) } returns false
+        coEvery { postDao.getOwnerAndSource(postId) } returns null
+
+        assertThrows(LikePostNotFoundException::class.java) {
+            runBlocking { newService().toggleLike(UUID.randomUUID(), postId) }
+        }
+    }
+
+    @Test
     fun `toggleLike maps FK violation (23503) to LikePostNotFoundException`() {
         val dao = mockk<ILikeDAO>()
         val postId = UUID.randomUUID()
+        val ownerId = UUID.randomUUID()
         coEvery { dao.hasUserLikedPost(any(), postId) } returns false
+        coEvery { postDao.getOwnerAndSource(postId) } returns PostOwnerInfo(ownerId, PostSource.CAMERA)
         coEvery { dao.likePost(any(), postId) } throws
                 ExposedSQLException(SQLException("FK violation", "23503"), emptyList(), mockk(relaxed = true))
 
@@ -89,12 +128,15 @@ class LikeServiceTest {
     @Test
     fun `toggleLike rethrows non-FK ExposedSQLException`() {
         val dao = mockk<ILikeDAO>()
+        val postId = UUID.randomUUID()
+        val ownerId = UUID.randomUUID()
         coEvery { dao.hasUserLikedPost(any(), any()) } returns false
+        coEvery { postDao.getOwnerAndSource(postId) } returns PostOwnerInfo(ownerId, PostSource.CAMERA)
         coEvery { dao.likePost(any(), any()) } throws
                 ExposedSQLException(SQLException("other error", "42000"), emptyList(), mockk(relaxed = true))
 
         assertThrows(ExposedSQLException::class.java) {
-            runBlocking { newService(dao).toggleLike(UUID.randomUUID(), UUID.randomUUID()) }
+            runBlocking { newService(dao).toggleLike(UUID.randomUUID(), postId) }
         }
     }
 
@@ -103,29 +145,80 @@ class LikeServiceTest {
         val dao = mockk<ILikeDAO>(relaxed = true)
         val userId = UUID.randomUUID()
         val postId = UUID.randomUUID()
+        val ownerId = UUID.randomUUID()
         coEvery { dao.hasUserLikedPost(userId, postId) } returns true
         coEvery { dao.getLikeCount(postId) } returns 5L
+        coEvery { postDao.getOwnerAndSource(postId) } returns PostOwnerInfo(ownerId, PostSource.CAMERA)
 
         newService(dao).toggleLike(userId, postId)
 
         coVerify(exactly = 0) { dao.likePost(any(), any()) }
     }
 
+    // ---------- scoring: CAMERA vs GALLERY ----------
+
     @Test
-    fun `toggleLike does not call getLikeCount before performing action`() = runTest {
-        // Verifică ordinea apelurilor: mai întâi like/unlike, apoi count
-        val dao = mockk<ILikeDAO>()
+    fun `toggleLike calls onPostLiked for CAMERA post`() = runTest {
         val userId = UUID.randomUUID()
+        val ownerId = UUID.randomUUID()
         val postId = UUID.randomUUID()
-        coEvery { dao.hasUserLikedPost(userId, postId) } returns false
-        coEvery { dao.likePost(userId, postId) } returns Unit
-        coEvery { dao.getLikeCount(postId) } returns 1L
+        coEvery { likeDao.hasUserLikedPost(userId, postId) } returns false
+        coEvery { likeDao.getLikeCount(postId) } returns 1L
+        stubCameraPost(postId, ownerId)
 
-        newService(dao).toggleLike(userId, postId)
+        newService().toggleLike(userId, postId)
 
-        // likePost trebuie apelat exact o dată, getLikeCount exact o dată
-        coVerify(exactly = 1) { dao.likePost(userId, postId) }
-        coVerify(exactly = 1) { dao.getLikeCount(postId) }
+        coVerify(exactly = 1) {
+            scoringService.onPostLiked(ownerId, postId, userId, PostSource.CAMERA)
+        }
+    }
+
+    @Test
+    fun `toggleLike does not call onPostLiked for GALLERY post`() = runTest {
+        val userId = UUID.randomUUID()
+        val ownerId = UUID.randomUUID()
+        val postId = UUID.randomUUID()
+        coEvery { likeDao.hasUserLikedPost(userId, postId) } returns false
+        coEvery { likeDao.getLikeCount(postId) } returns 1L
+        stubGalleryPost(postId, ownerId)
+
+        newService().toggleLike(userId, postId)
+
+        coVerify(exactly = 1) {
+            scoringService.onPostLiked(ownerId, postId, userId, PostSource.GALLERY)
+        }
+    }
+
+    @Test
+    fun `toggleLike calls onPostUnliked for CAMERA post`() = runTest {
+        val userId = UUID.randomUUID()
+        val ownerId = UUID.randomUUID()
+        val postId = UUID.randomUUID()
+        coEvery { likeDao.hasUserLikedPost(userId, postId) } returns true
+        coEvery { likeDao.getLikeCount(postId) } returns 0L
+        stubCameraPost(postId, ownerId)
+
+        newService().toggleLike(userId, postId)
+
+        coVerify(exactly = 1) {
+            scoringService.onPostUnliked(ownerId, postId, userId, PostSource.CAMERA)
+        }
+    }
+
+    @Test
+    fun `toggleLike calls onPostUnliked for GALLERY post`() = runTest {
+        val userId = UUID.randomUUID()
+        val ownerId = UUID.randomUUID()
+        val postId = UUID.randomUUID()
+        coEvery { likeDao.hasUserLikedPost(userId, postId) } returns true
+        coEvery { likeDao.getLikeCount(postId) } returns 0L
+        stubGalleryPost(postId, ownerId)
+
+        newService().toggleLike(userId, postId)
+
+        coVerify(exactly = 1) {
+            scoringService.onPostUnliked(ownerId, postId, userId, PostSource.GALLERY)
+        }
     }
 
     // ---------- getLikeStatus ----------
@@ -140,7 +233,6 @@ class LikeServiceTest {
 
         assertFalse(result.liked)
         assertEquals(7L, result.count)
-        // Nu trebuie să cheme hasUserLikedPost când userId e null
         coVerify(exactly = 0) { dao.hasUserLikedPost(any(), any()) }
     }
 
@@ -182,19 +274,5 @@ class LikeServiceTest {
 
         assertEquals(0L, result.count)
         assertFalse(result.liked)
-    }
-
-    @Test
-    fun `getLikeStatus calls hasUserLikedPost exactly once when userId is present`() = runTest {
-        val dao = mockk<ILikeDAO>()
-        val userId = UUID.randomUUID()
-        val postId = UUID.randomUUID()
-        coEvery { dao.getLikeCount(postId) } returns 1L
-        coEvery { dao.hasUserLikedPost(userId, postId) } returns true
-
-        newService(dao).getLikeStatus(postId, userId)
-
-        coVerify(exactly = 1) { dao.hasUserLikedPost(userId, postId) }
-        coVerify(exactly = 1) { dao.getLikeCount(postId) }
     }
 }

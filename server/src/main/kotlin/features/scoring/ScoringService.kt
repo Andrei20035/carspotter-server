@@ -13,11 +13,11 @@ import java.util.UUID
 interface IScoringService {
     /**
      * Award SpotScore and update streak for a newly created camera post.
-     * Must be called inside the same transaction as the post insert.
      * No-ops silently when [source] is GALLERY.
      */
     suspend fun onPostCreated(
         userId: UUID,
+        postId: UUID,
         source: PostSource,
         createdAtUtc: Instant,
         createdAtTimezone: String?,
@@ -25,26 +25,27 @@ interface IScoringService {
 
     /**
      * Award +[LIKE_POINTS] to [postOwnerId] when [likerId] likes a post.
-     * No-op on self-likes. Must be called in the same transaction as the like insert.
+     * No-op on self-likes or GALLERY posts.
      */
-    suspend fun onPostLiked(postOwnerId: UUID, likerId: UUID)
+    suspend fun onPostLiked(postOwnerId: UUID, postId: UUID, likerId: UUID, source: PostSource)
 
     /**
      * Remove +[LIKE_POINTS] from [postOwnerId] when [unlikerId] removes a like.
-     * No-op on self-unlike. Must be called in the same transaction as the like delete.
+     * No-op on self-unlike or GALLERY posts.
      */
-    suspend fun onPostUnliked(postOwnerId: UUID, unlikerId: UUID)
+    suspend fun onPostUnliked(postOwnerId: UUID, postId: UUID, unlikerId: UUID, source: PostSource)
 
     /**
      * Award +[COMMENT_POINTS] to [postOwnerId] for the first comment by [commenterId] on a post.
-     * Self-comments and repeat commenters award nothing. Must be called in the same transaction.
+     * Self-comments, repeat commenters, and GALLERY posts award nothing.
      */
-    suspend fun onFirstCommentByUser(postOwnerId: UUID, commenterId: UUID)
+    suspend fun onFirstCommentByUser(postOwnerId: UUID, postId: UUID, commenterId: UUID, source: PostSource)
 }
 
 class ScoringServiceImpl(
     private val userDao: IUserDAO,
     private val postDao: IPostDAO,
+    private val scoringDao: IScoringDao,
 ) : IScoringService {
 
     companion object {
@@ -58,6 +59,7 @@ class ScoringServiceImpl(
 
     override suspend fun onPostCreated(
         userId: UUID,
+        postId: UUID,
         source: PostSource,
         createdAtUtc: Instant,
         createdAtTimezone: String?,
@@ -70,29 +72,30 @@ class ScoringServiceImpl(
         // Count existing camera posts on the same local day (before this one was inserted).
         val priorCount = postDao.countCameraPostsOnDay(userId, localDay, zone)
 
-        // The current post is already inserted (same transaction), so subtract 1 to count prior.
+        // The current post is already inserted, so subtract 1 to count prior rewarded posts.
         val priorRewarded = (priorCount - 1).coerceAtLeast(0)
 
-        if (priorRewarded < DAILY_CAMERA_CAP) {
-            userDao.incrementSpotScore(userId, CAMERA_POINTS)
+        val points = if (priorRewarded < DAILY_CAMERA_CAP) CAMERA_POINTS else 0
+        if (points > 0) {
+            scoringDao.applyCreationPoints(userId, postId, points)
         }
         // Always advance the streak regardless of cap (posting still counts for the day).
         userDao.advanceStreak(userId, localDay)
     }
 
-    override suspend fun onPostLiked(postOwnerId: UUID, likerId: UUID) {
-        if (postOwnerId == likerId) return
-        userDao.incrementSpotScore(postOwnerId, LIKE_POINTS)
+    override suspend fun onPostLiked(postOwnerId: UUID, postId: UUID, likerId: UUID, source: PostSource) {
+        if (postOwnerId == likerId || source != PostSource.CAMERA) return
+        scoringDao.applyEngagementPoints(postOwnerId, postId, LIKE_POINTS)
     }
 
-    override suspend fun onPostUnliked(postOwnerId: UUID, unlikerId: UUID) {
-        if (postOwnerId == unlikerId) return
-        userDao.incrementSpotScore(postOwnerId, -LIKE_POINTS)
+    override suspend fun onPostUnliked(postOwnerId: UUID, postId: UUID, unlikerId: UUID, source: PostSource) {
+        if (postOwnerId == unlikerId || source != PostSource.CAMERA) return
+        scoringDao.applyEngagementPoints(postOwnerId, postId, -LIKE_POINTS)
     }
 
-    override suspend fun onFirstCommentByUser(postOwnerId: UUID, commenterId: UUID) {
-        if (postOwnerId == commenterId) return
-        userDao.incrementSpotScore(postOwnerId, COMMENT_POINTS)
+    override suspend fun onFirstCommentByUser(postOwnerId: UUID, postId: UUID, commenterId: UUID, source: PostSource) {
+        if (postOwnerId == commenterId || source != PostSource.CAMERA) return
+        scoringDao.applyEngagementPoints(postOwnerId, postId, COMMENT_POINTS)
     }
 
     private fun resolveZone(tz: String?): ZoneId {

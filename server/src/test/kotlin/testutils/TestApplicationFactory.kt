@@ -21,6 +21,10 @@ import com.carspotter.features.post.IPostService
 import com.carspotter.features.post.PostDAO
 import com.carspotter.features.post.PostServiceImpl
 import com.carspotter.features.post.postRoutes
+import com.carspotter.features.scoring.IScoringDao
+import com.carspotter.features.scoring.IScoringService
+import com.carspotter.features.scoring.ScoringDaoImpl
+import com.carspotter.features.scoring.ScoringServiceImpl
 import com.carspotter.features.user.IUserDAO
 import com.carspotter.features.user.IUserService
 import com.carspotter.features.user.UserDao
@@ -165,8 +169,12 @@ fun Application.testCommentModule() {
     val uploadsDir = Files.createTempDirectory("comment-route-test-uploads")
     val koinTestModule = module {
         single<ICommentDAO> { CommentDAO() }
+        single<IPostDAO> { PostDAO() }
+        single<IUserDAO> { UserDao() }
         single<IStorageService> { LocalImageStorageService(uploadsDir, "http://localhost:8080") }
-        single<ICommentService> { CommentService(get(), get()) }
+        single<IScoringDao> { ScoringDaoImpl() }
+        single<IScoringService> { ScoringServiceImpl(get(), get(), get()) }
+        single<ICommentService> { CommentService(get(), get(), get(), get()) }
         single {
             JwtService(
                 jwtSecret = TestEnv.JWT_SECRET,
@@ -197,7 +205,11 @@ fun Application.testCommentModule() {
 fun Application.testLikeModule() {
     val koinTestModule = module {
         single<ILikeDAO> { LikeDAO() }
-        single<ILikeService> { LikeService(get()) }
+        single<IPostDAO> { PostDAO() }
+        single<IUserDAO> { UserDao() }
+        single<IScoringDao> { ScoringDaoImpl() }
+        single<IScoringService> { ScoringServiceImpl(get(), get(), get()) }
+        single<ILikeService> { LikeService(get(), get(), get()) }
         single {
             JwtService(
                 jwtSecret = TestEnv.JWT_SECRET,
@@ -259,8 +271,11 @@ fun Application.testPostModule() {
         single<IPostDAO> { PostDAO() }
         single<ILikeDAO> { LikeDAO() }
         single<ICommentDAO> { CommentDAO() }
+        single<IUserDAO> { UserDao() }
         single<IStorageService> { LocalImageStorageService(uploadsDir, "http://localhost:8080") }
-        single<IPostService> { PostServiceImpl(get(), get(), get(), get(), get()) }
+        single<IScoringDao> { ScoringDaoImpl() }
+        single<IScoringService> { ScoringServiceImpl(get(), get(), get()) }
+        single<IPostService> { PostServiceImpl(get(), get(), get(), get(), get(), get(), get()) }
         single {
             JwtService(
                 jwtSecret = TestEnv.JWT_SECRET,

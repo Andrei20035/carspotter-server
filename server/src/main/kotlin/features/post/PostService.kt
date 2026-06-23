@@ -9,6 +9,7 @@ import com.carspotter.features.post.dto.PersistPostDTO
 import com.carspotter.features.post.dto.PostDTO
 import com.carspotter.features.post.dto.toDTO
 import com.carspotter.features.post.dto.toFeedDTO
+import com.carspotter.features.scoring.IScoringDao
 import com.carspotter.features.scoring.IScoringService
 import features.comment.ICommentDAO
 import features.like.ILikeDAO
@@ -37,6 +38,7 @@ class PostServiceImpl(
     private val likeDao: ILikeDAO,
     private val commentDao: ICommentDAO,
     private val scoringService: IScoringService,
+    private val scoringDao: IScoringDao,
 ) : IPostService {
     companion object {
         private val logger = LoggerFactory.getLogger(PostServiceImpl::class.java)
@@ -90,6 +92,7 @@ class PostServiceImpl(
             // Award SpotScore and advance streak for camera posts.
             scoringService.onPostCreated(
                 userId = request.authorId,
+                postId = postId,
                 source = request.source,
                 createdAtUtc = Instant.now(),
                 createdAtTimezone = request.createdAtTimezone,
@@ -196,11 +199,9 @@ class PostServiceImpl(
             throw PostForbiddenException(postId, authorId)
         }
 
-        // TODO(scoring): retroactive recompute on delete is intentionally deferred.
-        // Reversing camera-post SpotScore/streak contributions requires replaying the full scoring
-        // history and is expensive. For v1 we accept the mild over-inflation on rare deletions.
-        // Cascade deletes on likes/comments mean engagement rows vanish but owner points stay.
-        postDao.deleteById(postId)
+        // Reverse post.points from spot_score and delete the post atomically.
+        // Cascade removes associated likes and comments.
+        scoringDao.reverseAndDeletePost(ownerId = authorId, postId = postId, points = post.points)
         runCatching { storageService.deleteImage(post.imageKey) }
             .onFailure { logger.warn("Post {} deleted but image cleanup failed", postId, it) }
     }

@@ -22,6 +22,7 @@ object PostTable : UUIDTable("posts") {
     val country = varchar("country", 100).nullable()
     val postSource = varchar("source", 16).default(PostSource.GALLERY.name)
     val createdAtTimezone = varchar("created_at_timezone", 64).nullable()
+    val points = integer("points").default(0)
     val createdAt = timestamp("created_at").defaultExpression(CurrentTimestamp)
     val updatedAt = timestamp("updated_at").defaultExpression(CurrentTimestamp)
 }

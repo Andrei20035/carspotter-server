@@ -1,6 +1,10 @@
 package service
 
 import com.carspotter.core.storage.LocalImageStorageService
+import com.carspotter.features.post.IPostDAO
+import com.carspotter.features.post.PostOwnerInfo
+import com.carspotter.features.post.PostSource
+import com.carspotter.features.scoring.IScoringService
 import features.comment.Comment
 import features.comment.ICommentDAO
 import features.comment.CommentForbiddenException
@@ -25,10 +29,16 @@ import java.util.UUID
 
 class CommentServiceTest {
 
-    private fun newService(dao: ICommentDAO = mockk(relaxed = true)) = CommentService(
-        dao,
-        LocalImageStorageService(Path.of("/tmp/comment-service-test-uploads"), "http://localhost:8080"),
-    )
+    private val commentDao = mockk<ICommentDAO>(relaxed = true)
+    private val postDao = mockk<IPostDAO>(relaxed = true)
+    private val scoringService = mockk<IScoringService>(relaxed = true)
+    private val storage = LocalImageStorageService(Path.of("/tmp/comment-service-test-uploads"), "http://localhost:8080")
+
+    private fun newService(
+        dao: ICommentDAO = commentDao,
+        pDao: IPostDAO = postDao,
+        scoring: IScoringService = scoringService,
+    ) = CommentService(dao, storage, pDao, scoring)
 
     private fun fakeComment(
         id: UUID = UUID.randomUUID(),
@@ -78,11 +88,13 @@ class CommentServiceTest {
         val dao = mockk<ICommentDAO>()
         val userId = UUID.randomUUID()
         val postId = UUID.randomUUID()
+        val ownerId = UUID.randomUUID()
         val text = "a".repeat(CommentService.MAX_COMMENT_LENGTH)
+        coEvery { dao.hasUserCommentedOnPost(userId, postId) } returns false
         coEvery { dao.addComment(userId, postId, text) } returns fakeComment(userId = userId, postId = postId, text = text)
+        coEvery { postDao.getOwnerAndSource(postId) } returns PostOwnerInfo(ownerId, PostSource.CAMERA)
 
-        val service = newService(dao)
-        val dto = service.addComment(userId, postId, text)
+        val dto = newService(dao).addComment(userId, postId, text)
 
         assertEquals(text, dto.commentText)
     }
@@ -92,11 +104,13 @@ class CommentServiceTest {
         val dao = mockk<ICommentDAO>()
         val userId = UUID.randomUUID()
         val postId = UUID.randomUUID()
+        val ownerId = UUID.randomUUID()
         val captured = slot<String>()
+        coEvery { dao.hasUserCommentedOnPost(userId, postId) } returns false
         coEvery { dao.addComment(userId, postId, capture(captured)) } returns fakeComment(text = "trimmed")
+        coEvery { postDao.getOwnerAndSource(postId) } returns PostOwnerInfo(ownerId, PostSource.CAMERA)
 
-        val service = newService(dao)
-        service.addComment(userId, postId, "   trimmed   ")
+        newService(dao).addComment(userId, postId, "   trimmed   ")
 
         assertEquals("trimmed", captured.captured)
     }
@@ -107,27 +121,29 @@ class CommentServiceTest {
     fun `addComment converts FK violation to PostNotFoundException`() = runTest {
         val dao = mockk<ICommentDAO>()
         val postId = UUID.randomUUID()
-
-        // SQLState 23503 = foreign_key_violation in PostgreSQL.
-        // ExposedSQLException requires a SQLException; we wrap one with the right SQLState.
+        val ownerId = UUID.randomUUID()
         val sqlEx = SQLException("FK violation", "23503")
+        coEvery { dao.hasUserCommentedOnPost(any(), postId) } returns false
         coEvery { dao.addComment(any(), any(), any()) } throws ExposedSQLException(sqlEx, emptyList(), mockk(relaxed = true))
+        coEvery { postDao.getOwnerAndSource(postId) } returns PostOwnerInfo(ownerId, PostSource.CAMERA)
 
-        val service = newService(dao)
         assertThrows(PostNotFoundException::class.java) {
-            runBlocking { service.addComment(UUID.randomUUID(), postId, "hi") }
+            runBlocking { newService(dao).addComment(UUID.randomUUID(), postId, "hi") }
         }
     }
 
     @Test
     fun `addComment rethrows non-FK SQL exceptions`() = runTest {
         val dao = mockk<ICommentDAO>()
+        val postId = UUID.randomUUID()
+        val ownerId = UUID.randomUUID()
         val sqlEx = SQLException("some other error", "42000")
+        coEvery { dao.hasUserCommentedOnPost(any(), any()) } returns false
         coEvery { dao.addComment(any(), any(), any()) } throws ExposedSQLException(sqlEx, emptyList(), mockk(relaxed = true))
+        coEvery { postDao.getOwnerAndSource(postId) } returns PostOwnerInfo(ownerId, PostSource.CAMERA)
 
-        val service = newService(dao)
         assertThrows(ExposedSQLException::class.java) {
-            runBlocking { service.addComment(UUID.randomUUID(), UUID.randomUUID(), "hi") }
+            runBlocking { newService(dao).addComment(UUID.randomUUID(), postId, "hi") }
         }
     }
 
@@ -136,14 +152,77 @@ class CommentServiceTest {
         val dao = mockk<ICommentDAO>()
         val userId = UUID.randomUUID()
         val postId = UUID.randomUUID()
+        val ownerId = UUID.randomUUID()
         val expected = fakeComment(userId = userId, postId = postId, text = "ok")
+        coEvery { dao.hasUserCommentedOnPost(userId, postId) } returns false
         coEvery { dao.addComment(userId, postId, "ok") } returns expected
+        coEvery { postDao.getOwnerAndSource(postId) } returns PostOwnerInfo(ownerId, PostSource.CAMERA)
 
-        val service = newService(dao)
-        val dto = service.addComment(userId, postId, "ok")
+        val dto = newService(dao).addComment(userId, postId, "ok")
 
         assertEquals(expected.id, dto.id)
         assertEquals("alice", dto.username)
+    }
+
+    // ---------- addComment: scoring CAMERA vs GALLERY ----------
+
+    @Test
+    fun `addComment calls onFirstCommentByUser for first comment on CAMERA post`() = runTest {
+        val userId = UUID.randomUUID()
+        val ownerId = UUID.randomUUID()
+        val postId = UUID.randomUUID()
+        coEvery { commentDao.hasUserCommentedOnPost(userId, postId) } returns false
+        coEvery { commentDao.addComment(userId, postId, "hi") } returns fakeComment(userId = userId, postId = postId)
+        coEvery { postDao.getOwnerAndSource(postId) } returns PostOwnerInfo(ownerId, PostSource.CAMERA)
+
+        newService().addComment(userId, postId, "hi")
+
+        coVerify(exactly = 1) {
+            scoringService.onFirstCommentByUser(ownerId, postId, userId, PostSource.CAMERA)
+        }
+    }
+
+    @Test
+    fun `addComment does not call onFirstCommentByUser for GALLERY post`() = runTest {
+        val userId = UUID.randomUUID()
+        val ownerId = UUID.randomUUID()
+        val postId = UUID.randomUUID()
+        coEvery { commentDao.hasUserCommentedOnPost(userId, postId) } returns false
+        coEvery { commentDao.addComment(userId, postId, "hi") } returns fakeComment(userId = userId, postId = postId)
+        coEvery { postDao.getOwnerAndSource(postId) } returns PostOwnerInfo(ownerId, PostSource.GALLERY)
+
+        newService().addComment(userId, postId, "hi")
+
+        coVerify(exactly = 1) {
+            scoringService.onFirstCommentByUser(ownerId, postId, userId, PostSource.GALLERY)
+        }
+    }
+
+    @Test
+    fun `addComment does not call onFirstCommentByUser for repeat commenter`() = runTest {
+        val userId = UUID.randomUUID()
+        val ownerId = UUID.randomUUID()
+        val postId = UUID.randomUUID()
+        coEvery { commentDao.hasUserCommentedOnPost(userId, postId) } returns true
+        coEvery { commentDao.addComment(userId, postId, "again") } returns fakeComment(userId = userId, postId = postId)
+        coEvery { postDao.getOwnerAndSource(postId) } returns PostOwnerInfo(ownerId, PostSource.CAMERA)
+
+        newService().addComment(userId, postId, "again")
+
+        coVerify(exactly = 0) { scoringService.onFirstCommentByUser(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `addComment does not call onFirstCommentByUser for self-comment`() = runTest {
+        val userId = UUID.randomUUID()
+        val postId = UUID.randomUUID()
+        coEvery { commentDao.hasUserCommentedOnPost(userId, postId) } returns false
+        coEvery { commentDao.addComment(userId, postId, "hi") } returns fakeComment(userId = userId, postId = postId)
+        coEvery { postDao.getOwnerAndSource(postId) } returns PostOwnerInfo(userId, PostSource.CAMERA)
+
+        newService().addComment(userId, postId, "hi")
+
+        coVerify(exactly = 0) { scoringService.onFirstCommentByUser(any(), any(), any(), any()) }
     }
 
     // ---------- deleteComment: ownership ----------
@@ -201,8 +280,7 @@ class CommentServiceTest {
             fakeComment(postId = postId, text = "second"),
         )
 
-        val service = newService(dao)
-        val dtos = service.getCommentsForPost(postId)
+        val dtos = newService(dao).getCommentsForPost(postId)
 
         assertEquals(listOf("first", "second"), dtos.map { it.commentText })
         assertEquals(listOf("alice", "alice"), dtos.map { it.username })
@@ -213,8 +291,7 @@ class CommentServiceTest {
         val dao = mockk<ICommentDAO>()
         coEvery { dao.getCommentsForPost(any()) } returns emptyList()
 
-        val service = newService(dao)
-        val dtos = service.getCommentsForPost(UUID.randomUUID())
+        val dtos = newService(dao).getCommentsForPost(UUID.randomUUID())
 
         assertEquals(0, dtos.size)
     }

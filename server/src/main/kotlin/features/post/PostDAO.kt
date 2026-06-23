@@ -23,6 +23,8 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.util.UUID
 
+data class PostOwnerInfo(val ownerId: UUID, val source: PostSource)
+
 interface IPostDAO {
     suspend fun insert(post: PersistPostDTO): UUID
     suspend fun findById(postId: UUID): Post?
@@ -36,8 +38,8 @@ interface IPostDAO {
      */
     suspend fun countCameraPostsOnDay(userId: UUID, localDay: LocalDate, zoneId: ZoneId): Long
 
-    /** Returns only the userId (owner) of the given post, or null if not found. Lightweight alternative to findById. */
-    suspend fun getOwnerId(postId: UUID): UUID?
+    /** Returns the owner and source of the post, or null if not found. Lightweight alternative to findById. */
+    suspend fun getOwnerAndSource(postId: UUID): PostOwnerInfo?
 }
 
 class PostDAO : IPostDAO {
@@ -59,6 +61,7 @@ class PostDAO : IPostDAO {
         PostTable.country,
         PostTable.postSource,
         PostTable.createdAtTimezone,
+        PostTable.points,
         PostTable.createdAt,
     )
 
@@ -158,11 +161,16 @@ class PostDAO : IPostDAO {
             .count()
     }
 
-    override suspend fun getOwnerId(postId: UUID): UUID? = transaction {
+    override suspend fun getOwnerAndSource(postId: UUID): PostOwnerInfo? = transaction {
         PostTable
-            .select(PostTable.userId)
+            .select(PostTable.userId, PostTable.postSource)
             .where { PostTable.id eq postId }
             .singleOrNull()
-            ?.get(PostTable.userId)
+            ?.let {
+                PostOwnerInfo(
+                    ownerId = it[PostTable.userId],
+                    source = PostSource.fromStringOrGallery(it[PostTable.postSource]),
+                )
+            }
     }
 }

@@ -8,5 +8,7 @@ data class RegisterRequest(
     val email: String? = null,
     val password: String? = null,
     val provider: AuthProvider,
-    val googleIdToken: String? = null
+    val googleIdToken: String? = null,
+    val deviceId: String? = null,
+    val deviceName: String? = null
 )

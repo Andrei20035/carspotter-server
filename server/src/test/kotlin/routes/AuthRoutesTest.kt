@@ -2,13 +2,21 @@ package com.carspotter.routes
 
 import com.carspotter.features.auth.AuthDAO
 import com.carspotter.features.auth.AuthProvider
+import com.carspotter.features.auth.RefreshTokenGenerator
 import com.carspotter.features.auth.GoogleTokenVerifier
 import com.carspotter.features.auth.GoogleUser
 import com.carspotter.features.auth.dto.AuthResponse
 import com.carspotter.features.auth.dto.LoginRequest
 import com.carspotter.features.auth.dto.OnboardingStep
+import com.carspotter.features.auth.dto.RefreshRequest
 import com.carspotter.features.auth.dto.RegisterRequest
+import com.carspotter.features.auth.dto.SessionDTO
 import com.carspotter.features.auth.dto.UpdatePasswordRequest
+import com.carspotter.features.auth.session.AuthSessionDAO
+import com.carspotter.features.auth.session.SessionScope
+import com.carspotter.features.auth.session.SessionStatus
+import com.carspotter.core.error.AuthErrorCode
+import com.carspotter.core.error.AuthErrorResponse
 import io.ktor.client.call.*
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.*
@@ -78,7 +86,7 @@ class AuthRoutesTest {
     // ---- REGISTER ----
 
     @Test
-    fun `POST auth register REGULAR valid returns 201 with token and PROFILE_REQUIRED`() = authTest { client ->
+    fun `POST auth register REGULAR valid returns 201 with token pair and ONBOARDING session`() = authTest { client ->
         val resp = client.post("/api/auth/register") {
             contentType(ContentType.Application.Json)
             setBody(
@@ -91,8 +99,18 @@ class AuthRoutesTest {
         }
         assertEquals(HttpStatusCode.Created, resp.status)
         val body = resp.body<AuthResponse>()
-        assertTrue(body.token.isNotBlank())
+        assertTrue(body.accessToken.isNotBlank())
+        assertTrue(body.refreshToken.isNotBlank())
+        assertEquals(900, body.expiresIn)
+        assertEquals(SessionScope.ONBOARDING.name, body.scope)
         assertEquals(OnboardingStep.PROFILE_REQUIRED, body.onboardingStep)
+
+        val sessions = AuthSessionDAO().listActiveSessions(
+            AuthDAO().getCredentialsForLogin("alice@example.com")!!.id!!
+        )
+        assertEquals(1, sessions.size)
+        assertEquals(SessionStatus.ACTIVE, sessions.single().status)
+        assertEquals(SessionScope.ONBOARDING, sessions.single().scope)
     }
 
     @Test
@@ -141,7 +159,33 @@ class AuthRoutesTest {
     }
 
     @Test
-    fun `register with duplicate email returns 400`() = authTest { client ->
+    fun `register rejects passwords missing any required character class`() = authTest { client ->
+        val weakPasswords = listOf(
+            "lowercase1!",
+            "UPPERCASE1!",
+            "NoDigits!!",
+            "NoSpecial1"
+        )
+
+        weakPasswords.forEachIndexed { index, password ->
+            val response = client.post("/api/auth/register") {
+                contentType(ContentType.Application.Json)
+                setBody(
+                    RegisterRequest(
+                        email = "weak-$index@example.com",
+                        password = password,
+                        provider = AuthProvider.REGULAR
+                    )
+                )
+            }
+
+            assertEquals(HttpStatusCode.BadRequest, response.status)
+            assertEquals(AuthErrorCode.WEAK_PASSWORD, response.body<AuthErrorResponse>().error.code)
+        }
+    }
+
+    @Test
+    fun `register with duplicate email returns 409 EMAIL_TAKEN`() = authTest { client ->
         // first, OK
         val first = client.post("/api/auth/register") {
             contentType(ContentType.Application.Json)
@@ -149,12 +193,12 @@ class AuthRoutesTest {
         }
         assertEquals(HttpStatusCode.Created, first.status)
 
-        // second, should fail because service throws IllegalArgumentException → route returns 400
         val second = client.post("/api/auth/register") {
             contentType(ContentType.Application.Json)
             setBody(RegisterRequest("dup@example.com", "Passw0rd!", AuthProvider.REGULAR))
         }
-        assertEquals(HttpStatusCode.BadRequest, second.status)
+        assertEquals(HttpStatusCode.Conflict, second.status)
+        assertEquals(AuthErrorCode.EMAIL_TAKEN, second.body<AuthErrorResponse>().error.code)
     }
 
     @Test
@@ -177,11 +221,12 @@ class AuthRoutesTest {
     // ---- LOGIN ----
 
     @Test
-    fun `POST auth login REGULAR valid returns 200 with token`() = authTest { client ->
-        client.post("/api/auth/register") {
+    fun `POST auth login REGULAR valid returns 200 with token pair`() = authTest { client ->
+        val registerResponse = client.post("/api/auth/register") {
             contentType(ContentType.Application.Json)
             setBody(RegisterRequest("alice@example.com", "Passw0rd!", AuthProvider.REGULAR))
         }
+        val firstRefreshToken = registerResponse.body<AuthResponse>().refreshToken
 
         val resp = client.post("/api/auth/login") {
             contentType(ContentType.Application.Json)
@@ -189,8 +234,16 @@ class AuthRoutesTest {
         }
         assertEquals(HttpStatusCode.OK, resp.status)
         val body = resp.body<AuthResponse>()
-        assertTrue(body.token.isNotBlank())
+        assertTrue(body.accessToken.isNotBlank())
+        assertTrue(body.refreshToken.isNotBlank())
+        assertEquals(900, body.expiresIn)
+        assertEquals(SessionScope.ONBOARDING.name, body.scope)
         assertEquals(OnboardingStep.PROFILE_REQUIRED, body.onboardingStep)
+
+        val previousSession = AuthSessionDAO().findByRefreshHash(
+            RefreshTokenGenerator().hashOf(firstRefreshToken)
+        )
+        assertEquals(SessionStatus.REVOKED, previousSession?.status)
     }
 
     @Test
@@ -240,7 +293,8 @@ class AuthRoutesTest {
         }
         assertEquals(HttpStatusCode.OK, resp.status)
         val body = resp.body<AuthResponse>()
-        assertTrue(body.token.isNotBlank())
+        assertTrue(body.accessToken.isNotBlank())
+        assertTrue(body.refreshToken.isNotBlank())
     }
 
     @Test
@@ -255,6 +309,23 @@ class AuthRoutesTest {
     }
 
     @Test
+    fun `google login for regular account returns 409 PROVIDER_MISMATCH`() = authTest { client ->
+        client.post("/api/auth/register") {
+            contentType(ContentType.Application.Json)
+            setBody(RegisterRequest("alice@example.com", "Passw0rd!", AuthProvider.REGULAR))
+        }
+        googleVerifier.response = GoogleUser(email = "alice@example.com", googleId = "gid-regular-email")
+
+        val response = client.post("/api/auth/login") {
+            contentType(ContentType.Application.Json)
+            setBody(LoginRequest(googleIdToken = "valid-token", provider = AuthProvider.GOOGLE))
+        }
+
+        assertEquals(HttpStatusCode.Conflict, response.status)
+        assertEquals(AuthErrorCode.PROVIDER_MISMATCH, response.body<AuthErrorResponse>().error.code)
+    }
+
+    @Test
     fun `google login missing token returns 400`() = authTest { client ->
         val resp = client.post("/api/auth/login") {
             contentType(ContentType.Application.Json)
@@ -263,18 +334,114 @@ class AuthRoutesTest {
         assertEquals(HttpStatusCode.BadRequest, resp.status)
     }
 
+    // ---- SESSION MANAGEMENT ----
+
+    @Test
+    fun `refresh rotates token pair and consumes previous refresh token`() = authTest { client ->
+        val registered = registerAndGetAuthResponse(client)
+
+        val refreshed = client.post("/api/auth/refresh") {
+            contentType(ContentType.Application.Json)
+            setBody(RefreshRequest(registered.refreshToken))
+        }
+        assertEquals(HttpStatusCode.OK, refreshed.status)
+        val refreshedBody = refreshed.body<AuthResponse>()
+        assertNotEquals(registered.accessToken, refreshedBody.accessToken)
+        assertNotEquals(registered.refreshToken, refreshedBody.refreshToken)
+
+        val consumed = client.post("/api/auth/refresh") {
+            contentType(ContentType.Application.Json)
+            setBody(RefreshRequest(registered.refreshToken))
+        }
+        assertEquals(HttpStatusCode.Unauthorized, consumed.status)
+        assertEquals(
+            AuthErrorCode.REFRESH_TOKEN_CONSUMED,
+            consumed.body<AuthErrorResponse>().error.code
+        )
+
+        val currentStillWorks = client.post("/api/auth/refresh") {
+            contentType(ContentType.Application.Json)
+            setBody(RefreshRequest(refreshedBody.refreshToken))
+        }
+        assertEquals(HttpStatusCode.OK, currentStillWorks.status)
+    }
+
+    @Test
+    fun `logout revokes session and refresh token is rejected`() = authTest { client ->
+        val registered = registerAndGetAuthResponse(client)
+
+        val logout = client.post("/api/auth/logout") {
+            bearerAuth(registered.accessToken)
+        }
+        assertEquals(HttpStatusCode.NoContent, logout.status)
+
+        val refresh = client.post("/api/auth/refresh") {
+            contentType(ContentType.Application.Json)
+            setBody(RefreshRequest(registered.refreshToken))
+        }
+        assertEquals(HttpStatusCode.Unauthorized, refresh.status)
+        assertEquals(AuthErrorCode.SESSION_REVOKED, refresh.body<AuthErrorResponse>().error.code)
+    }
+
+    @Test
+    fun `sessions returns active current session with device metadata`() = authTest { client ->
+        val registered = registerAndGetAuthResponse(
+            client,
+            deviceId = "install-123",
+            deviceName = "Pixel Test"
+        )
+
+        val response = client.get("/api/auth/sessions") {
+            bearerAuth(registered.accessToken)
+        }
+        assertEquals(HttpStatusCode.OK, response.status)
+        val sessions = response.body<List<SessionDTO>>()
+        assertEquals(1, sessions.size)
+        assertTrue(sessions.single().current)
+        assertEquals("install-123", sessions.single().deviceId)
+        assertEquals("Pixel Test", sessions.single().deviceName)
+    }
+
+    @Test
+    fun `logout-all revokes active session`() = authTest { client ->
+        val registered = registerAndGetAuthResponse(client)
+
+        val logoutAll = client.post("/api/auth/logout-all") {
+            bearerAuth(registered.accessToken)
+        }
+        assertEquals(HttpStatusCode.NoContent, logoutAll.status)
+
+        val credentialId = AuthDAO().getCredentialsForLogin("alice@example.com")!!.id!!
+        assertTrue(AuthSessionDAO().listActiveSessions(credentialId).isEmpty())
+    }
+
     // ---- PUT /auth/password ----
 
     @Test
     fun `update password with valid token and correct old password returns 200`() = authTest { client ->
-        val token = registerAndGetToken(client, "alice@example.com", "OldPass!1")
+        val registered = registerAndGetAuthResponse(client, password = "OldPass!1")
 
         val resp = client.put("/api/auth/password") {
             contentType(ContentType.Application.Json)
-            bearerAuth(token)
+            bearerAuth(registered.accessToken)
             setBody(UpdatePasswordRequest(oldPassword = "OldPass!1", newPassword = "NewPass!2"))
         }
         assertEquals(HttpStatusCode.OK, resp.status)
+        val rotated = resp.body<AuthResponse>()
+        assertNotEquals(registered.accessToken, rotated.accessToken)
+        assertNotEquals(registered.refreshToken, rotated.refreshToken)
+
+        val oldAccess = client.get("/api/auth/sessions") {
+            bearerAuth(registered.accessToken)
+        }
+        assertEquals(HttpStatusCode.Unauthorized, oldAccess.status)
+        assertEquals(AuthErrorCode.SESSION_REVOKED, oldAccess.body<AuthErrorResponse>().error.code)
+
+        val oldRefresh = client.post("/api/auth/refresh") {
+            contentType(ContentType.Application.Json)
+            setBody(RefreshRequest(registered.refreshToken))
+        }
+        assertEquals(HttpStatusCode.Unauthorized, oldRefresh.status)
 
         // old password should no longer work
         val oldLogin = client.post("/api/auth/login") {
@@ -314,6 +481,12 @@ class AuthRoutesTest {
         val dao = AuthDAO()
         val stored = dao.getCredentialsForLogin("alice@example.com")
         assertTrue(stored == null, "credential should have been deleted")
+
+        val afterDelete = client.get("/api/auth/sessions") {
+            bearerAuth(token)
+        }
+        assertEquals(HttpStatusCode.Unauthorized, afterDelete.status)
+        assertEquals(AuthErrorCode.SESSION_REVOKED, afterDelete.body<AuthErrorResponse>().error.code)
     }
 
     @Test
@@ -334,6 +507,28 @@ class AuthRoutesTest {
             setBody(RegisterRequest(email, password, AuthProvider.REGULAR))
         }
         assertEquals(HttpStatusCode.Created, resp.status)
-        return resp.body<AuthResponse>().token
+        return resp.body<AuthResponse>().accessToken
+    }
+
+    private suspend fun registerAndGetAuthResponse(
+        client: io.ktor.client.HttpClient,
+        deviceId: String? = null,
+        deviceName: String? = null,
+        password: String = "Passw0rd!",
+    ): AuthResponse {
+        val response = client.post("/api/auth/register") {
+            contentType(ContentType.Application.Json)
+            setBody(
+                RegisterRequest(
+                    email = "alice@example.com",
+                    password = password,
+                    provider = AuthProvider.REGULAR,
+                    deviceId = deviceId,
+                    deviceName = deviceName,
+                )
+            )
+        }
+        assertEquals(HttpStatusCode.Created, response.status)
+        return response.body()
     }
 }

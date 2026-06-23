@@ -1,6 +1,13 @@
 package routes
 
 import com.carspotter.features.auth.JwtService
+import com.carspotter.features.auth.RefreshTokenGenerator
+import com.carspotter.features.auth.session.AuthSessionDAO
+import com.carspotter.features.auth.session.RevokeReason
+import com.carspotter.features.auth.session.SessionScope
+import com.carspotter.features.auth.session.SessionService
+import com.carspotter.core.error.AuthErrorCode
+import com.carspotter.core.error.AuthErrorResponse
 import com.carspotter.features.post.dto.FeedResponseDTO
 import com.carspotter.features.post.dto.PostDTO
 import io.ktor.client.HttpClient
@@ -31,12 +38,16 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import testutils.CommentTestSeed
+import testutils.LikeTestSeed
 import testutils.TestDatabaseFactory
 import testutils.TestEnv
 import testutils.setTestEnv
 import testutils.stopKoinSafely
 import testutils.testPostModule
 import java.util.UUID
+import com.auth0.jwt.JWT
+import com.auth0.jwt.algorithms.Algorithm
+import java.util.Date
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class PostRoutesTest {
@@ -76,8 +87,37 @@ class PostRoutesTest {
             block(client)
         }
 
-    private fun tokenFor(authId: UUID, userId: UUID, email: String): String =
-        jwt.generateJwtToken(credentialId = authId, userId = userId, email = email)
+    private suspend fun tokenFor(authId: UUID, userId: UUID, email: String): String {
+        val (session) = SessionService(AuthSessionDAO(), RefreshTokenGenerator()).createSession(
+            credentialId = authId,
+            scope = SessionScope.FULL,
+            userId = userId,
+            deviceId = null,
+            deviceName = null,
+            userAgent = null,
+            ip = null,
+        )
+        return jwt.generateAccessToken(session, authId, email, userId)
+    }
+
+    private suspend fun expiredTokenFor(authId: UUID, userId: UUID, email: String): String {
+        val token = tokenFor(authId, userId, email)
+        val decoded = JWT.decode(token)
+        return JWT.create()
+            .withAudience(TestEnv.JWT_AUDIENCE)
+            .withIssuer(TestEnv.JWT_ISSUER)
+            .withSubject(decoded.subject)
+            .withIssuedAt(Date(System.currentTimeMillis() - 120_000))
+            .withExpiresAt(Date(System.currentTimeMillis() - 60_000))
+            .withClaim("credentialId", decoded.getClaim("credentialId").asString())
+            .withClaim("sid", decoded.getClaim("sid").asString())
+            .withClaim("ver", decoded.getClaim("ver").asInt())
+            .withClaim("scope", decoded.getClaim("scope").asString())
+            .withClaim("email", email)
+            .withClaim("userId", userId.toString())
+            .withClaim("isAdmin", false)
+            .sign(Algorithm.HMAC256(TestEnv.JWT_SECRET))
+    }
 
     @Test
     fun `GET feed returns 200 with empty array when there are no posts`() = postTest { client ->
@@ -88,6 +128,54 @@ class PostRoutesTest {
         assertEquals(emptyList<PostDTO>(), feed.posts)
         assertEquals(false, feed.hasMore)
         assertEquals(null, feed.nextCursor)
+    }
+
+    @Test
+    fun `GET feed with valid token returns personalized like state`() = postTest { client ->
+        val viewer = CommentTestSeed.seedUser(username = "viewer")
+        val author = CommentTestSeed.seedUser(username = "author", email = "author@example.com")
+        val post = CommentTestSeed.seedPost(author.userId)
+        LikeTestSeed.insertLike(viewer.userId, post.postId)
+        val token = tokenFor(viewer.authId, viewer.userId, viewer.email)
+
+        val response = client.get("/api/posts/feed") { bearerAuth(token) }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body = response.body<FeedResponseDTO>()
+        assertTrue(body.posts.any { it.id == post.postId })
+        assertEquals(true, body.posts.single { it.id == post.postId }.likedByCurrentUser)
+    }
+
+    @Test
+    fun `GET feed with expired token returns 401 ACCESS_TOKEN_EXPIRED`() = postTest { client ->
+        val user = CommentTestSeed.seedUser()
+        val token = expiredTokenFor(user.authId, user.userId, user.email)
+
+        val response = client.get("/api/posts/feed") { bearerAuth(token) }
+
+        assertEquals(HttpStatusCode.Unauthorized, response.status)
+        assertEquals(AuthErrorCode.ACCESS_TOKEN_EXPIRED, response.body<AuthErrorResponse>().error.code)
+    }
+
+    @Test
+    fun `GET feed with malformed token returns 401 ACCESS_TOKEN_INVALID`() = postTest { client ->
+        val response = client.get("/api/posts/feed") { bearerAuth("not-a-jwt") }
+
+        assertEquals(HttpStatusCode.Unauthorized, response.status)
+        assertEquals(AuthErrorCode.ACCESS_TOKEN_INVALID, response.body<AuthErrorResponse>().error.code)
+    }
+
+    @Test
+    fun `GET feed with revoked session returns 401 SESSION_REVOKED`() = postTest { client ->
+        val user = CommentTestSeed.seedUser()
+        val token = tokenFor(user.authId, user.userId, user.email)
+        val session = AuthSessionDAO().listActiveSessions(user.authId).single()
+        AuthSessionDAO().revokeSession(session.id, RevokeReason.LOGOUT)
+
+        val response = client.get("/api/posts/feed") { bearerAuth(token) }
+
+        assertEquals(HttpStatusCode.Unauthorized, response.status)
+        assertEquals(AuthErrorCode.SESSION_REVOKED, response.body<AuthErrorResponse>().error.code)
     }
 
     @Test
@@ -130,6 +218,28 @@ class PostRoutesTest {
         }
 
         assertEquals(HttpStatusCode.Unauthorized, response.status)
+    }
+
+    @Test
+    fun `POST with revoked session returns 401 SESSION_REVOKED`() = postTest { client ->
+        val user = CommentTestSeed.seedUser()
+        val token = tokenFor(user.authId, user.userId, user.email)
+        val session = AuthSessionDAO().listActiveSessions(user.authId).single()
+        AuthSessionDAO().revokeSession(session.id, RevokeReason.LOGOUT)
+
+        val response = client.post("/api/posts") {
+            bearerAuth(token)
+            setBody(
+                MultiPartFormDataContent(
+                    formData {
+                        append("metadata", """{"customBrand":"BMW","customModel":"M3"}""")
+                    }
+                )
+            )
+        }
+
+        assertEquals(HttpStatusCode.Unauthorized, response.status)
+        assertEquals(AuthErrorCode.SESSION_REVOKED, response.body<AuthErrorResponse>().error.code)
     }
 
     @Test

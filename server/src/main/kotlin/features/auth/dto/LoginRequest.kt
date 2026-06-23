@@ -8,5 +8,7 @@ class LoginRequest (
     val email: String? = null,
     val password: String? = null,
     val googleIdToken: String? = null,
-    val provider: AuthProvider
+    val provider: AuthProvider,
+    val deviceId: String? = null,
+    val deviceName: String? = null
 )

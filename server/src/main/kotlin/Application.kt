@@ -1,6 +1,7 @@
 package com.carspotter
 
 import com.carspotter.config.configureDatabases
+import com.carspotter.config.configureAuthStatusPages
 import com.carspotter.config.configureHTTP
 import com.carspotter.config.configureMonitoring
 import com.carspotter.config.configureRouting
@@ -57,6 +58,7 @@ fun Application.module() {
     configureSecurity()
     configureHTTP()
     configureSerialization()
+    configureAuthStatusPages()
     configureDatabases()
     configureMonitoring()
     configureSwagger()

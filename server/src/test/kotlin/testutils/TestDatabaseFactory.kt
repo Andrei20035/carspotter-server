@@ -85,6 +85,7 @@ object TestDatabaseFactory {
                         posts,
                         users_cars,
                         users,
+                        auth_sessions,
                         auth_credentials,
                         car_models
                     RESTART IDENTITY CASCADE

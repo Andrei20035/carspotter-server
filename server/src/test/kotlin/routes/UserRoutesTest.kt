@@ -1,6 +1,10 @@
 package com.carspotter.routes
 
 import com.carspotter.features.auth.JwtService
+import com.carspotter.features.auth.RefreshTokenGenerator
+import com.carspotter.features.auth.session.AuthSessionDAO
+import com.carspotter.features.auth.session.SessionScope
+import com.carspotter.features.auth.session.SessionService
 import com.carspotter.features.user.UserDao
 import com.carspotter.features.user.dto.CreateUserRequest
 import com.carspotter.features.user.dto.CreateUserResponse
@@ -77,11 +81,42 @@ class UserRoutesTest {
             block(client)
         }
 
-    private fun onboardingToken(credentialId: UUID, email: String): String =
-        jwt.generateJwtToken(credentialId = credentialId, userId = null, email = email)
+    private suspend fun accessToken(
+        credentialId: UUID,
+        email: String,
+        scope: SessionScope,
+        userId: UUID? = null,
+    ): Pair<String, String> {
+        val (session, refreshToken) = SessionService(AuthSessionDAO(), RefreshTokenGenerator()).createSession(
+            credentialId = credentialId,
+            scope = scope,
+            userId = userId,
+            deviceId = null,
+            deviceName = null,
+            userAgent = null,
+            ip = null,
+        )
+        return jwt.generateAccessToken(session, credentialId, email, userId) to refreshToken
+    }
 
-    private fun profileToken(credentialId: UUID, userId: UUID, email: String): String =
-        jwt.generateJwtToken(credentialId = credentialId, userId = userId, email = email)
+    private suspend fun onboardingToken(credentialId: UUID, email: String): String =
+        accessToken(credentialId, email, SessionScope.ONBOARDING).first
+
+    private suspend fun profileToken(credentialId: UUID, userId: UUID, email: String): String =
+        accessToken(credentialId, email, SessionScope.FULL, userId).first
+
+    private suspend fun tokenWithMissingProfile(credentialId: UUID, userId: UUID, email: String): String {
+        val (session, _) = SessionService(AuthSessionDAO(), RefreshTokenGenerator()).createSession(
+            credentialId = credentialId,
+            scope = SessionScope.ONBOARDING,
+            userId = null,
+            deviceId = null,
+            deviceName = null,
+            userAgent = null,
+            ip = null,
+        )
+        return jwt.generateAccessToken(session, credentialId, email, userId)
+    }
 
     private fun profilePictureMultipartBody(imageBytes: ByteArray?): MultiPartFormDataContent =
         MultiPartFormDataContent(
@@ -109,9 +144,13 @@ class UserRoutesTest {
         )
 
     @Test
-    fun `POST users returns 201 with body and minted JWT`() = userTest { client ->
+    fun `POST users promotes onboarding session and returns rotated token pair`() = userTest { client ->
         val credential = UserTestSeed.seedAuthCredential("alice@example.com")
-        val token = onboardingToken(credential.authCredentialId, credential.email)
+        val (token, oldRefreshToken) = accessToken(
+            credential.authCredentialId,
+            credential.email,
+            SessionScope.ONBOARDING,
+        )
 
         val response = client.post("/api/users") {
             bearerAuth(token)
@@ -129,7 +168,18 @@ class UserRoutesTest {
         assertEquals(HttpStatusCode.Created, response.status)
         val body: CreateUserResponse = response.body()
         assertNotNull(body.userId)
-        assertEquals(true, body.jwtToken.isNotBlank())
+        assertTrue(body.accessToken.isNotBlank())
+        assertTrue(body.refreshToken.isNotBlank())
+        assertTrue(body.refreshToken != oldRefreshToken)
+
+        val promotedSession = AuthSessionDAO().findByRefreshHash(
+            RefreshTokenGenerator().hashOf(body.refreshToken)
+        )
+        assertNotNull(promotedSession)
+        assertEquals(SessionScope.FULL, promotedSession!!.scope)
+        assertEquals(body.userId, promotedSession.userId)
+        assertEquals(2, promotedSession.version)
+        assertNull(AuthSessionDAO().findByRefreshHash(RefreshTokenGenerator().hashOf(oldRefreshToken)))
     }
 
     @Test
@@ -212,7 +262,7 @@ class UserRoutesTest {
     @Test
     fun `GET users me returns 404 when profile is missing`() = userTest { client ->
         val credential = UserTestSeed.seedAuthCredential("alice@example.com")
-        val token = profileToken(credential.authCredentialId, UUID.randomUUID(), credential.email)
+        val token = tokenWithMissingProfile(credential.authCredentialId, UUID.randomUUID(), credential.email)
 
         val response = client.get("/api/users/me") {
             bearerAuth(token)
@@ -316,7 +366,7 @@ class UserRoutesTest {
     @Test
     fun `PATCH users me profile-picture returns 404 when user profile is missing`() = userTest { client ->
         val credential = UserTestSeed.seedAuthCredential("alice@example.com")
-        val token = profileToken(credential.authCredentialId, UUID.randomUUID(), credential.email)
+        val token = tokenWithMissingProfile(credential.authCredentialId, UUID.randomUUID(), credential.email)
 
         val response = client.patch("/api/users/me/profile-picture") {
             bearerAuth(token)

@@ -4,6 +4,7 @@ import com.carspotter.core.storage.IStorageService
 import com.carspotter.core.util.getUuidClaim
 import com.carspotter.core.util.toUuidOrNull
 import com.carspotter.features.auth.JwtService
+import com.carspotter.features.auth.session.ISessionService
 import com.carspotter.features.user.dto.CreateUserRequest
 import com.carspotter.features.user.dto.CreateUserResponse
 import com.carspotter.features.user.dto.UpdateProfilePictureRequest
@@ -36,6 +37,7 @@ private val profilePictureExtensions = mapOf(
 fun Route.userRoutes() {
     val userService: IUserService by application.inject()
     val jwtService: JwtService by application.inject()
+    val sessionService: ISessionService by application.inject()
     val storageService: IStorageService by application.inject()
 
     route("/users") {
@@ -55,6 +57,9 @@ fun Route.userRoutes() {
                 val credentialId = call.getUuidClaim("credentialId")
                     ?: return@post call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Invalid or missing credentialId"))
 
+                val sessionId = call.getUuidClaim("sid")
+                    ?: return@post call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Invalid or missing sessionId"))
+
                 val email = call.principal<JWTPrincipal>()
                     ?.payload
                     ?.getClaim("email")
@@ -66,14 +71,20 @@ fun Route.userRoutes() {
                         authCredentialId = credentialId,
                         user = request.toUser(credentialId),
                     )
-                    val newJwtToken = jwtService.generateJwtToken(
+                    val (session, refreshToken) = sessionService.promoteSession(sessionId, newUserId)
+                    val accessToken = jwtService.generateAccessToken(
+                        session = session,
                         credentialId = credentialId,
                         userId = newUserId,
                         email = email,
                     )
                     call.respond(
                         HttpStatusCode.Created,
-                        CreateUserResponse(jwtToken = newJwtToken, userId = newUserId)
+                        CreateUserResponse(
+                            accessToken = accessToken,
+                            refreshToken = refreshToken,
+                            userId = newUserId,
+                        )
                     )
                 } catch (e: UsernameAlreadyExistsException) {
                     call.respond(HttpStatusCode.Conflict, mapOf("error" to (e.message ?: "Username is already taken")))

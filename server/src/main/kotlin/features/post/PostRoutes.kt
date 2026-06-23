@@ -1,10 +1,16 @@
 package com.carspotter.features.post
 
+import com.carspotter.core.error.AuthErrorCode
+import com.carspotter.core.error.AuthApiError
+import com.carspotter.core.error.AuthErrorResponse
 import com.carspotter.core.util.getUuidClaim
 import com.carspotter.core.util.toUuidOrNull
-import com.carspotter.features.post.PostSource
+import com.carspotter.features.auth.JwtService
+import com.carspotter.features.auth.session.ISessionService
+import com.carspotter.features.auth.session.TokenResult
 import com.carspotter.features.post.dto.CreatePostDTO
 import com.carspotter.features.post.dto.CreatePostMetadata
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.PartData
 import io.ktor.http.content.forEachPart
@@ -22,25 +28,51 @@ private const val MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024
 
 fun Route.postRoutes() {
     val postService: IPostService by application.inject()
+    val jwtService: JwtService by application.inject()
+    val sessionService: ISessionService by application.inject()
     val json = Json { ignoreUnknownKeys = true }
 
-    // Public feed, but authenticate optionally so we can populate `likedByCurrentUser`
-    // when a valid token is present.
-    authenticate("jwt", optional = true) {
-        get("/posts/feed") {
-            val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: DEFAULT_LIMIT
-            val cursorCreatedAt = call.request.queryParameters["cursorCreatedAt"]
-            val cursorPostId = call.request.queryParameters["cursorPostId"]
-            val currentUserId = call.getUuidClaim("userId")
-
-            try {
-                call.respond(
-                    HttpStatusCode.OK,
-                    postService.listFeed(limit, cursorCreatedAt, cursorPostId, currentUserId),
+    get("/posts/feed") {
+        val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: DEFAULT_LIMIT
+        val cursorCreatedAt = call.request.queryParameters["cursorCreatedAt"]
+        val cursorPostId = call.request.queryParameters["cursorPostId"]
+        val authHeader = call.request.headers[HttpHeaders.Authorization]
+        val currentUserId = if (authHeader == null) {
+            null
+        } else {
+            val rawToken = authHeader
+                .takeIf { it.startsWith("Bearer ", ignoreCase = true) }
+                ?.substringAfter(' ')
+                ?.takeIf { it.isNotBlank() }
+                ?: return@get call.respond(
+                    HttpStatusCode.Unauthorized,
+                    AuthErrorResponse(AuthApiError(AuthErrorCode.ACCESS_TOKEN_INVALID, "Access token is invalid")),
                 )
-            } catch (e: IllegalArgumentException) {
-                call.respond(HttpStatusCode.BadRequest, mapOf("error" to (e.message ?: "Invalid request")))
+
+            when (val result = jwtService.parseAndValidateToken(rawToken, sessionService)) {
+                is TokenResult.Valid -> result.userId
+                TokenResult.Expired -> return@get call.respond(
+                    HttpStatusCode.Unauthorized,
+                    AuthErrorResponse(AuthApiError(AuthErrorCode.ACCESS_TOKEN_EXPIRED, "Access token has expired")),
+                )
+                TokenResult.Invalid -> return@get call.respond(
+                    HttpStatusCode.Unauthorized,
+                    AuthErrorResponse(AuthApiError(AuthErrorCode.ACCESS_TOKEN_INVALID, "Access token is invalid")),
+                )
+                TokenResult.SessionRevoked -> return@get call.respond(
+                    HttpStatusCode.Unauthorized,
+                    AuthErrorResponse(AuthApiError(AuthErrorCode.SESSION_REVOKED, "Session is revoked")),
+                )
             }
+        }
+
+        try {
+            call.respond(
+                HttpStatusCode.OK,
+                postService.listFeed(limit, cursorCreatedAt, cursorPostId, currentUserId),
+            )
+        } catch (e: IllegalArgumentException) {
+            call.respond(HttpStatusCode.BadRequest, mapOf("error" to (e.message ?: "Invalid request")))
         }
     }
 

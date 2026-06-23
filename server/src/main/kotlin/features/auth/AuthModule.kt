@@ -1,10 +1,17 @@
 package com.carspotter.features.auth
 
+import com.carspotter.features.auth.session.AuthSessionDAO
+import com.carspotter.features.auth.session.IAuthSessionDAO
+import com.carspotter.features.auth.session.ISessionService
+import com.carspotter.features.auth.session.SessionService
 import org.koin.dsl.module
 
 val authModule = module {
 
     single<IAuthDAO> { AuthDAO() }
+    single<IAuthSessionDAO> { AuthSessionDAO() }
+    single { RefreshTokenGenerator() }
+    single<ISessionService> { SessionService(get(), get()) }
     single<GoogleTokenVerifier> { GoogleTokenVerifierImpl() }
     single<IAuthService> { AuthService(get(), get(), get()) }
 

@@ -8,6 +8,9 @@ enum class OnboardingStep {
 
 @Serializable
 data class AuthResponse(
-    val token: String,
+    val accessToken: String,
+    val refreshToken: String,
+    val expiresIn: Int,
+    val scope: String,
     val onboardingStep: OnboardingStep
 )

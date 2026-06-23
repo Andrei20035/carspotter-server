@@ -2,6 +2,7 @@ package testutils
 
 import com.carspotter.config.configureSecurity
 import com.carspotter.config.configureSerialization
+import com.carspotter.config.configureAuthStatusPages
 import com.carspotter.core.storage.IStorageService
 import com.carspotter.core.storage.LocalImageStorageService
 import com.carspotter.features.auth.AuthDAO
@@ -11,6 +12,11 @@ import com.carspotter.features.auth.IAuthDAO
 import com.carspotter.features.auth.IAuthService
 import com.carspotter.features.auth.JwtService
 import com.carspotter.features.auth.authRoutes
+import com.carspotter.features.auth.RefreshTokenGenerator
+import com.carspotter.features.auth.session.AuthSessionDAO
+import com.carspotter.features.auth.session.IAuthSessionDAO
+import com.carspotter.features.auth.session.ISessionService
+import com.carspotter.features.auth.session.SessionService
 import com.carspotter.features.car_model.CarModelDAO
 import com.carspotter.features.car_model.CarModelService
 import com.carspotter.features.car_model.ICarModelDAO
@@ -63,6 +69,7 @@ import io.ktor.server.routing.*
 import org.koin.core.context.stopKoin
 import org.koin.dsl.module
 import org.koin.ktor.plugin.Koin
+import org.koin.ktor.ext.getKoin
 import java.nio.file.Files
 
 object TestEnv {
@@ -113,6 +120,9 @@ fun Application.testAuthModule(googleTokenVerifier: GoogleTokenVerifier) {
     val uploadsDir = Files.createTempDirectory("auth-route-test-uploads")
     val koinTestModule = module {
         single<IAuthDAO> { AuthDAO() }
+        single<IAuthSessionDAO> { AuthSessionDAO() }
+        single { RefreshTokenGenerator() }
+        single<ISessionService> { SessionService(get(), get()) }
         single<IUserDAO> { UserDao() }
         single<IStorageService> { LocalImageStorageService(uploadsDir, "http://localhost:8080") }
         single<IUserService> { UserService(get(), get()) }
@@ -132,7 +142,8 @@ fun Application.testAuthModule(googleTokenVerifier: GoogleTokenVerifier) {
     }
 
     configureSerialization()
-    configureSecurity()
+    configureAuthStatusPages()
+    configureSecurity(getKoin().get())
 
     install(RoutingRoot)
 
@@ -150,6 +161,7 @@ fun Application.testAuthModule(googleTokenVerifier: GoogleTokenVerifier) {
  */
 fun Application.testCarModelModule() {
     val koinTestModule = module {
+        single<IAuthSessionDAO> { AuthSessionDAO() }
         single<ICarModelDAO> { CarModelDAO() }
         single<ICarModelService> { CarModelService(get()) }
     }
@@ -179,6 +191,9 @@ fun Application.testCommentModule() {
         single<ICommentDAO> { CommentDAO() }
         single<IPostDAO> { PostDAO() }
         single<IUserDAO> { UserDao() }
+        single<IAuthSessionDAO> { AuthSessionDAO() }
+        single { RefreshTokenGenerator() }
+        single<ISessionService> { SessionService(get(), get()) }
         single<IStorageService> { LocalImageStorageService(uploadsDir, "http://localhost:8080") }
         single<IScoringDao> { ScoringDaoImpl() }
         single<IScoringService> { ScoringServiceImpl(get(), get(), get()) }
@@ -195,7 +210,7 @@ fun Application.testCommentModule() {
     install(Koin) { modules(koinTestModule) }
 
     configureSerialization()
-    configureSecurity()  // instalează autentificarea "jwt" cu setările din TestEnv
+    configureSecurity(getKoin().get())  // instalează autentificarea "jwt" cu setările din TestEnv
 
     install(RoutingRoot)
 
@@ -215,6 +230,9 @@ fun Application.testLikeModule() {
         single<ILikeDAO> { LikeDAO() }
         single<IPostDAO> { PostDAO() }
         single<IUserDAO> { UserDao() }
+        single<IAuthSessionDAO> { AuthSessionDAO() }
+        single { RefreshTokenGenerator() }
+        single<ISessionService> { SessionService(get(), get()) }
         single<IScoringDao> { ScoringDaoImpl() }
         single<IScoringService> { ScoringServiceImpl(get(), get(), get()) }
         single<ILikeService> { LikeService(get(), get(), get()) }
@@ -230,7 +248,7 @@ fun Application.testLikeModule() {
     install(Koin) { modules(koinTestModule) }
 
     configureSerialization()
-    configureSecurity()
+    configureSecurity(getKoin().get())
 
     install(RoutingRoot)
 
@@ -248,6 +266,9 @@ fun Application.testLikeModule() {
 fun Application.testReportModule() {
     val koinTestModule = module {
         single<IReportDAO> { ReportDAO() }
+        single<IAuthSessionDAO> { AuthSessionDAO() }
+        single { RefreshTokenGenerator() }
+        single<ISessionService> { SessionService(get(), get()) }
         single<IReportService> { ReportService(get()) }
         single {
             JwtService(
@@ -261,7 +282,7 @@ fun Application.testReportModule() {
     install(Koin) { modules(koinTestModule) }
 
     configureSerialization()
-    configureSecurity()
+    configureSecurity(getKoin().get())
 
     install(RoutingRoot)
 
@@ -280,6 +301,9 @@ fun Application.testPostModule() {
         single<ILikeDAO> { LikeDAO() }
         single<ICommentDAO> { CommentDAO() }
         single<IUserDAO> { UserDao() }
+        single<IAuthSessionDAO> { AuthSessionDAO() }
+        single { RefreshTokenGenerator() }
+        single<ISessionService> { SessionService(get(), get()) }
         single<IStorageService> { LocalImageStorageService(uploadsDir, "http://localhost:8080") }
         single<IScoringDao> { ScoringDaoImpl() }
         single<IScoringService> { ScoringServiceImpl(get(), get(), get()) }
@@ -296,7 +320,7 @@ fun Application.testPostModule() {
     install(Koin) { modules(koinTestModule) }
 
     configureSerialization()
-    configureSecurity()
+    configureSecurity(getKoin().get())
 
     install(RoutingRoot)
 
@@ -312,6 +336,9 @@ fun Application.testUserCarModule() {
     val koinTestModule = module {
         single<ICarModelDAO> { CarModelDAO() }
         single<IUserCarDAO> { UserCarDAO() }
+        single<IAuthSessionDAO> { AuthSessionDAO() }
+        single { RefreshTokenGenerator() }
+        single<ISessionService> { SessionService(get(), get()) }
         single<IStorageService> { LocalImageStorageService(uploadsDir, "http://localhost:8080") }
         single<IUserCarService> { UserCarServiceImpl(get(), get(), get()) }
         single {
@@ -326,7 +353,7 @@ fun Application.testUserCarModule() {
     install(Koin) { modules(koinTestModule) }
 
     configureSerialization()
-    configureSecurity()
+    configureSecurity(getKoin().get())
 
     install(RoutingRoot)
 
@@ -341,6 +368,9 @@ fun Application.testUserModule() {
     val uploadsDir = Files.createTempDirectory("user-route-test-uploads")
     val koinTestModule = module {
         single<IUserDAO> { UserDao() }
+        single<IAuthSessionDAO> { AuthSessionDAO() }
+        single { RefreshTokenGenerator() }
+        single<ISessionService> { SessionService(get(), get()) }
         single<IStorageService> { LocalImageStorageService(uploadsDir, "http://localhost:8080") }
         single<IUserService> { UserService(get(), get()) }
         single {
@@ -355,7 +385,7 @@ fun Application.testUserModule() {
     install(Koin) { modules(koinTestModule) }
 
     configureSerialization()
-    configureSecurity()
+    configureSecurity(getKoin().get())
 
     install(RoutingRoot)
 
@@ -371,6 +401,9 @@ fun Application.testLeaderboardModule() {
     val koinTestModule = module {
         single<ILeaderboardDAO> { LeaderboardDAO() }
         single<ILeaderboardSnapshotDAO> { LeaderboardSnapshotDAO() }
+        single<IAuthSessionDAO> { AuthSessionDAO() }
+        single { RefreshTokenGenerator() }
+        single<ISessionService> { SessionService(get(), get()) }
         single<IStorageService> { LocalImageStorageService(uploadsDir, "http://localhost:8080") }
         single<ILeaderboardService> { LeaderboardService(get(), get(), get()) }
         single {
@@ -385,7 +418,7 @@ fun Application.testLeaderboardModule() {
     install(Koin) { modules(koinTestModule) }
 
     configureSerialization()
-    configureSecurity()
+    configureSecurity(getKoin().get())
 
     install(RoutingRoot)
 
@@ -398,6 +431,7 @@ fun Application.testLeaderboardModule() {
 
 fun Application.testAdminLeaderboardModule(adminToken: String) {
     val koinTestModule = module {
+        single<IAuthSessionDAO> { AuthSessionDAO() }
         single<ILeaderboardSnapshotDAO> { LeaderboardSnapshotDAO() }
     }
 

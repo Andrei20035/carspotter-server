@@ -16,6 +16,14 @@ import com.carspotter.features.car_model.CarModelService
 import com.carspotter.features.car_model.ICarModelDAO
 import com.carspotter.features.car_model.ICarModelService
 import com.carspotter.features.car_model.carModelRoutes
+import com.carspotter.features.leaderboard.ILeaderboardDAO
+import com.carspotter.features.leaderboard.ILeaderboardService
+import com.carspotter.features.leaderboard.ILeaderboardSnapshotDAO
+import com.carspotter.features.leaderboard.LeaderboardDAO
+import com.carspotter.features.leaderboard.LeaderboardService
+import com.carspotter.features.leaderboard.LeaderboardSnapshotDAO
+import com.carspotter.features.leaderboard.adminLeaderboardRoutes
+import com.carspotter.features.leaderboard.leaderboardRoutes
 import com.carspotter.features.post.IPostDAO
 import com.carspotter.features.post.IPostService
 import com.carspotter.features.post.PostDAO
@@ -354,6 +362,54 @@ fun Application.testUserModule() {
     routing {
         route("/api") {
             userRoutes()
+        }
+    }
+}
+
+fun Application.testLeaderboardModule() {
+    val uploadsDir = Files.createTempDirectory("leaderboard-route-test-uploads")
+    val koinTestModule = module {
+        single<ILeaderboardDAO> { LeaderboardDAO() }
+        single<ILeaderboardSnapshotDAO> { LeaderboardSnapshotDAO() }
+        single<IStorageService> { LocalImageStorageService(uploadsDir, "http://localhost:8080") }
+        single<ILeaderboardService> { LeaderboardService(get(), get(), get()) }
+        single {
+            JwtService(
+                jwtSecret = TestEnv.JWT_SECRET,
+                jwtIssuer = TestEnv.JWT_ISSUER,
+                jwtAudience = TestEnv.JWT_AUDIENCE,
+            )
+        }
+    }
+
+    install(Koin) { modules(koinTestModule) }
+
+    configureSerialization()
+    configureSecurity()
+
+    install(RoutingRoot)
+
+    routing {
+        route("/api") {
+            leaderboardRoutes()
+        }
+    }
+}
+
+fun Application.testAdminLeaderboardModule(adminToken: String) {
+    val koinTestModule = module {
+        single<ILeaderboardSnapshotDAO> { LeaderboardSnapshotDAO() }
+    }
+
+    install(Koin) { modules(koinTestModule) }
+
+    configureSerialization()
+
+    install(RoutingRoot)
+
+    routing {
+        route("/api") {
+            adminLeaderboardRoutes(adminTokenProvider = { adminToken })
         }
     }
 }

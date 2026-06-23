@@ -17,6 +17,7 @@ data class User(
     val currentStreak: Int = 0,
     val longestStreak: Int = 0,
     val lastStreakDate: LocalDate? = null,
+    val lastStreakTimezone: String? = null,
     val createdAt: Instant? = null,
     val updatedAt: Instant? = null,
 )

@@ -5,6 +5,7 @@ import com.carspotter.features.car_model.carModelRoutes
 import features.comment.commentRoutes
 import com.carspotter.features.friend.friendRoutes
 import com.carspotter.features.friend_request.friendRequestRoutes
+import com.carspotter.features.leaderboard.adminLeaderboardRoutes
 import com.carspotter.features.leaderboard.leaderboardRoutes
 import features.like.likeRoutes
 import features.report.reportRoutes
@@ -30,6 +31,7 @@ fun Application.configureRouting() {
             commentRoutes()
             friendRequestRoutes()
             friendRoutes()
+            adminLeaderboardRoutes()
             leaderboardRoutes()
             likeRoutes()
             reportRoutes()

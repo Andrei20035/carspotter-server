@@ -34,7 +34,7 @@ class ScoringServiceTest {
         service.onPostCreated(userId, postId, PostSource.CAMERA, Instant.now(), null)
 
         coVerify(exactly = 1) { scoringDao.applyCreationPoints(userId, postId, ScoringServiceImpl.CAMERA_POINTS) }
-        coVerify(exactly = 1) { userDao.advanceStreak(userId, any()) }
+        coVerify(exactly = 1) { userDao.advanceStreak(userId, any(), any()) }
     }
 
     @Test
@@ -45,7 +45,7 @@ class ScoringServiceTest {
         service.onPostCreated(userId, postId, PostSource.CAMERA, Instant.now(), null)
 
         coVerify(exactly = 0) { scoringDao.applyCreationPoints(any(), any(), any()) }
-        coVerify(exactly = 1) { userDao.advanceStreak(userId, any()) }
+        coVerify(exactly = 1) { userDao.advanceStreak(userId, any(), any()) }
     }
 
     @Test
@@ -53,7 +53,16 @@ class ScoringServiceTest {
         service.onPostCreated(userId, postId, PostSource.GALLERY, Instant.now(), null)
 
         coVerify(exactly = 0) { scoringDao.applyCreationPoints(any(), any(), any()) }
-        coVerify(exactly = 0) { userDao.advanceStreak(any(), any()) }
+        coVerify(exactly = 0) { userDao.advanceStreak(any(), any(), any()) }
+    }
+
+    @Test
+    fun `onPostCreated CAMERA passes createdAtTimezone to advanceStreak`() = runTest {
+        coEvery { postDao.countCameraPostsOnDay(userId, any(), any()) } returns 1L
+
+        service.onPostCreated(userId, postId, PostSource.CAMERA, Instant.now(), "Europe/Bucharest")
+
+        coVerify(exactly = 1) { userDao.advanceStreak(userId, any(), "Europe/Bucharest") }
     }
 
     // ---------- onPostLiked ----------

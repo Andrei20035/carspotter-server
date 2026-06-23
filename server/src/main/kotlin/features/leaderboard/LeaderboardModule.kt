@@ -4,5 +4,6 @@ import org.koin.dsl.module
 
 val leaderboardModule = module {
     single<ILeaderboardDAO> { LeaderboardDAO() }
-    single<ILeaderboardService> { LeaderboardService(get(), get()) }
+    single<ILeaderboardSnapshotDAO> { LeaderboardSnapshotDAO() }
+    single<ILeaderboardService> { LeaderboardService(get(), get(), get()) }
 }

@@ -28,9 +28,10 @@ interface IUserDAO {
      * - If lastStreakDate == localDay - 1: extend streak by 1.
      * - Otherwise: reset streak to 1.
      * Only advances when localDay > lastStreakDate.
+     * Stores [timezoneId] as the user's reference zone for streak-reset computation at read time.
      * Must be called inside an existing [transaction] block.
      */
-    suspend fun advanceStreak(userId: UUID, localDay: LocalDate)
+    suspend fun advanceStreak(userId: UUID, localDay: LocalDate, timezoneId: String?)
 }
 
 class UserDao : IUserDAO {
@@ -94,7 +95,7 @@ class UserDao : IUserDAO {
         Unit
     }
 
-    override suspend fun advanceStreak(userId: UUID, localDay: LocalDate) = transaction {
+    override suspend fun advanceStreak(userId: UUID, localDay: LocalDate, timezoneId: String?) = transaction {
         val row = UserTable.select(
             listOf(UserTable.currentStreak, UserTable.longestStreak, UserTable.lastStreakDate)
         ).where { UserTable.id eq userId }.singleOrNull() ?: return@transaction
@@ -118,6 +119,7 @@ class UserDao : IUserDAO {
             it[currentStreak] = newStreak
             it[longestStreak] = newLongest
             it[lastStreakDate] = localDay
+            it[lastStreakTimezone] = timezoneId
         }
     }
 
@@ -134,6 +136,7 @@ class UserDao : IUserDAO {
         currentStreak = this[UserTable.currentStreak],
         longestStreak = this[UserTable.longestStreak],
         lastStreakDate = this[UserTable.lastStreakDate],
+        lastStreakTimezone = this[UserTable.lastStreakTimezone],
         createdAt = this[UserTable.createdAt],
         updatedAt = this[UserTable.updatedAt],
     )

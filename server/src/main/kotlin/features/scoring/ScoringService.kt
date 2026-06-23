@@ -1,13 +1,11 @@
 package com.carspotter.features.scoring
 
+import com.carspotter.core.util.resolveZone
 import com.carspotter.features.post.IPostDAO
 import com.carspotter.features.post.PostSource
 import com.carspotter.features.user.IUserDAO
-import org.slf4j.LoggerFactory
 import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneId
-import java.time.ZoneOffset
 import java.util.UUID
 
 interface IScoringService {
@@ -53,8 +51,6 @@ class ScoringServiceImpl(
         const val DAILY_CAMERA_CAP = 10
         const val LIKE_POINTS = 1
         const val COMMENT_POINTS = 5
-
-        private val logger = LoggerFactory.getLogger(ScoringServiceImpl::class.java)
     }
 
     override suspend fun onPostCreated(
@@ -80,7 +76,7 @@ class ScoringServiceImpl(
             scoringDao.applyCreationPoints(userId, postId, points)
         }
         // Always advance the streak regardless of cap (posting still counts for the day).
-        userDao.advanceStreak(userId, localDay)
+        userDao.advanceStreak(userId, localDay, createdAtTimezone)
     }
 
     override suspend fun onPostLiked(postOwnerId: UUID, postId: UUID, likerId: UUID, source: PostSource) {
@@ -98,13 +94,4 @@ class ScoringServiceImpl(
         scoringDao.applyEngagementPoints(postOwnerId, postId, COMMENT_POINTS)
     }
 
-    private fun resolveZone(tz: String?): ZoneId {
-        if (tz.isNullOrBlank()) return ZoneOffset.UTC
-        return try {
-            ZoneId.of(tz)
-        } catch (e: Exception) {
-            logger.warn("Invalid createdAtTimezone '{}', falling back to UTC", tz)
-            ZoneOffset.UTC
-        }
-    }
 }

@@ -1,13 +1,12 @@
 package com.carspotter.features.leaderboard
 
-import com.carspotter.features.leaderboard.dto.LeaderboardEntryDTO
 import com.carspotter.features.user.UserTable
 import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.greater
-import org.jetbrains.exposed.sql.andWhere
 import org.jetbrains.exposed.sql.select
 import org.jetbrains.exposed.sql.transactions.transaction
+import java.time.LocalDate
 import java.util.UUID
 
 interface ILeaderboardDAO {
@@ -27,6 +26,8 @@ data class RawLeaderboardEntry(
     val profilePicturePath: String?,
     val spotScore: Int,
     val currentStreak: Int,
+    val lastStreakDate: LocalDate?,
+    val lastStreakTimezone: String?,
 )
 
 data class UserScoreStreak(
@@ -35,6 +36,8 @@ data class UserScoreStreak(
     val profilePicturePath: String?,
     val spotScore: Int,
     val currentStreak: Int,
+    val lastStreakDate: LocalDate?,
+    val lastStreakTimezone: String?,
 )
 
 class LeaderboardDAO : ILeaderboardDAO {
@@ -47,6 +50,8 @@ class LeaderboardDAO : ILeaderboardDAO {
                 UserTable.profilePicturePath,
                 UserTable.spotScore,
                 UserTable.currentStreak,
+                UserTable.lastStreakDate,
+                UserTable.lastStreakTimezone,
             ))
             .orderBy(UserTable.spotScore to SortOrder.DESC, UserTable.id to SortOrder.ASC)
             .limit(limit)
@@ -57,6 +62,8 @@ class LeaderboardDAO : ILeaderboardDAO {
                     profilePicturePath = it[UserTable.profilePicturePath],
                     spotScore = it[UserTable.spotScore],
                     currentStreak = it[UserTable.currentStreak],
+                    lastStreakDate = it[UserTable.lastStreakDate],
+                    lastStreakTimezone = it[UserTable.lastStreakTimezone],
                 )
             }
     }
@@ -84,6 +91,8 @@ class LeaderboardDAO : ILeaderboardDAO {
                 UserTable.profilePicturePath,
                 UserTable.spotScore,
                 UserTable.currentStreak,
+                UserTable.lastStreakDate,
+                UserTable.lastStreakTimezone,
             ))
             .where { UserTable.id eq userId }
             .singleOrNull()
@@ -94,6 +103,8 @@ class LeaderboardDAO : ILeaderboardDAO {
                     profilePicturePath = it[UserTable.profilePicturePath],
                     spotScore = it[UserTable.spotScore],
                     currentStreak = it[UserTable.currentStreak],
+                    lastStreakDate = it[UserTable.lastStreakDate],
+                    lastStreakTimezone = it[UserTable.lastStreakTimezone],
                 )
             }
     }

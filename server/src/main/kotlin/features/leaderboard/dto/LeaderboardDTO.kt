@@ -18,9 +18,8 @@ data class LeaderboardEntryDTO(
 @Serializable
 data class CurrentUserStandingDTO(
     val entry: LeaderboardEntryDTO,
-    /** Always KEEP in v1 — no historical rank snapshots yet. */
-    val movement: String = "KEEP",
-    val placesMoved: Int = 0,
+    val movement: String,
+    val placesMoved: Int,
 )
 
 @Serializable

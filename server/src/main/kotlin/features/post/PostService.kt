@@ -27,7 +27,7 @@ interface IPostService {
         cursorPostId: String?,
         currentUserId: UUID?,
     ): FeedResponseDTO
-    suspend fun listPostsByUser(userId: UUID, limit: Int, cursorCreatedAt: String?, cursorPostId: String?): FeedResponseDTO
+    suspend fun listPostsByUser(userId: UUID, limit: Int, cursorCreatedAt: String?, cursorPostId: String?, currentUserId: UUID?): FeedResponseDTO
     suspend fun deletePostAsAuthor(postId: UUID, authorId: UUID)
 }
 
@@ -122,24 +122,7 @@ class PostServiceImpl(
         val hasMore = rows.size > effectiveLimit
         val page = if (hasMore) rows.take(effectiveLimit) else rows
 
-        val postIds = page.map { it.id }
-        val likeCounts = likeDao.getLikeCountsForPosts(postIds)
-        val commentCounts = commentDao.getCommentCountsForPosts(postIds)
-        val likedPostIds = if (currentUserId != null) {
-            likeDao.getLikedPostIds(currentUserId, postIds)
-        } else {
-            emptySet()
-        }
-
-        val posts = page.map { post ->
-            post.toFeedDTO(
-                imageUrl = storageService.resolveUrl(post.imageKey),
-                authorProfilePictureUrl = post.authorProfilePictureUrl?.let(storageService::resolveUrl),
-                likeCount = likeCounts[post.id] ?: 0L,
-                commentCount = commentCounts[post.id] ?: 0L,
-                likedByCurrentUser = post.id in likedPostIds,
-            )
-        }
+        val posts = enrichPosts(page, currentUserId)
 
         val nextCursor = if (hasMore) {
             page.last().let { FeedCursorDTO(it.createdAt, it.id) }
@@ -166,7 +149,7 @@ class PostServiceImpl(
         return createdAt to postId
     }
 
-    override suspend fun listPostsByUser(userId: UUID, limit: Int, cursorCreatedAt: String?, cursorPostId: String?): FeedResponseDTO {
+    override suspend fun listPostsByUser(userId: UUID, limit: Int, cursorCreatedAt: String?, cursorPostId: String?, currentUserId: UUID?): FeedResponseDTO {
         val effectiveLimit = validateLimit(limit)
         val cursor = parseCursor(cursorCreatedAt, cursorPostId)
 
@@ -174,15 +157,7 @@ class PostServiceImpl(
         val hasMore = rows.size > effectiveLimit
         val page = if (hasMore) rows.take(effectiveLimit) else rows
 
-        val posts = page.map { post ->
-            post.toFeedDTO(
-                imageUrl = storageService.resolveUrl(post.imageKey),
-                authorProfilePictureUrl = post.authorProfilePictureUrl?.let(storageService::resolveUrl),
-                likeCount = 0L,
-                commentCount = 0L,
-                likedByCurrentUser = false,
-            )
-        }
+        val posts = enrichPosts(page, currentUserId)
 
         val nextCursor = if (hasMore) {
             page.last().let { FeedCursorDTO(it.createdAt, it.id) }
@@ -261,6 +236,26 @@ class PostServiceImpl(
         imageUrl = storageService.resolveUrl(post.imageKey),
         authorProfilePictureUrl = post.authorProfilePictureUrl?.let(storageService::resolveUrl),
     )
+
+    private suspend fun enrichPosts(page: List<Post>, currentUserId: UUID?): List<PostDTO> {
+        val postIds = page.map { it.id }
+        val likeCounts = likeDao.getLikeCountsForPosts(postIds)
+        val commentCounts = commentDao.getCommentCountsForPosts(postIds)
+        val likedPostIds = if (currentUserId != null) {
+            likeDao.getLikedPostIds(currentUserId, postIds)
+        } else {
+            emptySet()
+        }
+        return page.map { post ->
+            post.toFeedDTO(
+                imageUrl = storageService.resolveUrl(post.imageKey),
+                authorProfilePictureUrl = post.authorProfilePictureUrl?.let(storageService::resolveUrl),
+                likeCount = likeCounts[post.id] ?: 0L,
+                commentCount = commentCounts[post.id] ?: 0L,
+                likedByCurrentUser = post.id in likedPostIds,
+            )
+        }
+    }
 }
 
 class PostCreationException(message: String, cause: Throwable? = null) : RuntimeException(message, cause)

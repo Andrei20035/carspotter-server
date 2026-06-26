@@ -15,6 +15,7 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.PartData
 import io.ktor.http.content.forEachPart
 import io.ktor.http.content.streamProvider
+import io.ktor.server.application.ApplicationCall
 import io.ktor.server.auth.authenticate
 import io.ktor.server.plugins.BadRequestException
 import io.ktor.server.request.receiveMultipart
@@ -22,9 +23,68 @@ import io.ktor.server.response.respond
 import io.ktor.server.routing.*
 import kotlinx.serialization.json.Json
 import org.koin.ktor.ext.inject
+import java.util.UUID
 
 private const val DEFAULT_LIMIT = 20
 private const val MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024
+
+/**
+ * Resolves the optional viewer identity from the Authorization header.
+ *
+ * - No header → [ViewerResult.Resolved] with `null` (anonymous, public access allowed).
+ * - Header present but malformed → responds 401 and returns [ViewerResult.AlreadyResponded].
+ * - Valid token → [ViewerResult.Resolved] with the viewer's UUID.
+ * - Expired / invalid / revoked token → responds 401 and returns [ViewerResult.AlreadyResponded].
+ */
+private sealed interface ViewerResult {
+    data class Resolved(val userId: UUID?) : ViewerResult
+    data object AlreadyResponded : ViewerResult
+}
+
+private suspend fun ApplicationCall.resolveOptionalViewer(
+    jwtService: JwtService,
+    sessionService: ISessionService,
+): ViewerResult {
+    val authHeader = request.headers[HttpHeaders.Authorization]
+        ?: return ViewerResult.Resolved(null)
+
+    val rawToken = authHeader
+        .takeIf { it.startsWith("Bearer ", ignoreCase = true) }
+        ?.substringAfter(' ')
+        ?.takeIf { it.isNotBlank() }
+        ?: run {
+            respond(
+                HttpStatusCode.Unauthorized,
+                AuthErrorResponse(AuthApiError(AuthErrorCode.ACCESS_TOKEN_INVALID, "Access token is invalid")),
+            )
+            return ViewerResult.AlreadyResponded
+        }
+
+    return when (val result = jwtService.parseAndValidateToken(rawToken, sessionService)) {
+        is TokenResult.Valid -> ViewerResult.Resolved(result.userId)
+        TokenResult.Expired -> {
+            respond(
+                HttpStatusCode.Unauthorized,
+                AuthErrorResponse(AuthApiError(AuthErrorCode.ACCESS_TOKEN_EXPIRED, "Access token has expired")),
+            )
+            ViewerResult.AlreadyResponded
+        }
+        TokenResult.Invalid -> {
+            respond(
+                HttpStatusCode.Unauthorized,
+                AuthErrorResponse(AuthApiError(AuthErrorCode.ACCESS_TOKEN_INVALID, "Access token is invalid")),
+            )
+            ViewerResult.AlreadyResponded
+        }
+        TokenResult.SessionRevoked -> {
+            respond(
+                HttpStatusCode.Unauthorized,
+                AuthErrorResponse(AuthApiError(AuthErrorCode.SESSION_REVOKED, "Session is revoked")),
+            )
+            ViewerResult.AlreadyResponded
+        }
+    }
+}
 
 fun Route.postRoutes() {
     val postService: IPostService by application.inject()
@@ -36,34 +96,9 @@ fun Route.postRoutes() {
         val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: DEFAULT_LIMIT
         val cursorCreatedAt = call.request.queryParameters["cursorCreatedAt"]
         val cursorPostId = call.request.queryParameters["cursorPostId"]
-        val authHeader = call.request.headers[HttpHeaders.Authorization]
-        val currentUserId = if (authHeader == null) {
-            null
-        } else {
-            val rawToken = authHeader
-                .takeIf { it.startsWith("Bearer ", ignoreCase = true) }
-                ?.substringAfter(' ')
-                ?.takeIf { it.isNotBlank() }
-                ?: return@get call.respond(
-                    HttpStatusCode.Unauthorized,
-                    AuthErrorResponse(AuthApiError(AuthErrorCode.ACCESS_TOKEN_INVALID, "Access token is invalid")),
-                )
-
-            when (val result = jwtService.parseAndValidateToken(rawToken, sessionService)) {
-                is TokenResult.Valid -> result.userId
-                TokenResult.Expired -> return@get call.respond(
-                    HttpStatusCode.Unauthorized,
-                    AuthErrorResponse(AuthApiError(AuthErrorCode.ACCESS_TOKEN_EXPIRED, "Access token has expired")),
-                )
-                TokenResult.Invalid -> return@get call.respond(
-                    HttpStatusCode.Unauthorized,
-                    AuthErrorResponse(AuthApiError(AuthErrorCode.ACCESS_TOKEN_INVALID, "Access token is invalid")),
-                )
-                TokenResult.SessionRevoked -> return@get call.respond(
-                    HttpStatusCode.Unauthorized,
-                    AuthErrorResponse(AuthApiError(AuthErrorCode.SESSION_REVOKED, "Session is revoked")),
-                )
-            }
+        val currentUserId = when (val viewer = call.resolveOptionalViewer(jwtService, sessionService)) {
+            is ViewerResult.AlreadyResponded -> return@get
+            is ViewerResult.Resolved -> viewer.userId
         }
 
         try {
@@ -82,9 +117,13 @@ fun Route.postRoutes() {
         val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: DEFAULT_LIMIT
         val cursorCreatedAt = call.request.queryParameters["cursorCreatedAt"]
         val cursorPostId = call.request.queryParameters["cursorPostId"]
+        val currentUserId = when (val viewer = call.resolveOptionalViewer(jwtService, sessionService)) {
+            is ViewerResult.AlreadyResponded -> return@get
+            is ViewerResult.Resolved -> viewer.userId
+        }
 
         try {
-            call.respond(HttpStatusCode.OK, postService.listPostsByUser(userId, limit, cursorCreatedAt, cursorPostId))
+            call.respond(HttpStatusCode.OK, postService.listPostsByUser(userId, limit, cursorCreatedAt, cursorPostId, currentUserId))
         } catch (e: IllegalArgumentException) {
             call.respond(HttpStatusCode.BadRequest, mapOf("error" to (e.message ?: "Invalid request")))
         }

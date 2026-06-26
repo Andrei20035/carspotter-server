@@ -179,13 +179,182 @@ class PostRoutesTest {
     }
 
     @Test
-    fun `GET user posts returns 200 with empty array when user has no posts`() = postTest { client ->
+    fun `GET user posts returns 200 with empty feed when user has no posts`() = postTest { client ->
         val user = CommentTestSeed.seedUser()
 
         val response = client.get("/api/users/${user.userId}/posts")
 
         assertEquals(HttpStatusCode.OK, response.status)
-        assertEquals(emptyList<PostDTO>(), response.body<List<PostDTO>>())
+        val body = response.body<FeedResponseDTO>()
+        assertEquals(emptyList<PostDTO>(), body.posts)
+        assertEquals(false, body.hasMore)
+        assertEquals(null, body.nextCursor)
+    }
+
+    @Test
+    fun `GET user posts returns real likeCount`() = postTest { client ->
+        val author = CommentTestSeed.seedUser(username = "author")
+        val liker1 = CommentTestSeed.seedUser(username = "liker1", email = "liker1@example.com")
+        val liker2 = CommentTestSeed.seedUser(username = "liker2", email = "liker2@example.com")
+        val post = CommentTestSeed.seedPost(author.userId)
+        LikeTestSeed.insertLike(liker1.userId, post.postId)
+        LikeTestSeed.insertLike(liker2.userId, post.postId)
+
+        val response = client.get("/api/users/${author.userId}/posts")
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        assertEquals(2L, response.body<FeedResponseDTO>().posts.single { it.id == post.postId }.likeCount)
+    }
+
+    @Test
+    fun `GET user posts returns real commentCount`() = postTest { client ->
+        val author = CommentTestSeed.seedUser(username = "author")
+        val commenter = CommentTestSeed.seedUser(username = "commenter", email = "commenter@example.com")
+        val post = CommentTestSeed.seedPost(author.userId)
+        CommentTestSeed.insertComment(commenter.userId, post.postId, "nice!")
+        CommentTestSeed.insertComment(commenter.userId, post.postId, "wow!")
+
+        val response = client.get("/api/users/${author.userId}/posts")
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        assertEquals(2L, response.body<FeedResponseDTO>().posts.single { it.id == post.postId }.commentCount)
+    }
+
+    @Test
+    fun `GET user posts returns zero counts for post with no interactions`() = postTest { client ->
+        val author = CommentTestSeed.seedUser(username = "author")
+        val post = CommentTestSeed.seedPost(author.userId)
+
+        val response = client.get("/api/users/${author.userId}/posts")
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val dto = response.body<FeedResponseDTO>().posts.single { it.id == post.postId }
+        assertEquals(0L, dto.likeCount)
+        assertEquals(0L, dto.commentCount)
+    }
+
+    @Test
+    fun `GET user posts returns likedByCurrentUser true when viewer has liked`() = postTest { client ->
+        val author = CommentTestSeed.seedUser(username = "author")
+        val viewer = CommentTestSeed.seedUser(username = "viewer", email = "viewer@example.com")
+        val post = CommentTestSeed.seedPost(author.userId)
+        LikeTestSeed.insertLike(viewer.userId, post.postId)
+        val token = tokenFor(viewer.authId, viewer.userId, viewer.email)
+
+        val response = client.get("/api/users/${author.userId}/posts") { bearerAuth(token) }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        assertEquals(true, response.body<FeedResponseDTO>().posts.single { it.id == post.postId }.likedByCurrentUser)
+    }
+
+    @Test
+    fun `GET user posts returns likedByCurrentUser false when viewer has not liked`() = postTest { client ->
+        val author = CommentTestSeed.seedUser(username = "author")
+        val viewer = CommentTestSeed.seedUser(username = "viewer", email = "viewer@example.com")
+        val post = CommentTestSeed.seedPost(author.userId)
+        val token = tokenFor(viewer.authId, viewer.userId, viewer.email)
+
+        val response = client.get("/api/users/${author.userId}/posts") { bearerAuth(token) }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        assertEquals(false, response.body<FeedResponseDTO>().posts.single { it.id == post.postId }.likedByCurrentUser)
+    }
+
+    @Test
+    fun `GET user posts anonymous request returns real counts but likedByCurrentUser false`() = postTest { client ->
+        val author = CommentTestSeed.seedUser(username = "author")
+        val liker = CommentTestSeed.seedUser(username = "liker", email = "liker@example.com")
+        val post = CommentTestSeed.seedPost(author.userId)
+        LikeTestSeed.insertLike(liker.userId, post.postId)
+
+        val response = client.get("/api/users/${author.userId}/posts")
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val dto = response.body<FeedResponseDTO>().posts.single { it.id == post.postId }
+        assertEquals(1L, dto.likeCount)
+        assertEquals(false, dto.likedByCurrentUser)
+    }
+
+    @Test
+    fun `GET user posts paginates with stable cursor and no overlap`() = postTest { client ->
+        val author = CommentTestSeed.seedUser(username = "author")
+        repeat(3) { CommentTestSeed.seedPost(author.userId) }
+
+        val firstPage = client.get("/api/users/${author.userId}/posts") {
+            parameter("limit", "2")
+        }.body<FeedResponseDTO>()
+
+        assertEquals(2, firstPage.posts.size)
+        assertEquals(true, firstPage.hasMore)
+        val cursor = firstPage.nextCursor
+        assertNotNull(cursor)
+
+        val secondPage = client.get("/api/users/${author.userId}/posts") {
+            parameter("limit", "2")
+            parameter("cursorCreatedAt", cursor!!.lastCreatedAt.toString())
+            parameter("cursorPostId", cursor.lastPostId.toString())
+        }.body<FeedResponseDTO>()
+
+        assertEquals(1, secondPage.posts.size)
+        assertEquals(false, secondPage.hasMore)
+        assertEquals(null, secondPage.nextCursor)
+
+        val seenIds = (firstPage.posts + secondPage.posts).map { it.id }
+        assertEquals(3, seenIds.size)
+        assertEquals(3, seenIds.toSet().size)
+    }
+
+    @Test
+    fun `GET user posts aggregates are scoped to current page only`() = postTest { client ->
+        val author = CommentTestSeed.seedUser(username = "author")
+        val liker = CommentTestSeed.seedUser(username = "liker", email = "liker@example.com")
+        repeat(3) {
+            val post = CommentTestSeed.seedPost(author.userId)
+            LikeTestSeed.insertLike(liker.userId, post.postId)
+        }
+
+        val firstPage = client.get("/api/users/${author.userId}/posts") {
+            parameter("limit", "2")
+        }.body<FeedResponseDTO>()
+
+        assertEquals(2, firstPage.posts.size)
+        assertTrue(firstPage.posts.all { it.likeCount == 1L })
+    }
+
+    @Test
+    fun `GET user posts with invalid token returns 401 ACCESS_TOKEN_INVALID`() = postTest { client ->
+        val author = CommentTestSeed.seedUser(username = "author")
+
+        val response = client.get("/api/users/${author.userId}/posts") { bearerAuth("not-a-jwt") }
+
+        assertEquals(HttpStatusCode.Unauthorized, response.status)
+        assertEquals(AuthErrorCode.ACCESS_TOKEN_INVALID, response.body<AuthErrorResponse>().error.code)
+    }
+
+    @Test
+    fun `GET user posts with expired token returns 401 ACCESS_TOKEN_EXPIRED`() = postTest { client ->
+        val author = CommentTestSeed.seedUser(username = "author")
+        val viewer = CommentTestSeed.seedUser(username = "viewer", email = "viewer@example.com")
+        val token = expiredTokenFor(viewer.authId, viewer.userId, viewer.email)
+
+        val response = client.get("/api/users/${author.userId}/posts") { bearerAuth(token) }
+
+        assertEquals(HttpStatusCode.Unauthorized, response.status)
+        assertEquals(AuthErrorCode.ACCESS_TOKEN_EXPIRED, response.body<AuthErrorResponse>().error.code)
+    }
+
+    @Test
+    fun `GET user posts with revoked session returns 401 SESSION_REVOKED`() = postTest { client ->
+        val author = CommentTestSeed.seedUser(username = "author")
+        val viewer = CommentTestSeed.seedUser(username = "viewer", email = "viewer@example.com")
+        val token = tokenFor(viewer.authId, viewer.userId, viewer.email)
+        val session = AuthSessionDAO().listActiveSessions(viewer.authId).single()
+        AuthSessionDAO().revokeSession(session.id, RevokeReason.LOGOUT)
+
+        val response = client.get("/api/users/${author.userId}/posts") { bearerAuth(token) }
+
+        assertEquals(HttpStatusCode.Unauthorized, response.status)
+        assertEquals(AuthErrorCode.SESSION_REVOKED, response.body<AuthErrorResponse>().error.code)
     }
 
     @Test

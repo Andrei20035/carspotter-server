@@ -48,6 +48,8 @@ class PostDAO : IPostDAO {
         PostTable.userId,
         UserTable.username,
         UserTable.profilePicturePath,
+        UserTable.isEarlySpotter,
+        UserTable.earlySpotterNumber,
         PostTable.carModelId,
         CarModelTable.brand,
         CarModelTable.model,

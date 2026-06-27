@@ -18,6 +18,8 @@ data class User(
     val longestStreak: Int = 0,
     val lastStreakDate: LocalDate? = null,
     val lastStreakTimezone: String? = null,
+    val isEarlySpotter: Boolean = false,
+    val earlySpotterNumber: Int? = null,
     val createdAt: Instant? = null,
     val updatedAt: Instant? = null,
 )

@@ -30,6 +30,8 @@ data class PostDTO(
     val likeCount: Long = 0,
     val commentCount: Long = 0,
     val likedByCurrentUser: Boolean = false,
+    val authorIsEarlySpotter: Boolean = false,
+    val authorEarlySpotterNumber: Int? = null,
 )
 
 fun Post.toDTO(
@@ -50,6 +52,8 @@ fun Post.toDTO(
     town = this.town,
     country = this.country,
     createdAt = this.createdAt,
+    authorIsEarlySpotter = this.authorIsEarlySpotter,
+    authorEarlySpotterNumber = this.authorEarlySpotterNumber,
 )
 
 /** Feed variant that also carries engagement counters and the current user's like state. */
@@ -77,4 +81,6 @@ fun Post.toFeedDTO(
     likeCount = likeCount,
     commentCount = commentCount,
     likedByCurrentUser = likedByCurrentUser,
+    authorIsEarlySpotter = this.authorIsEarlySpotter,
+    authorEarlySpotterNumber = this.authorEarlySpotterNumber,
 )

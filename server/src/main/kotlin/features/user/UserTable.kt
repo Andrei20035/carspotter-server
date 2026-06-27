@@ -20,6 +20,8 @@ object UserTable : UUIDTable("users") {
     val longestStreak = integer("longest_streak").default(0)
     val lastStreakDate = date("last_streak_date").nullable()
     val lastStreakTimezone = varchar("last_streak_timezone", 64).nullable()
+    val isEarlySpotter = bool("is_early_spotter").default(false)
+    val earlySpotterNumber = integer("early_spotter_number").nullable()
     val createdAt = timestamp("created_at").defaultExpression(CurrentTimestamp)
     val updatedAt = timestamp("updated_at").defaultExpression(CurrentTimestamp)
 }

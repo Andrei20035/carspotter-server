@@ -17,6 +17,8 @@ data class UserDTO(
     val country: String,
     val spotScore: Int = 0,
     val postCount: Int = 0,
+    val isEarlySpotter: Boolean = false,
+    val earlySpotterNumber: Int? = null,
     @Serializable(with = InstantSerializer::class)
     val createdAt: Instant? = null,
     @Serializable(with = InstantSerializer::class)
@@ -32,6 +34,8 @@ fun User.toDTO(profilePictureUrl: String? = profilePicturePath, postCount: Int =
         country = this.country,
         spotScore = this.spotScore,
         postCount = postCount,
+        isEarlySpotter = this.isEarlySpotter,
+        earlySpotterNumber = this.earlySpotterNumber,
         createdAt = this.createdAt,
         updatedAt = this.updatedAt
     )

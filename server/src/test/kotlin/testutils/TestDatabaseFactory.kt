@@ -91,6 +91,13 @@ object TestDatabaseFactory {
                     RESTART IDENTITY CASCADE
                     """.trimIndent()
                 )
+                st.execute(
+                    """
+                    INSERT INTO early_spotter_counter (id, last_assigned)
+                    VALUES (1, 0)
+                    ON CONFLICT (id) DO UPDATE SET last_assigned = 0
+                    """.trimIndent()
+                )
             }
             conn.commit()
         }

@@ -25,6 +25,8 @@ data class Post(
     val createdAtTimezone: String? = null,
     val points: Int = 0,
     val createdAt: Instant,
+    val authorIsEarlySpotter: Boolean = false,
+    val authorEarlySpotterNumber: Int? = null,
 )
 
 fun ResultRow.toPost(): Post {
@@ -57,5 +59,7 @@ fun ResultRow.toPost(): Post {
         createdAtTimezone = this[PostTable.createdAtTimezone],
         points = this[PostTable.points],
         createdAt = this[PostTable.createdAt],
+        authorIsEarlySpotter = this[UserTable.isEarlySpotter],
+        authorEarlySpotterNumber = this[UserTable.earlySpotterNumber],
     )
 }

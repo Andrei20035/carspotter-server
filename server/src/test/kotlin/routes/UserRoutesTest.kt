@@ -376,4 +376,91 @@ class UserRoutesTest {
 
         assertEquals(HttpStatusCode.NotFound, response.status)
     }
+
+    // --- Early Spotter flag in GET /users/me and GET /users/{id} ---
+
+    @Test
+    fun `GET users me returns isEarlySpotter true and number for early spotter user`() = userTest { client ->
+        val credential = UserTestSeed.seedAuthCredential("early@example.com")
+        val onboardingToken = onboardingToken(credential.authCredentialId, credential.email)
+
+        val postResponse = client.post("/api/users") {
+            bearerAuth(onboardingToken)
+            contentType(ContentType.Application.Json)
+            setBody(
+                CreateUserRequest(
+                    fullName = "Early",
+                    birthDate = java.time.LocalDate.of(1995, 1, 1),
+                    username = "earlyspotter",
+                    country = "RO",
+                )
+            )
+        }
+        assertEquals(HttpStatusCode.Created, postResponse.status)
+        val createBody: CreateUserResponse = postResponse.body()
+
+        val meResponse = client.get("/api/users/me") {
+            bearerAuth(createBody.accessToken)
+        }
+        assertEquals(HttpStatusCode.OK, meResponse.status)
+        val meBody: UserDTO = meResponse.body()
+        assertTrue(meBody.isEarlySpotter)
+        assertEquals(1, meBody.earlySpotterNumber)
+    }
+
+    @Test
+    fun `GET users me returns isEarlySpotter false and null number for non-early-spotter`() = userTest { client ->
+        val credential = UserTestSeed.seedAuthCredential("regular@example.com")
+        val userId = UserTestSeed.seedUser(credential.authCredentialId, username = "regular")
+        val token = profileToken(credential.authCredentialId, userId, credential.email)
+
+        val response = client.get("/api/users/me") {
+            bearerAuth(token)
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body: UserDTO = response.body()
+        assertEquals(false, body.isEarlySpotter)
+        assertNull(body.earlySpotterNumber)
+    }
+
+    @Test
+    fun `GET users by id returns isEarlySpotter true and number for early spotter user`() = userTest { client ->
+        val credential = UserTestSeed.seedAuthCredential("early2@example.com")
+        val onboardingToken = onboardingToken(credential.authCredentialId, credential.email)
+
+        val postResponse = client.post("/api/users") {
+            bearerAuth(onboardingToken)
+            contentType(ContentType.Application.Json)
+            setBody(
+                CreateUserRequest(
+                    fullName = "Early2",
+                    birthDate = java.time.LocalDate.of(1995, 1, 1),
+                    username = "earlyspotter2",
+                    country = "RO",
+                )
+            )
+        }
+        assertEquals(HttpStatusCode.Created, postResponse.status)
+        val createBody: CreateUserResponse = postResponse.body()
+
+        val byIdResponse = client.get("/api/users/${createBody.userId}")
+        assertEquals(HttpStatusCode.OK, byIdResponse.status)
+        val body: UserDTO = byIdResponse.body()
+        assertTrue(body.isEarlySpotter)
+        assertEquals(1, body.earlySpotterNumber)
+    }
+
+    @Test
+    fun `GET users by id returns isEarlySpotter false and null number for non-early-spotter`() = userTest { client ->
+        val credential = UserTestSeed.seedAuthCredential("regular2@example.com")
+        val userId = UserTestSeed.seedUser(credential.authCredentialId, username = "regular2")
+
+        val response = client.get("/api/users/$userId")
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body: UserDTO = response.body()
+        assertEquals(false, body.isEarlySpotter)
+        assertNull(body.earlySpotterNumber)
+    }
 }

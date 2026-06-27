@@ -4,7 +4,9 @@ import com.carspotter.features.auth.AuthTable
 import com.carspotter.features.post.PostTable
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.statements.StatementType
 import org.jetbrains.exposed.sql.transactions.transaction
+import java.sql.Connection
 import java.time.LocalDate
 import java.util.*
 
@@ -35,7 +37,19 @@ interface IUserDAO {
 }
 
 class UserDao : IUserDAO {
-    override suspend fun createUser(user: User): UUID = transaction {
+    override suspend fun createUser(user: User): UUID = transaction(transactionIsolation = Connection.TRANSACTION_READ_COMMITTED) {
+        exec("SELECT pg_advisory_xact_lock(8123001)")
+
+        val assignedNumber = exec(
+            """
+            UPDATE early_spotter_counter
+               SET last_assigned = last_assigned + 1
+             WHERE last_assigned < 1000
+            RETURNING last_assigned
+            """.trimIndent(),
+            explicitStatementType = StatementType.SELECT
+        ) { rs -> if (rs.next()) rs.getInt("last_assigned") else null }
+
         UserTable.insertReturning(listOf(UserTable.id)) {
             it[authCredentialId] = user.authCredentialId
             it[profilePicturePath] = user.profilePicturePath
@@ -45,6 +59,8 @@ class UserDao : IUserDAO {
             it[username] = user.username
             it[country] = user.country
             it[spotScore] = user.spotScore
+            it[isEarlySpotter] = assignedNumber != null
+            it[earlySpotterNumber] = assignedNumber
         }.singleOrNull()?.get(UserTable.id)?.value ?: throw UserCreationException("Failed to insert user")
     }
 
@@ -137,6 +153,8 @@ class UserDao : IUserDAO {
         longestStreak = this[UserTable.longestStreak],
         lastStreakDate = this[UserTable.lastStreakDate],
         lastStreakTimezone = this[UserTable.lastStreakTimezone],
+        isEarlySpotter = this[UserTable.isEarlySpotter],
+        earlySpotterNumber = this[UserTable.earlySpotterNumber],
         createdAt = this[UserTable.createdAt],
         updatedAt = this[UserTable.updatedAt],
     )

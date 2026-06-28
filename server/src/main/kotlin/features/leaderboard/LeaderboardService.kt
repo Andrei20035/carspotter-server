@@ -16,6 +16,7 @@ class LeaderboardService(
     private val leaderboardDao: ILeaderboardDAO,
     private val snapshotDao: ILeaderboardSnapshotDAO,
     private val storageService: IStorageService,
+    private val snapshotZoneId: String? = System.getenv("LEADERBOARD_SNAPSHOT_ZONE"),
 ) : ILeaderboardService {
 
     override suspend fun getLeaderboard(currentUserId: UUID, limit: Int): LeaderboardResponseDTO {
@@ -23,9 +24,10 @@ class LeaderboardService(
 
         val rawEntries = leaderboardDao.getTopEntries(limit)
         val entries = rawEntries.mapIndexed { index, raw ->
+            val rank = index + 1
             LeaderboardEntryDTO(
                 userId = raw.userId,
-                rank = index + 1,
+                rank = rank,
                 username = raw.username,
                 avatarUrl = raw.profilePicturePath?.let(storageService::resolveUrl),
                 spotScore = raw.spotScore,
@@ -37,7 +39,7 @@ class LeaderboardService(
 
         val userStats = leaderboardDao.getUserScoreAndStreak(currentUserId)
         val currRank = leaderboardDao.getUserRank(currentUserId)
-        val today = now.atZone(resolveZone(null)).toLocalDate()
+        val today = now.atZone(resolveZone(snapshotZoneId)).toLocalDate()
         val prevRank = snapshotDao.getPreviousRank(currentUserId, today)
         val (movement, placesMoved) = RankMovement.of(currRank, prevRank)
 

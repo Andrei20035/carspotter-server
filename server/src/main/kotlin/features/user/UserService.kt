@@ -1,8 +1,10 @@
 package com.carspotter.features.user
 
 import com.carspotter.core.storage.IStorageService
+import com.carspotter.features.leaderboard.StreakCalculator
 import com.carspotter.features.user.dto.UserDTO
 import com.carspotter.features.user.dto.toDTO
+import java.time.Instant
 import java.util.UUID
 
 interface IUserService {
@@ -92,6 +94,9 @@ class UserService(
         return toDTO(
             profilePictureUrl = profilePicturePath?.let(storageService::resolveUrl),
             postCount = postCount,
+            streakDays = StreakCalculator.displayedStreak(
+                currentStreak, lastStreakDate, lastStreakTimezone, Instant.now()
+            ),
         )
     }
 }

@@ -22,10 +22,11 @@ data class UserDTO(
     @Serializable(with = InstantSerializer::class)
     val createdAt: Instant? = null,
     @Serializable(with = InstantSerializer::class)
-    val updatedAt: Instant? = null
+    val updatedAt: Instant? = null,
+    val streakDays: Int = 0
 )
 
-fun User.toDTO(profilePictureUrl: String? = profilePicturePath, postCount: Int = 0): UserDTO {
+fun User.toDTO(profilePictureUrl: String? = profilePicturePath, postCount: Int = 0, streakDays: Int = 0): UserDTO {
     return UserDTO(
         id = this.id,
         fullName = this.fullName,
@@ -37,6 +38,7 @@ fun User.toDTO(profilePictureUrl: String? = profilePicturePath, postCount: Int =
         isEarlySpotter = this.isEarlySpotter,
         earlySpotterNumber = this.earlySpotterNumber,
         createdAt = this.createdAt,
-        updatedAt = this.updatedAt
+        updatedAt = this.updatedAt,
+        streakDays = streakDays
     )
 }

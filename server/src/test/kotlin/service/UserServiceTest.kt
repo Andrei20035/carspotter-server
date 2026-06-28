@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import testutils.UserTestSeed
 import java.nio.file.Path
+import java.time.LocalDate
 import java.util.UUID
 
 class UserServiceTest {
@@ -147,12 +148,70 @@ class UserServiceTest {
 
         coEvery { dao.updateProfilePicture(userId, capture(updatedPath)) } returns 1
         coEvery { dao.getUserById(userId) } returns updatedUser
+        coEvery { dao.countPostsByUser(userId) } returns 0L
 
         val service = newService(dao)
         val dto = service.updateProfilePicture(userId, "  /uploads/a.jpg  ")
 
         assertEquals("a.jpg", updatedPath.captured)
         assertEquals("http://localhost:8080/uploads/a.jpg", dto.profilePicturePath)
+    }
+
+    @Test
+    fun `getUserById returns active streakDays when lastStreakDate is today`() = runTest {
+        val dao = mockk<IUserDAO>()
+        val userId = UUID.randomUUID()
+        val authCredentialId = UUID.randomUUID()
+        val user = UserTestSeed.buildUser(authCredentialId, username = "alice").copy(
+            id = userId,
+            currentStreak = 7,
+            lastStreakDate = LocalDate.now(),
+            lastStreakTimezone = "UTC",
+        )
+        coEvery { dao.getUserById(userId) } returns user
+        coEvery { dao.countPostsByUser(userId) } returns 0L
+
+        val dto = newService(dao).getUserById(userId)
+
+        assertEquals(7, dto?.streakDays)
+    }
+
+    @Test
+    fun `getUserById returns 0 streakDays when streak is expired`() = runTest {
+        val dao = mockk<IUserDAO>()
+        val userId = UUID.randomUUID()
+        val authCredentialId = UUID.randomUUID()
+        val user = UserTestSeed.buildUser(authCredentialId, username = "alice").copy(
+            id = userId,
+            currentStreak = 5,
+            lastStreakDate = LocalDate.now().minusDays(2),
+            lastStreakTimezone = "UTC",
+        )
+        coEvery { dao.getUserById(userId) } returns user
+        coEvery { dao.countPostsByUser(userId) } returns 0L
+
+        val dto = newService(dao).getUserById(userId)
+
+        assertEquals(0, dto?.streakDays)
+    }
+
+    @Test
+    fun `getUserById returns 0 streakDays when lastStreakDate is null`() = runTest {
+        val dao = mockk<IUserDAO>()
+        val userId = UUID.randomUUID()
+        val authCredentialId = UUID.randomUUID()
+        val user = UserTestSeed.buildUser(authCredentialId, username = "alice").copy(
+            id = userId,
+            currentStreak = 3,
+            lastStreakDate = null,
+            lastStreakTimezone = null,
+        )
+        coEvery { dao.getUserById(userId) } returns user
+        coEvery { dao.countPostsByUser(userId) } returns 0L
+
+        val dto = newService(dao).getUserById(userId)
+
+        assertEquals(0, dto?.streakDays)
     }
 
     @Test
@@ -169,6 +228,7 @@ class UserServiceTest {
 
         coEvery { dao.updateProfilePicture(userId, capture(updatedPath)) } returns 1
         coEvery { dao.getUserById(userId) } returns updatedUser
+        coEvery { dao.countPostsByUser(userId) } returns 0L
 
         val service = newService(dao)
         val dto = service.updateProfilePicture(userId, "http://10.0.2.2:8080/uploads/profile-pictures/a.jpg")

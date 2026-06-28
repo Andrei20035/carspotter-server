@@ -86,7 +86,7 @@ class LeaderboardSnapshotDaoTest {
     }
 
     @Test
-    fun `snapshotAllRanks gives tied users the same rank`() = runTest {
+    fun `snapshotAllRanks gives tied users distinct sequential ranks broken by userId`() = runTest {
         val c1 = UserTestSeed.seedAuthCredential("a@example.com")
         val c2 = UserTestSeed.seedAuthCredential("b@example.com")
         val c3 = UserTestSeed.seedAuthCredential("c@example.com")
@@ -94,15 +94,20 @@ class LeaderboardSnapshotDaoTest {
         val u2 = UserTestSeed.seedUser(c2.authCredentialId, username = "bob")
         val u3 = UserTestSeed.seedUser(c3.authCredentialId, username = "charlie")
         setScore(u1, 200)
-        setScore(u2, 200) // tie with u1
+        setScore(u2, 200) // tie with u1 — tie-broken by userId ASC
         setScore(u3, 100)
 
         dao.snapshotAllRanks(snapshotDate)
 
         val tomorrow = snapshotDate.plusDays(1)
-        assertEquals(1, dao.getPreviousRank(u1, tomorrow))
-        assertEquals(1, dao.getPreviousRank(u2, tomorrow))
-        assertEquals(3, dao.getPreviousRank(u3, tomorrow)) // rank 3, not 2 (strictly-greater definition)
+        val r1 = dao.getPreviousRank(u1, tomorrow)!!
+        val r2 = dao.getPreviousRank(u2, tomorrow)!!
+        // Tied users get distinct sequential ranks 1 and 2 (order decided by userId ASC).
+        assertEquals(setOf(1, 2), setOf(r1, r2))
+        // User with the smaller UUID (toString lexicographic, matching DB order) sorts first → lower rank number.
+        if (u1.toString() < u2.toString()) assertEquals(1, r1) else assertEquals(1, r2)
+        // Charlie is always rank 3 — no skipped ranks.
+        assertEquals(3, dao.getPreviousRank(u3, tomorrow))
     }
 
     @Test

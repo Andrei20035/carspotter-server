@@ -4,16 +4,25 @@ import com.carspotter.features.user.UserTable
 import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.greater
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.less
+import org.jetbrains.exposed.sql.and
+import org.jetbrains.exposed.sql.or
 import org.jetbrains.exposed.sql.select
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.time.LocalDate
 import java.util.UUID
 
+/** Canonical leaderboard sort order: higher score first, stable tie-break by user id. */
+val LEADERBOARD_ORDER = arrayOf(
+    UserTable.spotScore to SortOrder.DESC,
+    UserTable.id to SortOrder.ASC,
+)
+
 interface ILeaderboardDAO {
-    /** Return top [limit] users ordered by spotScore DESC, then id ASC. No avatar URL resolution. */
+    /** Return top [limit] users ordered by [LEADERBOARD_ORDER]. No avatar URL resolution. */
     suspend fun getTopEntries(limit: Int): List<RawLeaderboardEntry>
 
-    /** Compute the rank of [userId]: count(users whose spotScore > mine) + 1. */
+    /** Return the unique 1-based position of [userId] in the full leaderboard ordered by [LEADERBOARD_ORDER]. */
     suspend fun getUserRank(userId: UUID): Int
 
     /** Fetch score and streak for [userId]. */
@@ -53,7 +62,7 @@ class LeaderboardDAO : ILeaderboardDAO {
                 UserTable.lastStreakDate,
                 UserTable.lastStreakTimezone,
             ))
-            .orderBy(UserTable.spotScore to SortOrder.DESC, UserTable.id to SortOrder.ASC)
+            .orderBy(*LEADERBOARD_ORDER)
             .limit(limit)
             .map {
                 RawLeaderboardEntry(
@@ -69,15 +78,23 @@ class LeaderboardDAO : ILeaderboardDAO {
     }
 
     override suspend fun getUserRank(userId: UUID): Int = transaction {
-        val myScore = UserTable
-            .select(UserTable.spotScore)
+        data class MySelf(val score: Int, val id: UUID)
+
+        val me = UserTable
+            .select(listOf(UserTable.id, UserTable.spotScore))
             .where { UserTable.id eq userId }
             .singleOrNull()
-            ?.get(UserTable.spotScore) ?: 0
+            ?.let { MySelf(it[UserTable.spotScore], it[UserTable.id].value) }
+            ?: return@transaction Int.MAX_VALUE
 
+        // Users strictly ahead in LEADERBOARD_ORDER (spotScore DESC, id ASC):
+        // either their score is higher, or scores are equal and their id sorts before mine.
         val ahead = UserTable
             .select(UserTable.id)
-            .where { UserTable.spotScore greater myScore }
+            .where {
+                (UserTable.spotScore greater me.score) or
+                ((UserTable.spotScore eq me.score) and (UserTable.id less me.id))
+            }
             .count()
 
         (ahead + 1).toInt()

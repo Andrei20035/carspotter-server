@@ -463,4 +463,50 @@ class UserRoutesTest {
         assertEquals(false, body.isEarlySpotter)
         assertNull(body.earlySpotterNumber)
     }
+
+    // --- streakDays in GET /users/me and GET /users/{id} ---
+
+    @Test
+    fun `GET users me returns 0 streakDays when user has no streak activity`() = userTest { client ->
+        val credential = UserTestSeed.seedAuthCredential("streak0@example.com")
+        val userId = UserTestSeed.seedUser(credential.authCredentialId, username = "streakzero")
+        val token = profileToken(credential.authCredentialId, userId, credential.email)
+
+        val response = client.get("/api/users/me") {
+            bearerAuth(token)
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body: UserDTO = response.body()
+        assertEquals(0, body.streakDays)
+    }
+
+    @Test
+    fun `GET users me returns positive streakDays when streak is active`() = userTest { client ->
+        val credential = UserTestSeed.seedAuthCredential("streakactive@example.com")
+        val userId = UserTestSeed.seedUser(credential.authCredentialId, username = "streakactive")
+        UserDao().advanceStreak(userId, java.time.LocalDate.now(), "UTC")
+        val token = profileToken(credential.authCredentialId, userId, credential.email)
+
+        val response = client.get("/api/users/me") {
+            bearerAuth(token)
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body: UserDTO = response.body()
+        assertEquals(1, body.streakDays)
+    }
+
+    @Test
+    fun `GET users by id returns 0 streakDays when streak is expired`() = userTest { client ->
+        val credential = UserTestSeed.seedAuthCredential("streakexpired@example.com")
+        val userId = UserTestSeed.seedUser(credential.authCredentialId, username = "streakexpired")
+        UserDao().advanceStreak(userId, java.time.LocalDate.now().minusDays(2), "UTC")
+
+        val response = client.get("/api/users/$userId")
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body: UserDTO = response.body()
+        assertEquals(0, body.streakDays)
+    }
 }

@@ -120,6 +120,53 @@ class LeaderboardServiceTest {
     }
 
     @Test
+    fun `entries list has sequential unique ranks — position in DAO-ordered list`() = runTest {
+        val user1 = UUID.randomUUID()
+        val user2 = UUID.randomUUID()
+        val user3 = UUID.randomUUID()
+
+        // DAO returns already-sorted list; service assigns rank = index + 1.
+        val rawEntries = listOf(
+            RawLeaderboardEntry(user1, "alice",   null, 200, 0, null, null),
+            RawLeaderboardEntry(user2, "bob",     null, 200, 0, null, null),
+            RawLeaderboardEntry(user3, "charlie", null, 100, 0, null, null),
+        )
+        coEvery { leaderboardDao.getTopEntries(any()) } returns rawEntries
+        coEvery { leaderboardDao.getUserScoreAndStreak(userId) } returns userScoreStreak(score = 200)
+        coEvery { leaderboardDao.getUserRank(userId) } returns 1
+        coEvery { snapshotDao.getPreviousRank(userId, any()) } returns null
+
+        val result = service.getLeaderboard(userId, 50)
+
+        assertEquals(1, result.entries[0].rank) // alice   — position 1
+        assertEquals(2, result.entries[1].rank) // bob     — position 2
+        assertEquals(3, result.entries[2].rank) // charlie — position 3
+    }
+
+    @Test
+    fun `entries list preserves DAO order and assigns sequential ranks`() = runTest {
+        // DAO contract: spotScore DESC, id ASC — service must not reorder.
+        val firstId  = UUID.fromString("00000000-0000-0000-0000-000000000001")
+        val secondId = UUID.fromString("00000000-0000-0000-0000-000000000002")
+
+        val rawEntries = listOf(
+            RawLeaderboardEntry(firstId,  "alpha", null, 200, 0, null, null),
+            RawLeaderboardEntry(secondId, "beta",  null, 200, 0, null, null),
+        )
+        coEvery { leaderboardDao.getTopEntries(any()) } returns rawEntries
+        coEvery { leaderboardDao.getUserScoreAndStreak(userId) } returns userScoreStreak()
+        coEvery { leaderboardDao.getUserRank(userId) } returns 1
+        coEvery { snapshotDao.getPreviousRank(userId, any()) } returns null
+
+        val result = service.getLeaderboard(userId, 50)
+
+        assertEquals(firstId,  result.entries[0].userId)
+        assertEquals(secondId, result.entries[1].userId)
+        assertEquals(1, result.entries[0].rank) // position 1
+        assertEquals(2, result.entries[1].rank) // position 2
+    }
+
+    @Test
     fun `entries list has streakDays computed per-user`() = runTest {
         val otherId = UUID.randomUUID()
         val yesterday = LocalDate.now().minusDays(1)

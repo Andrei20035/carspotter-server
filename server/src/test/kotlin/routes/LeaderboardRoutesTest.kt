@@ -166,6 +166,37 @@ class LeaderboardRoutesTest {
     }
 
     @Test
+    fun `GET leaderboard entries have distinct sequential ranks for tied scores broken by userId`() = leaderboardTest { client ->
+        val alice = CommentTestSeed.seedUser("alice")
+        val bob = CommentTestSeed.seedUser("bob")
+        val charlie = CommentTestSeed.seedUser("charlie")
+        // alice and bob tie at 200; charlie is below — tie-broken by userId ASC
+        setScore(alice.userId, 200)
+        setScore(bob.userId, 200)
+        setScore(charlie.userId, 100)
+        val token = tokenFor(alice.authId, alice.userId, alice.email)
+
+        val resp = client.get("/api/leaderboard") { bearerAuth(token) }
+
+        assertEquals(HttpStatusCode.OK, resp.status)
+        val body: LeaderboardResponseDTO = resp.body()
+
+        val aliceEntry = body.entries.find { it.userId == alice.userId }!!
+        val bobEntry = body.entries.find { it.userId == bob.userId }!!
+        val charlieEntry = body.entries.find { it.userId == charlie.userId }!!
+
+        // Tied users get distinct sequential ranks 1 and 2 — no skips, no shared ranks.
+        assertEquals(setOf(1, 2), setOf(aliceEntry.rank, bobEntry.rank))
+        // User with the smaller UUID (toString lexicographic, matching DB order) sorts first → lower rank number.
+        if (alice.userId.toString() < bob.userId.toString()) assertEquals(1, aliceEntry.rank) else assertEquals(1, bobEntry.rank)
+        // Charlie is always rank 3.
+        assertEquals(3, charlieEntry.rank)
+
+        // currentUser.entry.rank must match alice's rank in the entries list.
+        assertEquals(aliceEntry.rank, body.currentUser.entry.rank)
+    }
+
+    @Test
     fun `GET leaderboard returns streakDays 0 when last streak date is too old`() = leaderboardTest { client ->
         val alice = CommentTestSeed.seedUser("alice")
         // Manually set a streak that expired (lastStreakDate = 5 days ago)

@@ -33,24 +33,17 @@ class LeaderboardSnapshotDAO : ILeaderboardSnapshotDAO {
         // Delete any existing snapshot for this date (idempotent re-run).
         LeaderboardSnapshotTable.deleteWhere { LeaderboardSnapshotTable.snapshotDate eq snapshotDate }
 
-        // Fetch all users ordered by score DESC, id ASC (tie-breaking).
-        data class UserScore(val id: UUID, val score: Int)
-
-        val users = UserTable
-            .select(listOf(UserTable.id, UserTable.spotScore))
-            .orderBy(UserTable.spotScore to SortOrder.DESC, UserTable.id to SortOrder.ASC)
-            .map { UserScore(it[UserTable.id].value, it[UserTable.spotScore]) }
-
-        if (users.isEmpty()) return@transaction 0
-
-        // Compute rank using strictly-greater definition (ties share a rank).
+        // Fetch all users in canonical leaderboard order; rank = position in this list.
         data class RankedUser(val id: UUID, val score: Int, val rank: Int)
 
-        val ranked = mutableListOf<RankedUser>()
-        for (user in users) {
-            val rank = ranked.count { it.score > user.score } + 1
-            ranked.add(RankedUser(user.id, user.score, rank))
-        }
+        val ranked = UserTable
+            .select(listOf(UserTable.id, UserTable.spotScore))
+            .orderBy(*LEADERBOARD_ORDER)
+            .mapIndexed { index, row ->
+                RankedUser(row[UserTable.id].value, row[UserTable.spotScore], index + 1)
+            }
+
+        if (ranked.isEmpty()) return@transaction 0
 
         LeaderboardSnapshotTable.batchInsert(ranked) { entry ->
             this[LeaderboardSnapshotTable.snapshotDate] = snapshotDate

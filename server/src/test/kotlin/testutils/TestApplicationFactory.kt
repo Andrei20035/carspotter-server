@@ -429,7 +429,7 @@ fun Application.testLeaderboardModule() {
     }
 }
 
-fun Application.testAdminLeaderboardModule(adminToken: String) {
+fun Application.testAdminLeaderboardModule(adminToken: String, cronSecret: String? = null) {
     val koinTestModule = module {
         single<IAuthSessionDAO> { AuthSessionDAO() }
         single<ILeaderboardSnapshotDAO> { LeaderboardSnapshotDAO() }
@@ -443,7 +443,7 @@ fun Application.testAdminLeaderboardModule(adminToken: String) {
 
     routing {
         route("/api") {
-            adminLeaderboardRoutes(adminTokenProvider = { adminToken })
+            adminLeaderboardRoutes(adminTokenProvider = { adminToken }, cronSecretProvider = { cronSecret })
         }
     }
 }

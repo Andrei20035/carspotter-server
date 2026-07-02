@@ -76,6 +76,7 @@ object TestDatabaseFactory {
                 st.execute(
                     """
                     TRUNCATE TABLE
+                        activity_events,
                         leaderboard_rank_snapshots,
                         friend_requests,
                         friends,

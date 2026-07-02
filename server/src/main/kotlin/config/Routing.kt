@@ -1,5 +1,6 @@
 package com.carspotter.config
 
+import com.carspotter.features.activity.activityRoutes
 import com.carspotter.features.auth.authRoutes
 import com.carspotter.features.car_model.carModelRoutes
 import features.comment.commentRoutes
@@ -26,6 +27,7 @@ fun Application.configureRouting() {
 
         // API routes
         route("/api") {
+            activityRoutes()
             authRoutes()
             carModelRoutes()
             commentRoutes()

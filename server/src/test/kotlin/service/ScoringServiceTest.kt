@@ -1,16 +1,21 @@
 package service
 
+import com.carspotter.features.activity.ActivityEventType
 import com.carspotter.features.post.IPostDAO
 import com.carspotter.features.post.PostSource
 import com.carspotter.features.scoring.IScoringDao
 import com.carspotter.features.scoring.ScoringServiceImpl
 import com.carspotter.features.user.IUserDAO
+import com.carspotter.features.user.User
+import features.activity.IActivityDAO
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
 import java.util.UUID
 
 class ScoringServiceTest {
@@ -18,12 +23,25 @@ class ScoringServiceTest {
     private val userDao = mockk<IUserDAO>(relaxed = true)
     private val postDao = mockk<IPostDAO>(relaxed = true)
     private val scoringDao = mockk<IScoringDao>(relaxed = true)
+    private val activityDao = mockk<IActivityDAO>(relaxed = true)
 
-    private val service = ScoringServiceImpl(userDao, postDao, scoringDao)
+    private val service = ScoringServiceImpl(userDao, postDao, scoringDao, activityDao)
 
     private val userId = UUID.randomUUID()
     private val postId = UUID.randomUUID()
     private val otherUserId = UUID.randomUUID()
+
+    private fun testUser(currentStreak: Int, lastStreakDate: LocalDate?) = User(
+        id = userId,
+        authCredentialId = UUID.randomUUID(),
+        fullName = "Alice",
+        phoneNumber = null,
+        birthDate = LocalDate.of(1995, 1, 1),
+        username = "alice",
+        country = "RO",
+        currentStreak = currentStreak,
+        lastStreakDate = lastStreakDate,
+    )
 
     // ---------- onPostCreated ----------
 
@@ -54,6 +72,54 @@ class ScoringServiceTest {
 
         coVerify(exactly = 0) { scoringDao.applyCreationPoints(any(), any(), any()) }
         coVerify(exactly = 0) { userDao.advanceStreak(any(), any(), any()) }
+        coVerify(exactly = 0) { activityDao.recordEventIdempotent(any(), any(), any(), any()) }
+    }
+
+    // ---------- onPostCreated: STREAK activity event ----------
+
+    @Test
+    fun `onPostCreated writes a STREAK activity event when the streak actually advances`() = runTest {
+        val today = LocalDate.now(ZoneOffset.UTC)
+        val yesterday = today.minusDays(1)
+        coEvery { postDao.countCameraPostsOnDay(userId, any(), any()) } returns 1L
+        coEvery { userDao.getUserById(userId) } returnsMany listOf(
+            testUser(currentStreak = 4, lastStreakDate = yesterday), // before advanceStreak
+            testUser(currentStreak = 5, lastStreakDate = today),     // after advanceStreak
+        )
+
+        service.onPostCreated(userId, postId, PostSource.CAMERA, Instant.now(), "UTC")
+
+        coVerify(exactly = 1) { activityDao.recordEventIdempotent(userId, ActivityEventType.STREAK, today, 5) }
+    }
+
+    @Test
+    fun `onPostCreated does not write a second STREAK activity event for a second post the same day`() = runTest {
+        val today = LocalDate.now(ZoneOffset.UTC)
+        // Already advanced earlier today: lastStreakDate == today both before and after this call
+        // (advanceStreak's own no-op guard means the "after" read is unchanged from "before").
+        coEvery { postDao.countCameraPostsOnDay(userId, any(), any()) } returns 2L
+        coEvery { userDao.getUserById(userId) } returns testUser(currentStreak = 5, lastStreakDate = today)
+
+        service.onPostCreated(userId, postId, PostSource.CAMERA, Instant.now(), "UTC")
+
+        coVerify(exactly = 0) { activityDao.recordEventIdempotent(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `onPostCreated at daily cap still writes a STREAK activity event when the streak advances`() = runTest {
+        val today = LocalDate.now(ZoneOffset.UTC)
+        val yesterday = today.minusDays(1)
+        // priorCount = cap + 1 means priorRewarded = cap → skip points, but streak still advances.
+        coEvery { postDao.countCameraPostsOnDay(userId, any(), any()) } returns (ScoringServiceImpl.DAILY_CAMERA_CAP + 1).toLong()
+        coEvery { userDao.getUserById(userId) } returnsMany listOf(
+            testUser(currentStreak = 9, lastStreakDate = yesterday),
+            testUser(currentStreak = 10, lastStreakDate = today),
+        )
+
+        service.onPostCreated(userId, postId, PostSource.CAMERA, Instant.now(), "UTC")
+
+        coVerify(exactly = 0) { scoringDao.applyCreationPoints(any(), any(), any()) }
+        coVerify(exactly = 1) { activityDao.recordEventIdempotent(userId, ActivityEventType.STREAK, today, 10) }
     }
 
     @Test

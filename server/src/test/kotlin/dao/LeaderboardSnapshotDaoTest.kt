@@ -1,8 +1,10 @@
 package dao
 
+import com.carspotter.features.activity.ActivityEventType
 import com.carspotter.features.leaderboard.LeaderboardSnapshotDAO
 import com.carspotter.features.leaderboard.LeaderboardSnapshotTable
 import com.carspotter.features.user.UserTable
+import features.activity.ActivityDAO
 import kotlinx.coroutines.test.runTest
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
@@ -10,6 +12,7 @@ import org.jetbrains.exposed.sql.update
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -22,7 +25,8 @@ import java.util.UUID
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class LeaderboardSnapshotDaoTest {
 
-    private val dao = LeaderboardSnapshotDAO()
+    private val activityDao = ActivityDAO()
+    private val dao = LeaderboardSnapshotDAO(activityDao)
     private val snapshotDate: LocalDate = LocalDate.of(2025, 6, 15)
 
     @BeforeAll
@@ -159,5 +163,143 @@ class LeaderboardSnapshotDaoTest {
         dao.snapshotAllRanks(snapshotDate)
 
         assertNull(dao.getPreviousRank(UUID.randomUUID(), snapshotDate.plusDays(1)))
+    }
+
+    // ---------- getSpotScoreOnOrBefore ----------
+
+    @Test
+    fun `getSpotScoreOnOrBefore returns null when no snapshot exists`() = runTest {
+        val cred = UserTestSeed.seedAuthCredential("alice@example.com")
+        val userId = UserTestSeed.seedUser(cred.authCredentialId, username = "alice")
+
+        assertNull(dao.getSpotScoreOnOrBefore(userId, snapshotDate))
+    }
+
+    @Test
+    fun `getSpotScoreOnOrBefore returns the score from a snapshot exactly on date`() = runTest {
+        val cred = UserTestSeed.seedAuthCredential("alice@example.com")
+        val userId = UserTestSeed.seedUser(cred.authCredentialId, username = "alice")
+        setScore(userId, 120)
+
+        dao.snapshotAllRanks(snapshotDate)
+
+        assertEquals(120, dao.getSpotScoreOnOrBefore(userId, snapshotDate))
+    }
+
+    @Test
+    fun `getSpotScoreOnOrBefore returns the latest snapshot on or before date, ignoring later ones`() = runTest {
+        val cred = UserTestSeed.seedAuthCredential("alice@example.com")
+        val userId = UserTestSeed.seedUser(cred.authCredentialId, username = "alice")
+
+        val monday = LocalDate.of(2025, 6, 9)
+        val wednesday = LocalDate.of(2025, 6, 11)
+        val friday = LocalDate.of(2025, 6, 13)
+
+        setScore(userId, 50)
+        dao.snapshotAllRanks(monday)
+        setScore(userId, 90)
+        dao.snapshotAllRanks(wednesday)
+        setScore(userId, 200)
+        dao.snapshotAllRanks(friday)
+
+        // Query "on or before Wednesday" should pick Wednesday's baseline, not Friday's.
+        assertEquals(90, dao.getSpotScoreOnOrBefore(userId, wednesday))
+    }
+
+    @Test
+    fun `getSpotScoreOnOrBefore returns null for unknown user`() = runTest {
+        val cred = UserTestSeed.seedAuthCredential("alice@example.com")
+        UserTestSeed.seedUser(cred.authCredentialId, username = "alice")
+        dao.snapshotAllRanks(snapshotDate)
+
+        assertNull(dao.getSpotScoreOnOrBefore(UUID.randomUUID(), snapshotDate))
+    }
+
+    // ---------- LEADERBOARD_UP activity events ----------
+
+    @Test
+    fun `snapshotAllRanks persists a LEADERBOARD_UP event when a user moves up more than one place`() = runTest {
+        val c1 = UserTestSeed.seedAuthCredential("a@example.com")
+        val c2 = UserTestSeed.seedAuthCredential("b@example.com")
+        val c3 = UserTestSeed.seedAuthCredential("c@example.com")
+        val u1 = UserTestSeed.seedUser(c1.authCredentialId, username = "alice")
+        val u2 = UserTestSeed.seedUser(c2.authCredentialId, username = "bob")
+        val u3 = UserTestSeed.seedUser(c3.authCredentialId, username = "charlie")
+
+        // Day 1: alice=3, bob=2, charlie=1 → charlie is rank 3.
+        setScore(u1, 300)
+        setScore(u2, 200)
+        setScore(u3, 100)
+        val day1 = snapshotDate
+        dao.snapshotAllRanks(day1)
+
+        // Day 2: charlie's score jumps past everyone → rank 3 → rank 1 (+2 places).
+        setScore(u3, 500)
+        val day2 = day1.plusDays(1)
+        dao.snapshotAllRanks(day2)
+
+        val events = activityDao.getPersistedEvents(u3, 10)
+        assertEquals(1, events.size)
+        assertEquals(ActivityEventType.LEADERBOARD_UP, events.single().type)
+        assertEquals(2, events.single().valueInt)
+    }
+
+    @Test
+    fun `snapshotAllRanks does not persist a LEADERBOARD_UP event for a single-place move up`() = runTest {
+        val c1 = UserTestSeed.seedAuthCredential("a@example.com")
+        val c2 = UserTestSeed.seedAuthCredential("b@example.com")
+        val u1 = UserTestSeed.seedUser(c1.authCredentialId, username = "alice")
+        val u2 = UserTestSeed.seedUser(c2.authCredentialId, username = "bob")
+
+        // Day 1: alice=2 (rank 1), bob=1 (rank 2).
+        setScore(u1, 200)
+        setScore(u2, 100)
+        val day1 = snapshotDate
+        dao.snapshotAllRanks(day1)
+
+        // Day 2: bob overtakes alice by a hair → rank 2 → rank 1 (+1 place only).
+        setScore(u2, 250)
+        val day2 = day1.plusDays(1)
+        dao.snapshotAllRanks(day2)
+
+        assertTrue(activityDao.getPersistedEvents(u2, 10).isEmpty())
+    }
+
+    @Test
+    fun `snapshotAllRanks does not persist a LEADERBOARD_UP event when rank is unchanged or drops`() = runTest {
+        val cred = UserTestSeed.seedAuthCredential("alice@example.com")
+        val userId = UserTestSeed.seedUser(cred.authCredentialId, username = "alice")
+        setScore(userId, 100)
+
+        val day1 = snapshotDate
+        val day2 = day1.plusDays(1)
+        dao.snapshotAllRanks(day1)
+        dao.snapshotAllRanks(day2) // still rank 1, no movement — single user, nothing to move past
+
+        assertTrue(activityDao.getPersistedEvents(userId, 10).isEmpty())
+    }
+
+    @Test
+    fun `snapshotAllRanks does not duplicate LEADERBOARD_UP events when re-run for the same date`() = runTest {
+        val c1 = UserTestSeed.seedAuthCredential("a@example.com")
+        val c2 = UserTestSeed.seedAuthCredential("b@example.com")
+        val c3 = UserTestSeed.seedAuthCredential("c@example.com")
+        val u1 = UserTestSeed.seedUser(c1.authCredentialId, username = "alice")
+        val u2 = UserTestSeed.seedUser(c2.authCredentialId, username = "bob")
+        val u3 = UserTestSeed.seedUser(c3.authCredentialId, username = "charlie")
+
+        setScore(u1, 300)
+        setScore(u2, 200)
+        setScore(u3, 100)
+        val day1 = snapshotDate
+        dao.snapshotAllRanks(day1)
+
+        setScore(u3, 500)
+        val day2 = day1.plusDays(1)
+        dao.snapshotAllRanks(day2)
+        dao.snapshotAllRanks(day2) // re-run for the same date — must not duplicate the event
+
+        val events = activityDao.getPersistedEvents(u3, 10)
+        assertEquals(1, events.size)
     }
 }

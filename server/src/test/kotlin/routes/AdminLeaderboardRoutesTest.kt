@@ -28,6 +28,7 @@ import java.time.LocalDate
 class AdminLeaderboardRoutesTest {
 
     private val validToken = "test-admin-secret"
+    private val validCronSecret = "test-cron-secret"
 
     @BeforeAll
     fun setup() {
@@ -48,7 +49,7 @@ class AdminLeaderboardRoutesTest {
 
     private fun adminTest(block: suspend ApplicationTestBuilder.(io.ktor.client.HttpClient) -> Unit) =
         testApplication {
-            application { testAdminLeaderboardModule(validToken) }
+            application { testAdminLeaderboardModule(validToken, validCronSecret) }
             val client = createClient {
                 install(ContentNegotiation) {
                     json(Json { ignoreUnknownKeys = true; isLenient = true })
@@ -100,6 +101,62 @@ class AdminLeaderboardRoutesTest {
         }
         client.post("/api/admin/leaderboard/snapshot") {
             header("X-Admin-Token", validToken)
+        }
+
+        val today = LocalDate.now()
+        val count = transaction {
+            LeaderboardSnapshotTable.selectAll()
+                .where { LeaderboardSnapshotTable.snapshotDate eq today }
+                .count()
+        }
+        assertEquals(1L, count)
+    }
+
+    // ---------- POST /admin/leaderboard/snapshot/today (cron) ----------
+
+    @Test
+    fun `POST snapshot-today with valid cron secret returns 200 and writes rows`() = adminTest { client ->
+        val alice = CommentTestSeed.seedUser("alice")
+        transaction {
+            UserTable.update({ UserTable.id eq alice.userId }) {
+                it[UserTable.spotScore] = 100
+            }
+        }
+
+        val resp = client.post("/api/admin/leaderboard/snapshot/today") {
+            header("X-Cron-Secret", validCronSecret)
+        }
+
+        assertEquals(HttpStatusCode.OK, resp.status)
+        val count = transaction {
+            LeaderboardSnapshotTable.selectAll().count()
+        }
+        assertEquals(1L, count)
+    }
+
+    @Test
+    fun `POST snapshot-today without secret returns 401`() = adminTest { client ->
+        val resp = client.post("/api/admin/leaderboard/snapshot/today")
+        assertEquals(HttpStatusCode.Unauthorized, resp.status)
+    }
+
+    @Test
+    fun `POST snapshot-today with wrong secret returns 401`() = adminTest { client ->
+        val resp = client.post("/api/admin/leaderboard/snapshot/today") {
+            header("X-Cron-Secret", "wrong-secret")
+        }
+        assertEquals(HttpStatusCode.Unauthorized, resp.status)
+    }
+
+    @Test
+    fun `POST snapshot-today is idempotent — second call for same date does not duplicate rows`() = adminTest { client ->
+        CommentTestSeed.seedUser("alice")
+
+        client.post("/api/admin/leaderboard/snapshot/today") {
+            header("X-Cron-Secret", validCronSecret)
+        }
+        client.post("/api/admin/leaderboard/snapshot/today") {
+            header("X-Cron-Secret", validCronSecret)
         }
 
         val today = LocalDate.now()

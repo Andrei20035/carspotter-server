@@ -1,9 +1,12 @@
 package com.carspotter.features.scoring
 
 import com.carspotter.core.util.resolveZone
+import com.carspotter.features.activity.ActivityEventType
 import com.carspotter.features.post.IPostDAO
 import com.carspotter.features.post.PostSource
 import com.carspotter.features.user.IUserDAO
+import features.activity.ActivityDAO
+import features.activity.IActivityDAO
 import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
@@ -44,6 +47,7 @@ class ScoringServiceImpl(
     private val userDao: IUserDAO,
     private val postDao: IPostDAO,
     private val scoringDao: IScoringDao,
+    private val activityDao: IActivityDAO = ActivityDAO(),
 ) : IScoringService {
 
     companion object {
@@ -75,8 +79,21 @@ class ScoringServiceImpl(
         if (points > 0) {
             scoringDao.applyCreationPoints(userId, postId, points)
         }
+
         // Always advance the streak regardless of cap (posting still counts for the day).
+        // IUserDAO.advanceStreak only changes state when localDay is strictly after the user's
+        // previous streak date — mirror that guard here so we only persist an activity event
+        // (once per day, via recordEventIdempotent's unique index) when it actually advanced.
+        val lastStreakDateBefore = userDao.getUserById(userId)?.lastStreakDate
         userDao.advanceStreak(userId, localDay, createdAtTimezone)
+
+        val streakAdvanced = lastStreakDateBefore == null || localDay.isAfter(lastStreakDateBefore)
+        if (streakAdvanced) {
+            val newStreak = userDao.getUserById(userId)?.currentStreak ?: 0
+            if (newStreak > 0) {
+                activityDao.recordEventIdempotent(userId, ActivityEventType.STREAK, localDay, newStreak)
+            }
+        }
     }
 
     override suspend fun onPostLiked(postOwnerId: UUID, postId: UUID, likerId: UUID, source: PostSource) {

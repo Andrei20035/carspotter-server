@@ -11,6 +11,7 @@ import org.jetbrains.exposed.sql.andWhere
 import org.jetbrains.exposed.sql.or
 import org.jetbrains.exposed.sql.insertReturning
 import org.jetbrains.exposed.sql.select
+import org.jetbrains.exposed.sql.sum
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.update
 import org.jetbrains.exposed.sql.deleteWhere
@@ -40,6 +41,9 @@ interface IPostDAO {
 
     /** Returns the owner and source of the post, or null if not found. Lightweight alternative to findById. */
     suspend fun getOwnerAndSource(postId: UUID): PostOwnerInfo?
+
+    /** Sum of [PostTable.points] earned by [userId] on posts created at or after [since]. 0 if none. */
+    suspend fun sumPointsSince(userId: UUID, since: Instant): Int
 }
 
 class PostDAO : IPostDAO {
@@ -174,5 +178,13 @@ class PostDAO : IPostDAO {
                     source = PostSource.fromStringOrGallery(it[PostTable.postSource]),
                 )
             }
+    }
+
+    override suspend fun sumPointsSince(userId: UUID, since: Instant): Int = transaction {
+        val sumExpr = PostTable.points.sum()
+        PostTable
+            .select(sumExpr)
+            .where { (PostTable.userId eq userId) and (PostTable.createdAt greaterEq since) }
+            .single()[sumExpr] ?: 0
     }
 }

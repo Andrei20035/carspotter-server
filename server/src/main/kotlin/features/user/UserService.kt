@@ -2,9 +2,14 @@ package com.carspotter.features.user
 
 import com.carspotter.core.storage.IStorageService
 import com.carspotter.features.leaderboard.StreakCalculator
+import com.carspotter.features.user.dto.SelfUserDTO
+import com.carspotter.features.user.dto.UpdateUserRequest
 import com.carspotter.features.user.dto.UserDTO
 import com.carspotter.features.user.dto.toDTO
+import com.carspotter.features.user.dto.toSelfDTO
+import java.time.Duration
 import java.time.Instant
+import java.time.LocalDate
 import java.util.UUID
 
 interface IUserService {
@@ -12,6 +17,8 @@ interface IUserService {
     suspend fun getUserById(userId: UUID): UserDTO?
     suspend fun getUserByAuthCredentialId(authCredentialId: UUID): UserDTO?
     suspend fun updateProfilePicture(userId: UUID, imagePath: String): UserDTO
+    suspend fun getSelf(userId: UUID): SelfUserDTO?
+    suspend fun updateUserProfile(userId: UUID, request: UpdateUserRequest): SelfUserDTO
 }
 
 class UserService(
@@ -21,7 +28,9 @@ class UserService(
     companion object {
         private const val minUsernameLength = 3
         private const val maxUsernameLength = 50
+        private const val maxPhoneNumberLength = 20
         private val usernameRegex = Regex("^[a-z0-9._]+$")
+        private val monthlyChangeCooldown: Duration = Duration.ofDays(30)
     }
 
     override suspend fun createUserProfile(authCredentialId: UUID, user: User): UUID {
@@ -68,6 +77,89 @@ class UserService(
         return user.toResponse(postCount = postCount.toInt())
     }
 
+    override suspend fun getSelf(userId: UUID): SelfUserDTO? {
+        val user = userDao.getUserById(userId) ?: return null
+        val postCount = userDao.countPostsByUser(userId)
+        return user.toSelfResponse(postCount = postCount.toInt())
+    }
+
+    override suspend fun updateUserProfile(userId: UUID, request: UpdateUserRequest): SelfUserDTO {
+        val normalizedUsername = request.username?.let { normalizeUsername(it) }
+        if (normalizedUsername != null && userDao.usernameExistsIgnoreSelf(normalizedUsername, userId)) {
+            throw UsernameAlreadyExistsException("Username is already taken")
+        }
+
+        val normalizedFullName = request.fullName?.trim()?.also {
+            require(it.isNotBlank()) { "Full name cannot be blank" }
+        }
+
+        val normalizedCountry = request.country?.trim()?.also {
+            require(it.isNotBlank()) { "Country cannot be blank" }
+        }
+
+        request.birthDate?.let {
+            require(!it.isAfter(LocalDate.now())) { "Birth date cannot be in the future" }
+        }
+
+        var setPhoneNull = false
+        val normalizedPhoneNumber = request.phoneNumber?.trim()?.let { trimmed ->
+            if (trimmed.isEmpty()) {
+                setPhoneNull = true
+                null
+            } else {
+                require(trimmed.length <= maxPhoneNumberLength) {
+                    "Phone number must be at most $maxPhoneNumberLength characters"
+                }
+                if (userDao.phoneNumberExistsIgnoreSelf(trimmed, userId)) {
+                    throw PhoneNumberAlreadyExistsException("Phone number is already in use")
+                }
+                trimmed
+            }
+        }
+
+        val currentUser = userDao.getUserById(userId) ?: throw UserNotFoundException(userId)
+
+        if (normalizedFullName != null && currentUser.fullNameChangedAt != null) {
+            throw FullNameAlreadyChangedException("Full name can only be changed once")
+        }
+        if (normalizedCountry != null && currentUser.countryChangedAt != null) {
+            throw CountryAlreadyChangedException("Country can only be changed once")
+        }
+        if (request.birthDate != null && currentUser.birthDateChangedAt != null) {
+            throw BirthDateAlreadyChangedException("Date of birth can only be changed once")
+        }
+        if (normalizedUsername != null) {
+            currentUser.usernameChangedAt?.let { lastChanged ->
+                if (Duration.between(lastChanged, Instant.now()) < monthlyChangeCooldown) {
+                    throw UsernameChangeTooSoonException("Username can only be changed once a month")
+                }
+            }
+        }
+        if (normalizedPhoneNumber != null || setPhoneNull) {
+            currentUser.phoneNumberChangedAt?.let { lastChanged ->
+                if (Duration.between(lastChanged, Instant.now()) < monthlyChangeCooldown) {
+                    throw PhoneNumberChangeTooSoonException("Phone number can only be changed once a month")
+                }
+            }
+        }
+
+        val updatedRows = userDao.updateUserProfile(
+            userId = userId,
+            fullName = normalizedFullName,
+            username = normalizedUsername,
+            country = normalizedCountry,
+            phoneNumber = normalizedPhoneNumber,
+            setPhoneNull = setPhoneNull,
+            birthDate = request.birthDate,
+        )
+        if (updatedRows == 0) {
+            throw UserNotFoundException(userId)
+        }
+        val user = requireNotNull(userDao.getUserById(userId)) { "Updated user could not be loaded" }
+        val postCount = userDao.countPostsByUser(userId)
+        return user.toSelfResponse(postCount = postCount.toInt())
+    }
+
     private fun normalizeUsername(username: String): String {
         val normalized = username.trim().lowercase()
         require(normalized.isNotBlank()) { "Username cannot be blank" }
@@ -99,10 +191,32 @@ class UserService(
             ),
         )
     }
+
+    private fun User.toSelfResponse(postCount: Int = 0): SelfUserDTO {
+        return toSelfDTO(
+            profilePictureUrl = profilePicturePath?.let(storageService::resolveUrl),
+            postCount = postCount,
+            streakDays = StreakCalculator.displayedStreak(
+                currentStreak, lastStreakDate, lastStreakTimezone, Instant.now()
+            ),
+        )
+    }
 }
 
 class UsernameAlreadyExistsException(message: String) : RuntimeException(message)
 
 class UserProfileAlreadyExistsException(message: String) : RuntimeException(message)
 
+class PhoneNumberAlreadyExistsException(message: String) : RuntimeException(message)
+
 class UserNotFoundException(userId: UUID) : RuntimeException("User $userId not found")
+
+class FullNameAlreadyChangedException(message: String) : RuntimeException(message)
+
+class CountryAlreadyChangedException(message: String) : RuntimeException(message)
+
+class BirthDateAlreadyChangedException(message: String) : RuntimeException(message)
+
+class UsernameChangeTooSoonException(message: String) : RuntimeException(message)
+
+class PhoneNumberChangeTooSoonException(message: String) : RuntimeException(message)

@@ -22,4 +22,9 @@ data class User(
     val earlySpotterNumber: Int? = null,
     val createdAt: Instant? = null,
     val updatedAt: Instant? = null,
+    val fullNameChangedAt: Instant? = null,
+    val countryChangedAt: Instant? = null,
+    val birthDateChangedAt: Instant? = null,
+    val usernameChangedAt: Instant? = null,
+    val phoneNumberChangedAt: Instant? = null,
 )

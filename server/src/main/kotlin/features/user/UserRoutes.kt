@@ -8,6 +8,7 @@ import com.carspotter.features.auth.session.ISessionService
 import com.carspotter.features.user.dto.CreateUserRequest
 import com.carspotter.features.user.dto.CreateUserResponse
 import com.carspotter.features.user.dto.UpdateProfilePictureRequest
+import com.carspotter.features.user.dto.UpdateUserRequest
 import com.carspotter.features.user.dto.toUser
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
@@ -99,10 +100,55 @@ fun Route.userRoutes() {
                 val userId = call.getUuidClaim("userId")
                     ?: return@get call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Invalid or missing userId"))
 
-                val user = userService.getUserById(userId)
+                val user = userService.getSelf(userId)
                     ?: return@get call.respond(HttpStatusCode.NotFound, mapOf("error" to "User not found"))
 
                 call.respond(HttpStatusCode.OK, user)
+            }
+
+            patch("/me") {
+                val userId = call.getUuidClaim("userId")
+                    ?: return@patch call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Invalid or missing userId"))
+
+                val request = call.receive<UpdateUserRequest>()
+
+                try {
+                    val updated = userService.updateUserProfile(userId, request)
+                    call.respond(HttpStatusCode.OK, updated)
+                } catch (e: UsernameAlreadyExistsException) {
+                    call.respond(HttpStatusCode.Conflict, mapOf("error" to (e.message ?: "Username is already taken")))
+                } catch (e: PhoneNumberAlreadyExistsException) {
+                    call.respond(HttpStatusCode.Conflict, mapOf("error" to (e.message ?: "Phone number is already in use")))
+                } catch (e: FullNameAlreadyChangedException) {
+                    call.respond(
+                        HttpStatusCode.Forbidden,
+                        forbiddenChangeError("FULL_NAME_ALREADY_CHANGED", e.message ?: "Full name can only be changed once"),
+                    )
+                } catch (e: CountryAlreadyChangedException) {
+                    call.respond(
+                        HttpStatusCode.Forbidden,
+                        forbiddenChangeError("COUNTRY_ALREADY_CHANGED", e.message ?: "Country can only be changed once"),
+                    )
+                } catch (e: BirthDateAlreadyChangedException) {
+                    call.respond(
+                        HttpStatusCode.Forbidden,
+                        forbiddenChangeError("BIRTH_DATE_ALREADY_CHANGED", e.message ?: "Date of birth can only be changed once"),
+                    )
+                } catch (e: UsernameChangeTooSoonException) {
+                    call.respond(
+                        HttpStatusCode.Forbidden,
+                        forbiddenChangeError("USERNAME_CHANGE_TOO_SOON", e.message ?: "Username can only be changed once a month"),
+                    )
+                } catch (e: PhoneNumberChangeTooSoonException) {
+                    call.respond(
+                        HttpStatusCode.Forbidden,
+                        forbiddenChangeError("PHONE_NUMBER_CHANGE_TOO_SOON", e.message ?: "Phone number can only be changed once a month"),
+                    )
+                } catch (e: IllegalArgumentException) {
+                    call.respond(HttpStatusCode.BadRequest, mapOf("error" to (e.message ?: "Invalid request")))
+                } catch (e: UserNotFoundException) {
+                    call.respond(HttpStatusCode.NotFound, mapOf("error" to "User not found"))
+                }
             }
 
             patch("/me/profile-picture") {
@@ -136,6 +182,9 @@ fun Route.userRoutes() {
         }
     }
 }
+
+private fun forbiddenChangeError(code: String, message: String) =
+    mapOf("error" to mapOf("code" to code, "message" to message))
 
 private data class ProfilePictureMultipartPayload(
     val imageBytes: ByteArray,

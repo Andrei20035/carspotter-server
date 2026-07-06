@@ -4,9 +4,12 @@ import com.carspotter.features.auth.AuthTable
 import com.carspotter.features.post.PostTable
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.neq
+import org.jetbrains.exposed.sql.javatime.CurrentTimestamp
 import org.jetbrains.exposed.sql.statements.StatementType
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.sql.Connection
+import java.time.Instant
 import java.time.LocalDate
 import java.util.*
 
@@ -15,7 +18,18 @@ interface IUserDAO {
     suspend fun getUserById(userId: UUID): User?
     suspend fun getUserByAuthCredentialId(authCredentialId: UUID): User?
     suspend fun usernameExistsIgnoreCase(username: String): Boolean
+    suspend fun usernameExistsIgnoreSelf(username: String, excludeUserId: UUID): Boolean
+    suspend fun phoneNumberExistsIgnoreSelf(phoneNumber: String, excludeUserId: UUID): Boolean
     suspend fun updateProfilePicture(userId: UUID, imagePath: String): Int
+    suspend fun updateUserProfile(
+        userId: UUID,
+        fullName: String? = null,
+        username: String? = null,
+        country: String? = null,
+        phoneNumber: String? = null,
+        setPhoneNull: Boolean = false,
+        birthDate: LocalDate? = null,
+    ): Int
     suspend fun countPostsByUser(userId: UUID): Long
 
     /**
@@ -88,9 +102,63 @@ class UserDao : IUserDAO {
             .any()
     }
 
+    override suspend fun usernameExistsIgnoreSelf(username: String, excludeUserId: UUID): Boolean = transaction {
+        UserTable
+            .select(UserTable.id)
+            .where { (UserTable.username.lowerCase() eq username.lowercase()) and (UserTable.id neq excludeUserId) }
+            .limit(1)
+            .any()
+    }
+
+    override suspend fun phoneNumberExistsIgnoreSelf(phoneNumber: String, excludeUserId: UUID): Boolean = transaction {
+        UserTable
+            .select(UserTable.id)
+            .where { (UserTable.phoneNumber eq phoneNumber) and (UserTable.id neq excludeUserId) }
+            .limit(1)
+            .any()
+    }
+
     override suspend fun updateProfilePicture(userId: UUID, imagePath: String): Int = transaction {
         UserTable.update({ UserTable.id eq userId }) {
             it[profilePicturePath] = imagePath
+        }
+    }
+
+    override suspend fun updateUserProfile(
+        userId: UUID,
+        fullName: String?,
+        username: String?,
+        country: String?,
+        phoneNumber: String?,
+        setPhoneNull: Boolean,
+        birthDate: LocalDate?,
+    ): Int = transaction {
+        UserTable.update({ UserTable.id eq userId }) {
+            val now = Instant.now()
+            if (fullName != null) {
+                it[UserTable.fullName] = fullName
+                it[UserTable.fullNameChangedAt] = now
+            }
+            if (username != null) {
+                it[UserTable.username] = username
+                it[UserTable.usernameChangedAt] = now
+            }
+            if (country != null) {
+                it[UserTable.country] = country
+                it[UserTable.countryChangedAt] = now
+            }
+            if (setPhoneNull) {
+                it[UserTable.phoneNumber] = null
+                it[UserTable.phoneNumberChangedAt] = now
+            } else if (phoneNumber != null) {
+                it[UserTable.phoneNumber] = phoneNumber
+                it[UserTable.phoneNumberChangedAt] = now
+            }
+            if (birthDate != null) {
+                it[UserTable.birthDate] = birthDate
+                it[UserTable.birthDateChangedAt] = now
+            }
+            it[UserTable.updatedAt] = CurrentTimestamp
         }
     }
 
@@ -157,6 +225,11 @@ class UserDao : IUserDAO {
         earlySpotterNumber = this[UserTable.earlySpotterNumber],
         createdAt = this[UserTable.createdAt],
         updatedAt = this[UserTable.updatedAt],
+        fullNameChangedAt = this[UserTable.fullNameChangedAt],
+        countryChangedAt = this[UserTable.countryChangedAt],
+        birthDateChangedAt = this[UserTable.birthDateChangedAt],
+        usernameChangedAt = this[UserTable.usernameChangedAt],
+        phoneNumberChangedAt = this[UserTable.phoneNumberChangedAt],
     )
 }
 

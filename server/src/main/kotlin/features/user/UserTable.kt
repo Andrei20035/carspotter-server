@@ -24,4 +24,9 @@ object UserTable : UUIDTable("users") {
     val earlySpotterNumber = integer("early_spotter_number").nullable()
     val createdAt = timestamp("created_at").defaultExpression(CurrentTimestamp)
     val updatedAt = timestamp("updated_at").defaultExpression(CurrentTimestamp)
+    val fullNameChangedAt = timestamp("full_name_changed_at").nullable()
+    val countryChangedAt = timestamp("country_changed_at").nullable()
+    val birthDateChangedAt = timestamp("birth_date_changed_at").nullable()
+    val usernameChangedAt = timestamp("username_changed_at").nullable()
+    val phoneNumberChangedAt = timestamp("phone_number_changed_at").nullable()
 }

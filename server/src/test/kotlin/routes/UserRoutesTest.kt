@@ -8,9 +8,12 @@ import com.carspotter.features.auth.session.SessionService
 import com.carspotter.features.user.UserDao
 import com.carspotter.features.user.dto.CreateUserRequest
 import com.carspotter.features.user.dto.CreateUserResponse
+import com.carspotter.features.user.dto.SelfUserDTO
 import com.carspotter.features.user.dto.UpdateProfilePictureRequest
+import com.carspotter.features.user.dto.UpdateUserRequest
 import com.carspotter.features.user.dto.UserDTO
 import io.ktor.client.call.body
+import io.ktor.client.statement.bodyAsText
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.get
@@ -508,5 +511,144 @@ class UserRoutesTest {
         assertEquals(HttpStatusCode.OK, response.status)
         val body: UserDTO = response.body()
         assertEquals(0, body.streakDays)
+    }
+
+    // --- GET /users/me exposes phoneNumber and birthDate; GET /users/{id} does not ---
+
+    @Test
+    fun `GET users me exposes phoneNumber and birthDate`() = userTest { client ->
+        val credential = UserTestSeed.seedAuthCredential("selfinfo@example.com")
+        val userId = UserTestSeed.seedUser(credential.authCredentialId, username = "selfinfo")
+        UserDao().updateUserProfile(userId, phoneNumber = "+40700000000")
+        val token = profileToken(credential.authCredentialId, userId, credential.email)
+
+        val response = client.get("/api/users/me") {
+            bearerAuth(token)
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body: SelfUserDTO = response.body()
+        assertEquals("+40700000000", body.phoneNumber)
+        assertEquals(java.time.LocalDate.of(1995, 1, 1), body.birthDate)
+    }
+
+    @Test
+    fun `GET users by id does not expose phoneNumber or birthDate`() = userTest { client ->
+        val credential = UserTestSeed.seedAuthCredential("publicinfo@example.com")
+        val userId = UserTestSeed.seedUser(credential.authCredentialId, username = "publicinfo")
+
+        val response = client.get("/api/users/$userId")
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val rawBody = response.bodyAsText()
+        assertTrue(!rawBody.contains("phoneNumber"))
+        assertTrue(!rawBody.contains("birthDate"))
+    }
+
+    // --- PATCH /users/me ---
+
+    @Test
+    fun `PATCH users me returns 200 and updates fields`() = userTest { client ->
+        val credential = UserTestSeed.seedAuthCredential("update@example.com")
+        val userId = UserTestSeed.seedUser(credential.authCredentialId, username = "toupdate")
+        val token = profileToken(credential.authCredentialId, userId, credential.email)
+
+        val response = client.patch("/api/users/me") {
+            bearerAuth(token)
+            contentType(ContentType.Application.Json)
+            setBody(
+                UpdateUserRequest(
+                    fullName = "Updated Name",
+                    country = "US",
+                    phoneNumber = "+40711111111",
+                    birthDate = java.time.LocalDate.of(1990, 6, 15),
+                )
+            )
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body: SelfUserDTO = response.body()
+        assertEquals("Updated Name", body.fullName)
+        assertEquals("US", body.country)
+        assertEquals("+40711111111", body.phoneNumber)
+        assertEquals(java.time.LocalDate.of(1990, 6, 15), body.birthDate)
+
+        val stored = UserDao().getUserById(userId)!!
+        assertEquals("Updated Name", stored.fullName)
+        assertEquals("+40711111111", stored.phoneNumber)
+    }
+
+    @Test
+    fun `PATCH users me returns 409 when username already taken by another user`() = userTest { client ->
+        UserTestSeed.seedUser(UserTestSeed.seedAuthCredential("taken@example.com").authCredentialId, username = "takenname")
+        val credential = UserTestSeed.seedAuthCredential("wantstaken@example.com")
+        val userId = UserTestSeed.seedUser(credential.authCredentialId, username = "wantstaken")
+        val token = profileToken(credential.authCredentialId, userId, credential.email)
+
+        val response = client.patch("/api/users/me") {
+            bearerAuth(token)
+            contentType(ContentType.Application.Json)
+            setBody(UpdateUserRequest(username = "TakenName"))
+        }
+
+        assertEquals(HttpStatusCode.Conflict, response.status)
+    }
+
+    @Test
+    fun `PATCH users me returns 409 when phone number already taken by another user`() = userTest { client ->
+        val ownerCredential = UserTestSeed.seedAuthCredential("phoneowner@example.com")
+        val ownerId = UserTestSeed.seedUser(ownerCredential.authCredentialId, username = "phoneowner")
+        UserDao().updateUserProfile(ownerId, phoneNumber = "+40722222222")
+
+        val credential = UserTestSeed.seedAuthCredential("phonewants@example.com")
+        val userId = UserTestSeed.seedUser(credential.authCredentialId, username = "phonewants")
+        val token = profileToken(credential.authCredentialId, userId, credential.email)
+
+        val response = client.patch("/api/users/me") {
+            bearerAuth(token)
+            contentType(ContentType.Application.Json)
+            setBody(UpdateUserRequest(phoneNumber = "+40722222222"))
+        }
+
+        assertEquals(HttpStatusCode.Conflict, response.status)
+    }
+
+    @Test
+    fun `PATCH users me returns 400 for invalid data`() = userTest { client ->
+        val credential = UserTestSeed.seedAuthCredential("invalidupdate@example.com")
+        val userId = UserTestSeed.seedUser(credential.authCredentialId, username = "invalidupdate")
+        val token = profileToken(credential.authCredentialId, userId, credential.email)
+
+        val response = client.patch("/api/users/me") {
+            bearerAuth(token)
+            contentType(ContentType.Application.Json)
+            setBody(UpdateUserRequest(birthDate = java.time.LocalDate.now().plusDays(1)))
+        }
+
+        assertEquals(HttpStatusCode.BadRequest, response.status)
+    }
+
+    @Test
+    fun `PATCH users me returns 401 without JWT`() = userTest { client ->
+        val response = client.patch("/api/users/me") {
+            contentType(ContentType.Application.Json)
+            setBody(UpdateUserRequest(fullName = "Nope"))
+        }
+
+        assertEquals(HttpStatusCode.Unauthorized, response.status)
+    }
+
+    @Test
+    fun `PATCH users me returns 404 when user profile is missing`() = userTest { client ->
+        val credential = UserTestSeed.seedAuthCredential("missingprofile@example.com")
+        val token = tokenWithMissingProfile(credential.authCredentialId, UUID.randomUUID(), credential.email)
+
+        val response = client.patch("/api/users/me") {
+            bearerAuth(token)
+            contentType(ContentType.Application.Json)
+            setBody(UpdateUserRequest(fullName = "Nope"))
+        }
+
+        assertEquals(HttpStatusCode.NotFound, response.status)
     }
 }

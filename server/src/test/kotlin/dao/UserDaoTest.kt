@@ -183,4 +183,106 @@ class UserDaoTest {
         }
         assertEquals(listOf("idx_users_username_lower"), indexes)
     }
+
+    @Test
+    fun `usernameExistsIgnoreSelf returns false for own username and true for another user`() = runTest {
+        val aliceCredential = UserTestSeed.seedAuthCredential("alice@example.com")
+        val aliceId = UserTestSeed.seedUser(aliceCredential.authCredentialId, username = "alice")
+        val bobCredential = UserTestSeed.seedAuthCredential("bob@example.com")
+        val bobId = UserTestSeed.seedUser(bobCredential.authCredentialId, username = "bob")
+
+        assertEquals(false, dao.usernameExistsIgnoreSelf("alice", aliceId))
+        assertTrue(dao.usernameExistsIgnoreSelf("ALICE", bobId))
+    }
+
+    @Test
+    fun `phoneNumberExistsIgnoreSelf returns false for own phone and true for another user`() = runTest {
+        val aliceCredential = UserTestSeed.seedAuthCredential("alice@example.com")
+        val aliceId = UserTestSeed.seedUser(aliceCredential.authCredentialId, username = "alice")
+        dao.updateUserProfile(aliceId, phoneNumber = "+40700000000")
+        val bobCredential = UserTestSeed.seedAuthCredential("bob@example.com")
+        val bobId = UserTestSeed.seedUser(bobCredential.authCredentialId, username = "bob")
+
+        assertEquals(false, dao.phoneNumberExistsIgnoreSelf("+40700000000", aliceId))
+        assertTrue(dao.phoneNumberExistsIgnoreSelf("+40700000000", bobId))
+    }
+
+    @Test
+    fun `updateUserProfile updates only provided fields`() = runTest {
+        val credential = UserTestSeed.seedAuthCredential("alice@example.com")
+        val userId = UserTestSeed.seedUser(credential.authCredentialId, username = "alice", fullName = "Alice", country = "RO")
+
+        val rows = dao.updateUserProfile(userId, fullName = "Alice New")
+
+        assertEquals(1, rows)
+        val stored = dao.getUserById(userId)!!
+        assertEquals("Alice New", stored.fullName)
+        assertEquals("alice", stored.username)
+        assertEquals("RO", stored.country)
+    }
+
+    @Test
+    fun `updateUserProfile with setPhoneNull clears phone number`() = runTest {
+        val credential = UserTestSeed.seedAuthCredential("alice@example.com")
+        val userId = UserTestSeed.seedUser(credential.authCredentialId, username = "alice")
+        dao.updateUserProfile(userId, phoneNumber = "+40700000000")
+
+        val rows = dao.updateUserProfile(userId, setPhoneNull = true)
+
+        assertEquals(1, rows)
+        assertNull(dao.getUserById(userId)!!.phoneNumber)
+    }
+
+    @Test
+    fun `updateUserProfile returns 0 for non-existent user`() = runTest {
+        val rows = dao.updateUserProfile(UUID.randomUUID(), fullName = "Ghost")
+        assertEquals(0, rows)
+    }
+
+    @Test
+    fun `duplicate phone number is blocked`() = runTest {
+        val firstCredential = UserTestSeed.seedAuthCredential("alice@example.com")
+        val firstUserId = UserTestSeed.seedUser(firstCredential.authCredentialId, username = "alice")
+        dao.updateUserProfile(firstUserId, phoneNumber = "+40700000000")
+
+        val secondCredential = UserTestSeed.seedAuthCredential("bob@example.com")
+        val secondUserId = UserTestSeed.seedUser(secondCredential.authCredentialId, username = "bob")
+
+        assertThrows(ExposedSQLException::class.java) {
+            kotlinx.coroutines.runBlocking {
+                dao.updateUserProfile(secondUserId, phoneNumber = "+40700000000")
+            }
+        }
+    }
+
+    @Test
+    fun `multiple users can have null phone number`() = runTest {
+        val firstCredential = UserTestSeed.seedAuthCredential("alice@example.com")
+        val secondCredential = UserTestSeed.seedAuthCredential("bob@example.com")
+
+        UserTestSeed.seedUser(firstCredential.authCredentialId, username = "alice")
+        UserTestSeed.seedUser(secondCredential.authCredentialId, username = "bob")
+
+        assertEquals(2, transaction { UserTable.selectAll().count() })
+    }
+
+    @Test
+    fun `partial unique phone index exists`() = runTest {
+        val indexes = transaction {
+            exec(
+                """
+                SELECT indexname
+                FROM pg_indexes
+                WHERE schemaname = 'public'
+                  AND tablename = 'users'
+                  AND indexname = 'idx_users_phone_number'
+                """.trimIndent()
+            ) { rs ->
+                buildList {
+                    while (rs.next()) add(rs.getString("indexname"))
+                }
+            } ?: emptyList()
+        }
+        assertEquals(listOf("idx_users_phone_number"), indexes)
+    }
 }

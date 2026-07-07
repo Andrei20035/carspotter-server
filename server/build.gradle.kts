@@ -7,7 +7,7 @@ plugins {
     alias(libs.plugins.kotlin.plugin.serialization)
 }
 
-group = "com.carspotter"
+group = "com.revio.server"
 version = "0.0.1"
 
 application {

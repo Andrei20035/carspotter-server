@@ -1,6 +1,6 @@
-package com.carspotter.features.friend
+package com.revio.server.features.friend
 
-import com.carspotter.features.user.UserTable
+import com.revio.server.features.user.UserTable
 import org.jetbrains.exposed.sql.ReferenceOption
 import org.jetbrains.exposed.sql.Table
 import org.jetbrains.exposed.sql.javatime.CurrentTimestamp

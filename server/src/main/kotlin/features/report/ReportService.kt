@@ -1,6 +1,6 @@
 package features.report
 
-import com.carspotter.features.report.ReportReason
+import com.revio.server.features.report.ReportReason
 import org.jetbrains.exposed.exceptions.ExposedSQLException
 import java.util.UUID
 

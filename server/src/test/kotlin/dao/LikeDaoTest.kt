@@ -235,8 +235,8 @@ class LikeDaoTest {
         LikeTestSeed.insertLike(alice.userId, post.postId)
 
         transaction {
-            com.carspotter.features.post.PostTable.deleteWhere {
-                com.carspotter.features.post.PostTable.id eq post.postId
+            com.revio.server.features.post.PostTable.deleteWhere {
+                com.revio.server.features.post.PostTable.id eq post.postId
             }
         }
 
@@ -251,8 +251,8 @@ class LikeDaoTest {
 
         // Ștergerea user-ului cascadează în users_cars, posts, likes etc.
         transaction {
-            com.carspotter.features.user.UserTable.deleteWhere {
-                com.carspotter.features.user.UserTable.id eq alice.userId
+            com.revio.server.features.user.UserTable.deleteWhere {
+                com.revio.server.features.user.UserTable.id eq alice.userId
             }
         }
 

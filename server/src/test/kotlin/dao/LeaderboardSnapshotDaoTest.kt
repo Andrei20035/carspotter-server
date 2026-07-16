@@ -1,9 +1,9 @@
 package dao
 
-import com.carspotter.features.activity.ActivityEventType
-import com.carspotter.features.leaderboard.LeaderboardSnapshotDAO
-import com.carspotter.features.leaderboard.LeaderboardSnapshotTable
-import com.carspotter.features.user.UserTable
+import com.revio.server.features.activity.ActivityEventType
+import com.revio.server.features.leaderboard.LeaderboardSnapshotDAO
+import com.revio.server.features.leaderboard.LeaderboardSnapshotTable
+import com.revio.server.features.user.UserTable
 import features.activity.ActivityDAO
 import kotlinx.coroutines.test.runTest
 import org.jetbrains.exposed.sql.selectAll

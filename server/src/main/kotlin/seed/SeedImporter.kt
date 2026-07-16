@@ -1,11 +1,11 @@
-package com.carspotter.seed
+package com.revio.server.seed
 
 import at.favre.lib.crypto.bcrypt.BCrypt
-import com.carspotter.core.storage.LocalImageStorageService
-import com.carspotter.features.auth.AuthProvider
-import com.carspotter.features.auth.AuthTable
-import com.carspotter.features.post.PostTable
-import com.carspotter.features.user.UserTable
+import com.revio.server.core.storage.LocalImageStorageService
+import com.revio.server.features.auth.AuthProvider
+import com.revio.server.features.auth.AuthTable
+import com.revio.server.features.post.PostTable
+import com.revio.server.features.user.UserTable
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import kotlinx.coroutines.runBlocking

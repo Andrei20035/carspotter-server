@@ -1,6 +1,6 @@
 package leaderboard
 
-import com.carspotter.features.leaderboard.RankMovement
+import com.revio.server.features.leaderboard.RankMovement
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 

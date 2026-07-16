@@ -1,6 +1,6 @@
 package service
 
-import com.carspotter.features.report.ReportReason
+import com.revio.server.features.report.ReportReason
 import features.report.IReportDAO
 import features.report.ReportPostNotFoundException
 import features.report.ReportResult

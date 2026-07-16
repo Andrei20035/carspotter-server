@@ -1,4 +1,4 @@
-package com.carspotter.core.storage
+package com.revio.server.core.storage
 
 data class StoredImage(
     val objectKey: String,

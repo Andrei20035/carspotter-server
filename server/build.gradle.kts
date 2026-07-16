@@ -102,7 +102,7 @@ tasks.named<ShadowJar>("shadowJar") {
 tasks.register<JavaExec>("seed") {
     group = "application"
     description = "Imports seed/ JSON + compressed images into the local dev database"
-    mainClass.set("com.carspotter.seed.SeedImporterKt")
+    mainClass.set("com.revio.server.seed.SeedImporterKt")
     classpath = sourceSets["main"].runtimeClasspath
     workingDir = projectDir
 }

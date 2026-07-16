@@ -1,8 +1,8 @@
 package dao
 
-import com.carspotter.features.user.UserCreationException
-import com.carspotter.features.user.UserDao
-import com.carspotter.features.user.UserTable
+import com.revio.server.features.user.UserCreationException
+import com.revio.server.features.user.UserDao
+import com.revio.server.features.user.UserTable
 import kotlinx.coroutines.test.runTest
 import org.jetbrains.exposed.exceptions.ExposedSQLException
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
@@ -264,6 +264,53 @@ class UserDaoTest {
         UserTestSeed.seedUser(secondCredential.authCredentialId, username = "bob")
 
         assertEquals(2, transaction { UserTable.selectAll().count() })
+    }
+
+    @Test
+    fun `updateUserProfile stamps changedAt timestamps for the fields it writes`() = runTest {
+        val credential = UserTestSeed.seedAuthCredential("stamped@example.com")
+        val userId = UserTestSeed.seedUser(credential.authCredentialId, username = "stamped", fullName = "Stamped", country = "RO")
+        val before = java.time.Instant.now().minusSeconds(1)
+
+        dao.updateUserProfile(
+            userId,
+            fullName = "Stamped New",
+            country = "US",
+            birthDate = java.time.LocalDate.of(1990, 1, 1),
+        )
+
+        val stored = dao.getUserById(userId)!!
+        assertNotNull(stored.fullNameChangedAt)
+        assertNotNull(stored.countryChangedAt)
+        assertNotNull(stored.birthDateChangedAt)
+        assertNull(stored.usernameChangedAt)
+        assertNull(stored.phoneNumberChangedAt)
+        assertTrue(stored.fullNameChangedAt!!.isAfter(before))
+    }
+
+    @Test
+    fun `updateUserProfile stamps usernameChangedAt and phoneNumberChangedAt when those fields are provided`() = runTest {
+        val credential = UserTestSeed.seedAuthCredential("stampedcontact@example.com")
+        val userId = UserTestSeed.seedUser(credential.authCredentialId, username = "stampedcontact")
+
+        dao.updateUserProfile(userId, username = "stampedcontact2", phoneNumber = "+40700000010")
+
+        val stored = dao.getUserById(userId)!!
+        assertNotNull(stored.usernameChangedAt)
+        assertNotNull(stored.phoneNumberChangedAt)
+    }
+
+    @Test
+    fun `updateUserProfile stamps phoneNumberChangedAt when clearing phone with setPhoneNull`() = runTest {
+        val credential = UserTestSeed.seedAuthCredential("stampedclear@example.com")
+        val userId = UserTestSeed.seedUser(credential.authCredentialId, username = "stampedclear")
+        dao.updateUserProfile(userId, phoneNumber = "+40700000011")
+
+        dao.updateUserProfile(userId, setPhoneNull = true)
+
+        val stored = dao.getUserById(userId)!!
+        assertNull(stored.phoneNumber)
+        assertNotNull(stored.phoneNumberChangedAt)
     }
 
     @Test

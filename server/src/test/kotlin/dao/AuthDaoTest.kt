@@ -1,7 +1,7 @@
 package dao
 
-import com.carspotter.features.auth.AuthDAO
-import com.carspotter.features.auth.AuthProvider
+import com.revio.server.features.auth.AuthDAO
+import com.revio.server.features.auth.AuthProvider
 import testutils.TestDataFactory
 import testutils.TestDatabaseFactory
 

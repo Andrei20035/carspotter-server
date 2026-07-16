@@ -1,4 +1,4 @@
-package com.carspotter.features.car_model
+package com.revio.server.features.car_model
 
 import org.jetbrains.exposed.dao.id.UUIDTable
 

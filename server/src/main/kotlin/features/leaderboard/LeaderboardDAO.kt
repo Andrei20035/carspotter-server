@@ -1,6 +1,6 @@
-package com.carspotter.features.leaderboard
+package com.revio.server.features.leaderboard
 
-import com.carspotter.features.user.UserTable
+import com.revio.server.features.user.UserTable
 import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.greater

@@ -1,4 +1,4 @@
-package com.carspotter.features.user_car
+package com.revio.server.features.user_car
 
 import java.time.Instant
 import java.util.UUID

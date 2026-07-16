@@ -1,7 +1,7 @@
-package com.carspotter.features.user.dto
+package com.revio.server.features.user.dto
 
-import com.carspotter.features.user.User
-import com.carspotter.core.serialization.LocalDateSerializer
+import com.revio.server.features.user.User
+import com.revio.server.core.serialization.LocalDateSerializer
 import kotlinx.serialization.Serializable
 import java.time.LocalDate
 import java.util.*

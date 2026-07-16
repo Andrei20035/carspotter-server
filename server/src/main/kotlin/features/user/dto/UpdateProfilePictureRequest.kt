@@ -1,4 +1,4 @@
-package com.carspotter.features.user.dto
+package com.revio.server.features.user.dto
 
 import kotlinx.serialization.Serializable
 

@@ -1,13 +1,13 @@
-package com.carspotter.features.auth
+package com.revio.server.features.auth
 
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import com.auth0.jwt.exceptions.TokenExpiredException
 import com.auth0.jwt.exceptions.JWTVerificationException
-import com.carspotter.features.auth.session.AuthSession
-import com.carspotter.features.auth.session.ISessionService
-import com.carspotter.features.auth.session.SessionScope
-import com.carspotter.features.auth.session.TokenResult
+import com.revio.server.features.auth.session.AuthSession
+import com.revio.server.features.auth.session.ISessionService
+import com.revio.server.features.auth.session.SessionScope
+import com.revio.server.features.auth.session.TokenResult
 import java.util.Date
 import java.util.UUID
 

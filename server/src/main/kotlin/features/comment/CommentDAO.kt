@@ -1,7 +1,7 @@
 package features.comment
 
-import com.carspotter.features.comment.CommentTable
-import com.carspotter.features.user.UserTable
+import com.revio.server.features.comment.CommentTable
+import com.revio.server.features.user.UserTable
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.transaction

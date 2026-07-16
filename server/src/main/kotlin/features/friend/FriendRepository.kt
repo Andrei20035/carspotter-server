@@ -1,6 +1,6 @@
-package com.carspotter.features.friend
+package com.revio.server.features.friend
 
-import com.carspotter.features.user.User
+import com.revio.server.features.user.User
 import java.util.*
 
 interface IFriendRepository {

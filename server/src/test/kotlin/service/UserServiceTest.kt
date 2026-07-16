@@ -1,18 +1,18 @@
 package service
 
-import com.carspotter.core.storage.LocalImageStorageService
-import com.carspotter.features.user.BirthDateAlreadyChangedException
-import com.carspotter.features.user.CountryAlreadyChangedException
-import com.carspotter.features.user.FullNameAlreadyChangedException
-import com.carspotter.features.user.IUserDAO
-import com.carspotter.features.user.PhoneNumberAlreadyExistsException
-import com.carspotter.features.user.PhoneNumberChangeTooSoonException
-import com.carspotter.features.user.UserNotFoundException
-import com.carspotter.features.user.UserProfileAlreadyExistsException
-import com.carspotter.features.user.UserService
-import com.carspotter.features.user.UsernameAlreadyExistsException
-import com.carspotter.features.user.UsernameChangeTooSoonException
-import com.carspotter.features.user.dto.UpdateUserRequest
+import com.revio.server.core.storage.LocalImageStorageService
+import com.revio.server.features.user.BirthDateAlreadyChangedException
+import com.revio.server.features.user.CountryAlreadyChangedException
+import com.revio.server.features.user.FullNameAlreadyChangedException
+import com.revio.server.features.user.IUserDAO
+import com.revio.server.features.user.PhoneNumberAlreadyExistsException
+import com.revio.server.features.user.PhoneNumberChangeTooSoonException
+import com.revio.server.features.user.UserNotFoundException
+import com.revio.server.features.user.UserProfileAlreadyExistsException
+import com.revio.server.features.user.UserService
+import com.revio.server.features.user.UsernameAlreadyExistsException
+import com.revio.server.features.user.UsernameChangeTooSoonException
+import com.revio.server.features.user.dto.UpdateUserRequest
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -86,7 +86,7 @@ class UserServiceTest {
     fun `createUserProfile normalizes username to lowercase trimmed before DAO insert`() = runTest {
         val dao = mockk<IUserDAO>()
         val authCredentialId = UUID.randomUUID()
-        val capturedUser = slot<com.carspotter.features.user.User>()
+        val capturedUser = slot<com.revio.server.features.user.User>()
         coEvery { dao.getUserByAuthCredentialId(authCredentialId) } returns null
         coEvery { dao.usernameExistsIgnoreCase("alice_1") } returns false
         coEvery { dao.createUser(capture(capturedUser)) } returns UUID.randomUUID()
@@ -251,14 +251,15 @@ class UserServiceTest {
         val dao = mockk<IUserDAO>()
         val userId = UUID.randomUUID()
         val authCredentialId = UUID.randomUUID()
-        val updatedUser = UserTestSeed.buildUser(authCredentialId, username = "alice", fullName = "Alice New").copy(id = userId)
+        val currentUser = UserTestSeed.buildUser(authCredentialId, username = "alice", fullName = "Alice Old").copy(id = userId)
+        val updatedUser = currentUser.copy(fullName = "Alice New")
 
         coEvery { dao.usernameExistsIgnoreSelf(any(), any()) } returns false
         coEvery { dao.phoneNumberExistsIgnoreSelf(any(), any()) } returns false
         coEvery {
             dao.updateUserProfile(userId, "Alice New", null, null, null, false, null)
         } returns 1
-        coEvery { dao.getUserById(userId) } returns updatedUser
+        coEvery { dao.getUserById(userId) } returnsMany listOf(currentUser, updatedUser)
         coEvery { dao.countPostsByUser(userId) } returns 0L
 
         val dto = newService(dao).updateUserProfile(userId, UpdateUserRequest(fullName = "Alice New"))
@@ -271,14 +272,15 @@ class UserServiceTest {
         val dao = mockk<IUserDAO>()
         val userId = UUID.randomUUID()
         val authCredentialId = UUID.randomUUID()
-        val updatedUser = UserTestSeed.buildUser(authCredentialId, username = "alice", country = "US").copy(id = userId)
+        val currentUser = UserTestSeed.buildUser(authCredentialId, username = "alice", country = "RO").copy(id = userId)
+        val updatedUser = currentUser.copy(country = "US")
 
         coEvery { dao.usernameExistsIgnoreSelf(any(), any()) } returns false
         coEvery { dao.phoneNumberExistsIgnoreSelf(any(), any()) } returns false
         coEvery {
             dao.updateUserProfile(userId, null, null, "US", null, false, null)
         } returns 1
-        coEvery { dao.getUserById(userId) } returns updatedUser
+        coEvery { dao.getUserById(userId) } returnsMany listOf(currentUser, updatedUser)
         coEvery { dao.countPostsByUser(userId) } returns 0L
 
         val dto = newService(dao).updateUserProfile(userId, UpdateUserRequest(country = "US"))
@@ -292,14 +294,15 @@ class UserServiceTest {
         val userId = UUID.randomUUID()
         val authCredentialId = UUID.randomUUID()
         val newBirthDate = LocalDate.of(1990, 5, 5)
-        val updatedUser = UserTestSeed.buildUser(authCredentialId, username = "alice").copy(id = userId, birthDate = newBirthDate)
+        val currentUser = UserTestSeed.buildUser(authCredentialId, username = "alice").copy(id = userId)
+        val updatedUser = currentUser.copy(birthDate = newBirthDate)
 
         coEvery { dao.usernameExistsIgnoreSelf(any(), any()) } returns false
         coEvery { dao.phoneNumberExistsIgnoreSelf(any(), any()) } returns false
         coEvery {
             dao.updateUserProfile(userId, null, null, null, null, false, newBirthDate)
         } returns 1
-        coEvery { dao.getUserById(userId) } returns updatedUser
+        coEvery { dao.getUserById(userId) } returnsMany listOf(currentUser, updatedUser)
         coEvery { dao.countPostsByUser(userId) } returns 0L
 
         val dto = newService(dao).updateUserProfile(userId, UpdateUserRequest(birthDate = newBirthDate))
@@ -312,14 +315,15 @@ class UserServiceTest {
         val dao = mockk<IUserDAO>()
         val userId = UUID.randomUUID()
         val authCredentialId = UUID.randomUUID()
-        val updatedUser = UserTestSeed.buildUser(authCredentialId, username = "alice", phoneNumber = "+40700000000").copy(id = userId)
+        val currentUser = UserTestSeed.buildUser(authCredentialId, username = "alice", phoneNumber = null).copy(id = userId)
+        val updatedUser = currentUser.copy(phoneNumber = "+40700000000")
 
         coEvery { dao.usernameExistsIgnoreSelf(any(), any()) } returns false
         coEvery { dao.phoneNumberExistsIgnoreSelf("+40700000000", userId) } returns false
         coEvery {
             dao.updateUserProfile(userId, null, null, null, "+40700000000", false, null)
         } returns 1
-        coEvery { dao.getUserById(userId) } returns updatedUser
+        coEvery { dao.getUserById(userId) } returnsMany listOf(currentUser, updatedUser)
         coEvery { dao.countPostsByUser(userId) } returns 0L
 
         val dto = newService(dao).updateUserProfile(userId, UpdateUserRequest(phoneNumber = "+40700000000"))
@@ -332,13 +336,14 @@ class UserServiceTest {
         val dao = mockk<IUserDAO>()
         val userId = UUID.randomUUID()
         val authCredentialId = UUID.randomUUID()
-        val updatedUser = UserTestSeed.buildUser(authCredentialId, username = "alice", phoneNumber = null).copy(id = userId)
+        val currentUser = UserTestSeed.buildUser(authCredentialId, username = "alice", phoneNumber = "+40700000000").copy(id = userId)
+        val updatedUser = currentUser.copy(phoneNumber = null)
 
         coEvery { dao.usernameExistsIgnoreSelf(any(), any()) } returns false
         coEvery {
             dao.updateUserProfile(userId, null, null, null, null, true, null)
         } returns 1
-        coEvery { dao.getUserById(userId) } returns updatedUser
+        coEvery { dao.getUserById(userId) } returnsMany listOf(currentUser, updatedUser)
         coEvery { dao.countPostsByUser(userId) } returns 0L
 
         val dto = newService(dao).updateUserProfile(userId, UpdateUserRequest(phoneNumber = "   "))
@@ -352,14 +357,15 @@ class UserServiceTest {
         val dao = mockk<IUserDAO>()
         val userId = UUID.randomUUID()
         val authCredentialId = UUID.randomUUID()
-        val updatedUser = UserTestSeed.buildUser(authCredentialId, username = "alice_2").copy(id = userId)
+        val currentUser = UserTestSeed.buildUser(authCredentialId, username = "alice").copy(id = userId)
+        val updatedUser = currentUser.copy(username = "alice_2")
 
         coEvery { dao.usernameExistsIgnoreSelf("alice_2", userId) } returns false
         coEvery { dao.phoneNumberExistsIgnoreSelf(any(), any()) } returns false
         coEvery {
             dao.updateUserProfile(userId, null, "alice_2", null, null, false, null)
         } returns 1
-        coEvery { dao.getUserById(userId) } returns updatedUser
+        coEvery { dao.getUserById(userId) } returnsMany listOf(currentUser, updatedUser)
         coEvery { dao.countPostsByUser(userId) } returns 0L
 
         val dto = newService(dao).updateUserProfile(userId, UpdateUserRequest(username = "  Alice_2 "))
@@ -553,6 +559,115 @@ class UserServiceTest {
         assertThrows(UsernameAlreadyExistsException::class.java) {
             runBlocking { service.updateUserProfile(userId, UpdateUserRequest(username = "bob")) }
         }
+        coVerify(exactly = 0) { dao.getUserById(any()) }
+    }
+
+    @Test
+    fun `updateUserProfile does not stamp fullName when the resent value is unchanged`() = runTest {
+        val dao = mockk<IUserDAO>()
+        val userId = UUID.randomUUID()
+        val authCredentialId = UUID.randomUUID()
+        val currentUser = UserTestSeed.buildUser(authCredentialId, username = "alice", fullName = "Alice").copy(id = userId)
+
+        coEvery { dao.usernameExistsIgnoreSelf(any(), any()) } returns false
+        coEvery { dao.phoneNumberExistsIgnoreSelf(any(), any()) } returns false
+        coEvery { dao.updateUserProfile(userId, null, null, null, null, false, null) } returns 1
+        coEvery { dao.getUserById(userId) } returns currentUser
+        coEvery { dao.countPostsByUser(userId) } returns 0L
+
+        newService(dao).updateUserProfile(userId, UpdateUserRequest(fullName = "Alice"))
+
+        coVerify(exactly = 1) { dao.updateUserProfile(userId, null, null, null, null, false, null) }
+    }
+
+    @Test
+    fun `updateUserProfile does not stamp phoneNumberChangedAt when clearing an already-null phone`() = runTest {
+        val dao = mockk<IUserDAO>()
+        val userId = UUID.randomUUID()
+        val authCredentialId = UUID.randomUUID()
+        val currentUser = UserTestSeed.buildUser(authCredentialId, username = "alice", phoneNumber = null).copy(id = userId)
+
+        coEvery { dao.usernameExistsIgnoreSelf(any(), any()) } returns false
+        coEvery { dao.updateUserProfile(userId, null, null, null, null, false, null) } returns 1
+        coEvery { dao.getUserById(userId) } returns currentUser
+        coEvery { dao.countPostsByUser(userId) } returns 0L
+
+        newService(dao).updateUserProfile(userId, UpdateUserRequest(phoneNumber = "   "))
+
+        coVerify(exactly = 1) { dao.updateUserProfile(userId, null, null, null, null, false, null) }
+        coVerify(exactly = 0) { dao.phoneNumberExistsIgnoreSelf(any(), any()) }
+    }
+
+    @Test
+    fun `checkUsernameAvailability returns available for a free username`() = runTest {
+        val dao = mockk<IUserDAO>()
+        val userId = UUID.randomUUID()
+        val authCredentialId = UUID.randomUUID()
+        val currentUser = UserTestSeed.buildUser(authCredentialId, username = "alice").copy(id = userId)
+
+        coEvery { dao.getUserById(userId) } returns currentUser
+        coEvery { dao.usernameExistsIgnoreSelf("bob", userId) } returns false
+
+        val result = newService(dao).checkUsernameAvailability(userId, "  Bob ")
+
+        assertEquals(true, result.available)
+        assertEquals("bob", result.normalized)
+        assertNull(result.reason)
+    }
+
+    @Test
+    fun `checkUsernameAvailability returns TAKEN for a username used by another user`() = runTest {
+        val dao = mockk<IUserDAO>()
+        val userId = UUID.randomUUID()
+        val authCredentialId = UUID.randomUUID()
+        val currentUser = UserTestSeed.buildUser(authCredentialId, username = "alice").copy(id = userId)
+
+        coEvery { dao.getUserById(userId) } returns currentUser
+        coEvery { dao.usernameExistsIgnoreSelf("bob", userId) } returns true
+
+        val result = newService(dao).checkUsernameAvailability(userId, "bob")
+
+        assertEquals(false, result.available)
+        assertEquals("TAKEN", result.reason)
+    }
+
+    @Test
+    fun `checkUsernameAvailability returns available for the caller's own current username`() = runTest {
+        val dao = mockk<IUserDAO>()
+        val userId = UUID.randomUUID()
+        val authCredentialId = UUID.randomUUID()
+        val currentUser = UserTestSeed.buildUser(authCredentialId, username = "alice").copy(id = userId)
+
+        coEvery { dao.getUserById(userId) } returns currentUser
+
+        val result = newService(dao).checkUsernameAvailability(userId, "ALICE")
+
+        assertEquals(true, result.available)
+        assertEquals("alice", result.normalized)
+        coVerify(exactly = 0) { dao.usernameExistsIgnoreSelf(any(), any()) }
+    }
+
+    @Test
+    fun `checkUsernameAvailability flags invalid characters without querying the DAO`() = runTest {
+        val dao = mockk<IUserDAO>(relaxed = true)
+        val userId = UUID.randomUUID()
+
+        val result = newService(dao).checkUsernameAvailability(userId, "bad-name")
+
+        assertEquals(false, result.available)
+        assertEquals("INVALID_FORMAT", result.reason)
+        coVerify(exactly = 0) { dao.getUserById(any()) }
+    }
+
+    @Test
+    fun `checkUsernameAvailability flags a too-short username without querying the DAO`() = runTest {
+        val dao = mockk<IUserDAO>(relaxed = true)
+        val userId = UUID.randomUUID()
+
+        val result = newService(dao).checkUsernameAvailability(userId, "ab")
+
+        assertEquals(false, result.available)
+        assertEquals("TOO_SHORT", result.reason)
         coVerify(exactly = 0) { dao.getUserById(any()) }
     }
 }

@@ -1,6 +1,6 @@
-package com.carspotter.features.car_model
+package com.revio.server.features.car_model
 
-import com.carspotter.features.car_model.dto.CarModelOption
+import com.revio.server.features.car_model.dto.CarModelOption
 
 interface ICarModelService {
     suspend fun getAllCarBrands(): List<String>

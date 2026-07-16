@@ -1,4 +1,4 @@
-package com.carspotter.features.leaderboard
+package com.revio.server.features.leaderboard
 
 data class RankMovementResult(val movement: String, val placesMoved: Int)
 

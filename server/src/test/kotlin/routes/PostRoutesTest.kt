@@ -1,15 +1,15 @@
 package routes
 
-import com.carspotter.features.auth.JwtService
-import com.carspotter.features.auth.RefreshTokenGenerator
-import com.carspotter.features.auth.session.AuthSessionDAO
-import com.carspotter.features.auth.session.RevokeReason
-import com.carspotter.features.auth.session.SessionScope
-import com.carspotter.features.auth.session.SessionService
-import com.carspotter.core.error.AuthErrorCode
-import com.carspotter.core.error.AuthErrorResponse
-import com.carspotter.features.post.dto.FeedResponseDTO
-import com.carspotter.features.post.dto.PostDTO
+import com.revio.server.features.auth.JwtService
+import com.revio.server.features.auth.RefreshTokenGenerator
+import com.revio.server.features.auth.session.AuthSessionDAO
+import com.revio.server.features.auth.session.RevokeReason
+import com.revio.server.features.auth.session.SessionScope
+import com.revio.server.features.auth.session.SessionService
+import com.revio.server.core.error.AuthErrorCode
+import com.revio.server.core.error.AuthErrorResponse
+import com.revio.server.features.post.dto.FeedResponseDTO
+import com.revio.server.features.post.dto.PostDTO
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation

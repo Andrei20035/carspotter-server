@@ -1,8 +1,8 @@
 package routes
 
-import com.carspotter.features.auth.JwtService
-import com.carspotter.features.comment.dto.CommentDTO
-import com.carspotter.features.comment.dto.CommentRequest
+import com.revio.server.features.auth.JwtService
+import com.revio.server.features.comment.dto.CommentDTO
+import com.revio.server.features.comment.dto.CommentRequest
 import io.ktor.client.HttpClient
 import io.ktor.client.call.*
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation

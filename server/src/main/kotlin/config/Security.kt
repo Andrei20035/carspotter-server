@@ -1,11 +1,11 @@
-package com.carspotter.config
+package com.revio.server.config
 
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
-import com.carspotter.core.error.AuthApiError
-import com.carspotter.core.error.AuthErrorCode
-import com.carspotter.core.error.AuthErrorResponse
-import com.carspotter.features.auth.session.ISessionService
+import com.revio.server.core.error.AuthApiError
+import com.revio.server.core.error.AuthErrorCode
+import com.revio.server.core.error.AuthErrorResponse
+import com.revio.server.features.auth.session.ISessionService
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*

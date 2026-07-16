@@ -1,4 +1,4 @@
-package com.carspotter.core.util
+package com.revio.server.core.util
 
 import io.ktor.server.application.*
 import io.ktor.server.auth.*

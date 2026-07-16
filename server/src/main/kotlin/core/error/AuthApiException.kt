@@ -1,4 +1,4 @@
-package com.carspotter.core.error
+package com.revio.server.core.error
 
 import io.ktor.http.HttpStatusCode
 

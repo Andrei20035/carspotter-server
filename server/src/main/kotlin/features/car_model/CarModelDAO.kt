@@ -1,6 +1,6 @@
-package com.carspotter.features.car_model
+package com.revio.server.features.car_model
 
-import com.carspotter.features.car_model.dto.CarModelOption
+import com.revio.server.features.car_model.dto.CarModelOption
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
 

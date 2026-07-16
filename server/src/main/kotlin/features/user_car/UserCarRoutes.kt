@@ -1,9 +1,9 @@
-package com.carspotter.features.user_car
+package com.revio.server.features.user_car
 
-import com.carspotter.core.util.getUuidClaim
-import com.carspotter.core.util.toUuidOrNull
-import com.carspotter.features.user_car.dto.UserCarRequest
-import com.carspotter.features.user_car.dto.UserCarUpdateRequest
+import com.revio.server.core.util.getUuidClaim
+import com.revio.server.core.util.toUuidOrNull
+import com.revio.server.features.user_car.dto.UserCarRequest
+import com.revio.server.features.user_car.dto.UserCarUpdateRequest
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.PartData
 import io.ktor.http.content.forEachPart

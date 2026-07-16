@@ -1,8 +1,8 @@
-package com.carspotter.core.di
+package com.revio.server.core.di
 
-import com.carspotter.features.auth.JwtService
-import com.carspotter.core.storage.IStorageService
-import com.carspotter.core.storage.LocalImageStorageService
+import com.revio.server.features.auth.JwtService
+import com.revio.server.core.storage.IStorageService
+import com.revio.server.core.storage.LocalImageStorageService
 import org.koin.dsl.module
 import java.nio.file.Files
 import java.nio.file.Paths

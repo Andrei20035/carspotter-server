@@ -1,6 +1,6 @@
-package com.carspotter.features.report.dto
+package com.revio.server.features.report.dto
 
-import com.carspotter.features.report.ReportReason
+import com.revio.server.features.report.ReportReason
 import kotlinx.serialization.Serializable
 
 /**

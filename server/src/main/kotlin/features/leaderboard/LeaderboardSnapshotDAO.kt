@@ -1,7 +1,7 @@
-package com.carspotter.features.leaderboard
+package com.revio.server.features.leaderboard
 
-import com.carspotter.features.activity.ActivityEventType
-import com.carspotter.features.user.UserTable
+import com.revio.server.features.activity.ActivityEventType
+import com.revio.server.features.user.UserTable
 import features.activity.ActivityDAO
 import features.activity.IActivityDAO
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq

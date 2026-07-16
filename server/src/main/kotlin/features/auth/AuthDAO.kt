@@ -1,4 +1,4 @@
-package com.carspotter.features.auth
+package com.revio.server.features.auth
 
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.deleteWhere

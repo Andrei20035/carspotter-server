@@ -1,4 +1,4 @@
-package com.carspotter.features.post
+package com.revio.server.features.post
 
 enum class PostSource {
     CAMERA,

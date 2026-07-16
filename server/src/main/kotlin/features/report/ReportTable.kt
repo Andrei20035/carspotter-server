@@ -1,7 +1,7 @@
-package com.carspotter.features.report
+package com.revio.server.features.report
 
-import com.carspotter.features.post.PostTable
-import com.carspotter.features.user.UserTable
+import com.revio.server.features.post.PostTable
+import com.revio.server.features.user.UserTable
 import org.jetbrains.exposed.dao.id.UUIDTable
 import org.jetbrains.exposed.sql.ReferenceOption
 import org.jetbrains.exposed.sql.javatime.CurrentTimestamp

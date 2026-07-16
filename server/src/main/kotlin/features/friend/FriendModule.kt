@@ -1,4 +1,4 @@
-package com.carspotter.features.friend
+package com.revio.server.features.friend
 
 import org.koin.dsl.module
 

@@ -1,9 +1,9 @@
 package routes
 
-import com.carspotter.features.auth.JwtService
-import com.carspotter.features.leaderboard.LeaderboardSnapshotDAO
-import com.carspotter.features.leaderboard.dto.LeaderboardResponseDTO
-import com.carspotter.features.user.UserTable
+import com.revio.server.features.auth.JwtService
+import com.revio.server.features.leaderboard.LeaderboardSnapshotDAO
+import com.revio.server.features.leaderboard.dto.LeaderboardResponseDTO
+import com.revio.server.features.user.UserTable
 import io.ktor.client.call.*
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.*

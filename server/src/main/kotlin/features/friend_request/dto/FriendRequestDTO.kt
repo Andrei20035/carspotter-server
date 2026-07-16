@@ -1,8 +1,8 @@
-package com.carspotter.features.friend_request.dto
+package com.revio.server.features.friend_request.dto
 
-import com.carspotter.features.friend_request.FriendRequest
-import com.carspotter.core.serialization.InstantSerializer
-import com.carspotter.core.serialization.UUIDSerializer
+import com.revio.server.features.friend_request.FriendRequest
+import com.revio.server.core.serialization.InstantSerializer
+import com.revio.server.core.serialization.UUIDSerializer
 import kotlinx.serialization.Serializable
 import java.time.Instant
 import java.util.*

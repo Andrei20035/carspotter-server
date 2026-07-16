@@ -1,10 +1,10 @@
-package com.carspotter.features.friend
+package com.revio.server.features.friend
 
-import com.carspotter.features.friend.dto.FriendDTO
-import com.carspotter.features.user.dto.UserDTO
-import com.carspotter.features.comment.dto.toDTO
-import com.carspotter.features.friend.dto.toDTO
-import com.carspotter.features.user.dto.toDTO
+import com.revio.server.features.friend.dto.FriendDTO
+import com.revio.server.features.user.dto.UserDTO
+import com.revio.server.features.comment.dto.toDTO
+import com.revio.server.features.friend.dto.toDTO
+import com.revio.server.features.user.dto.toDTO
 import java.util.*
 
 interface IFriendService {

@@ -1,6 +1,6 @@
 package dao
 
-import com.carspotter.features.report.ReportReason
+import com.revio.server.features.report.ReportReason
 import features.report.ReportDAO
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
@@ -118,8 +118,8 @@ class ReportDaoTest {
         ReportTestSeed.insertReport(alice.userId, post.postId, ReportReason.DUPLICATE_POST)
 
         transaction {
-            com.carspotter.features.post.PostTable.deleteWhere {
-                com.carspotter.features.post.PostTable.id eq post.postId
+            com.revio.server.features.post.PostTable.deleteWhere {
+                com.revio.server.features.post.PostTable.id eq post.postId
             }
         }
 
@@ -133,8 +133,8 @@ class ReportDaoTest {
         ReportTestSeed.insertReport(alice.userId, post.postId, ReportReason.DUPLICATE_POST)
 
         transaction {
-            com.carspotter.features.user.UserTable.deleteWhere {
-                com.carspotter.features.user.UserTable.id eq alice.userId
+            com.revio.server.features.user.UserTable.deleteWhere {
+                com.revio.server.features.user.UserTable.id eq alice.userId
             }
         }
 

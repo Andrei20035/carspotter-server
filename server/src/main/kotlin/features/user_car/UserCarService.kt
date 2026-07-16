@@ -1,11 +1,11 @@
-package com.carspotter.features.user_car
+package com.revio.server.features.user_car
 
-import com.carspotter.core.storage.IStorageService
-import com.carspotter.features.car_model.ICarModelDAO
-import com.carspotter.features.user_car.dto.UserCarDTO
-import com.carspotter.features.user_car.dto.UserCarRequest
-import com.carspotter.features.user_car.dto.UserCarUpdateRequest
-import com.carspotter.features.user_car.dto.toDTO
+import com.revio.server.core.storage.IStorageService
+import com.revio.server.features.car_model.ICarModelDAO
+import com.revio.server.features.user_car.dto.UserCarDTO
+import com.revio.server.features.user_car.dto.UserCarRequest
+import com.revio.server.features.user_car.dto.UserCarUpdateRequest
+import com.revio.server.features.user_car.dto.toDTO
 import org.jetbrains.exposed.exceptions.ExposedSQLException
 import org.slf4j.LoggerFactory
 import java.time.LocalDate

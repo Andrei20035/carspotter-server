@@ -1,7 +1,7 @@
 package testutils
 
-import com.carspotter.features.auth.AuthCredential
-import com.carspotter.features.auth.AuthProvider
+import com.revio.server.features.auth.AuthCredential
+import com.revio.server.features.auth.AuthProvider
 import at.favre.lib.crypto.bcrypt.BCrypt
 
 object TestDataFactory {

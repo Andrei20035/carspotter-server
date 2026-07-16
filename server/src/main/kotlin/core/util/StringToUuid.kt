@@ -1,4 +1,4 @@
-package com.carspotter.core.util
+package com.revio.server.core.util
 
 import java.util.*
 

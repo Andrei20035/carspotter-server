@@ -1,8 +1,8 @@
-package com.carspotter.features.friend_request
+package com.revio.server.features.friend_request
 
-import com.carspotter.features.user.User
-import com.carspotter.features.friend.FriendTable
-import com.carspotter.features.user.UserTable
+import com.revio.server.features.user.User
+import com.revio.server.features.friend.FriendTable
+import com.revio.server.features.user.UserTable
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.transaction

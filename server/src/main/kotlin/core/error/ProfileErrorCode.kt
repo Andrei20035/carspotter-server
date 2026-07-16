@@ -1,0 +1,9 @@
+package com.revio.server.core.error
+
+enum class ProfileErrorCode {
+    FULL_NAME_ALREADY_CHANGED,
+    COUNTRY_ALREADY_CHANGED,
+    BIRTH_DATE_ALREADY_CHANGED,
+    USERNAME_CHANGE_TOO_SOON,
+    PHONE_NUMBER_CHANGE_TOO_SOON,
+}

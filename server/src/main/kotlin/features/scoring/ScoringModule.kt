@@ -1,4 +1,4 @@
-package com.carspotter.features.scoring
+package com.revio.server.features.scoring
 
 import features.activity.IActivityDAO
 import org.koin.dsl.module

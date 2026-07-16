@@ -1,12 +1,12 @@
 package features.activity
 
-import com.carspotter.features.activity.ActivityEventTable
-import com.carspotter.features.activity.ActivityEventType
-import com.carspotter.features.car_model.CarModelTable
-import com.carspotter.features.comment.CommentTable
-import com.carspotter.features.like.LikeTable
-import com.carspotter.features.post.PostTable
-import com.carspotter.features.user.UserTable
+import com.revio.server.features.activity.ActivityEventTable
+import com.revio.server.features.activity.ActivityEventType
+import com.revio.server.features.car_model.CarModelTable
+import com.revio.server.features.comment.CommentTable
+import com.revio.server.features.like.LikeTable
+import com.revio.server.features.post.PostTable
+import com.revio.server.features.user.UserTable
 import org.jetbrains.exposed.sql.JoinType
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.SortOrder
@@ -116,7 +116,7 @@ class ActivityDAO : IActivityDAO {
             }
     }
 
-    /** Resolves brand/model the same way as [com.carspotter.features.post.toPost]: car model if linked, else custom fields. */
+    /** Resolves brand/model the same way as [com.revio.server.features.post.toPost]: car model if linked, else custom fields. */
     private fun ResultRow.resolveBrand(): String =
         (if (this[PostTable.carModelId] != null) this[CarModelTable.brand] else this[PostTable.customBrand])
             ?: error("Post ${this[PostTable.id].value} is missing brand")

@@ -1,12 +1,12 @@
 package service
 
-import com.carspotter.features.activity.ActivityEventType
-import com.carspotter.features.post.IPostDAO
-import com.carspotter.features.post.PostSource
-import com.carspotter.features.scoring.IScoringDao
-import com.carspotter.features.scoring.ScoringServiceImpl
-import com.carspotter.features.user.IUserDAO
-import com.carspotter.features.user.User
+import com.revio.server.features.activity.ActivityEventType
+import com.revio.server.features.post.IPostDAO
+import com.revio.server.features.post.PostSource
+import com.revio.server.features.scoring.IScoringDao
+import com.revio.server.features.scoring.ScoringServiceImpl
+import com.revio.server.features.user.IUserDAO
+import com.revio.server.features.user.User
 import features.activity.IActivityDAO
 import io.mockk.coEvery
 import io.mockk.coVerify

@@ -1,7 +1,7 @@
 package routes
 
-import com.carspotter.features.leaderboard.LeaderboardSnapshotTable
-import com.carspotter.features.user.UserTable
+import com.revio.server.features.leaderboard.LeaderboardSnapshotTable
+import com.revio.server.features.user.UserTable
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.*
 import io.ktor.http.*

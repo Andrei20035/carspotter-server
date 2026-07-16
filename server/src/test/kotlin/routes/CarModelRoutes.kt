@@ -1,6 +1,6 @@
 package routes
 
-import com.carspotter.features.car_model.dto.CarModelOption
+import com.revio.server.features.car_model.dto.CarModelOption
 import io.ktor.client.HttpClient
 import io.ktor.client.call.*
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation

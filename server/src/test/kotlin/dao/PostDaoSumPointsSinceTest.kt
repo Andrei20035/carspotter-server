@@ -1,7 +1,7 @@
 package dao
 
-import com.carspotter.features.post.PostDAO
-import com.carspotter.features.post.PostTable
+import com.revio.server.features.post.PostDAO
+import com.revio.server.features.post.PostTable
 import kotlinx.coroutines.test.runTest
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.insert

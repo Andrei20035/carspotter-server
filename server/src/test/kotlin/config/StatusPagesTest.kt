@@ -1,12 +1,12 @@
-package com.carspotter.config
+package com.revio.server.config
 
-import com.carspotter.core.error.AuthBadRequestException
-import com.carspotter.core.error.AuthConflictException
-import com.carspotter.core.error.AuthErrorCode
-import com.carspotter.core.error.AuthErrorResponse
-import com.carspotter.core.error.AuthForbiddenException
-import com.carspotter.core.error.AuthNotFoundException
-import com.carspotter.core.error.AuthUnauthorizedException
+import com.revio.server.core.error.AuthBadRequestException
+import com.revio.server.core.error.AuthConflictException
+import com.revio.server.core.error.AuthErrorCode
+import com.revio.server.core.error.AuthErrorResponse
+import com.revio.server.core.error.AuthForbiddenException
+import com.revio.server.core.error.AuthNotFoundException
+import com.revio.server.core.error.AuthUnauthorizedException
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode

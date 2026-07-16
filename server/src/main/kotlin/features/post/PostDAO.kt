@@ -1,8 +1,8 @@
-package com.carspotter.features.post
+package com.revio.server.features.post
 
-import com.carspotter.features.car_model.CarModelTable
-import com.carspotter.features.post.dto.PersistPostDTO
-import com.carspotter.features.user.UserTable
+import com.revio.server.features.car_model.CarModelTable
+import com.revio.server.features.post.dto.PersistPostDTO
+import com.revio.server.features.user.UserTable
 import org.jetbrains.exposed.sql.JoinType
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.SortOrder

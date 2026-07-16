@@ -1,4 +1,4 @@
-package com.carspotter.features.friend_request
+package com.revio.server.features.friend_request
 
 import java.time.Instant
 import java.util.UUID

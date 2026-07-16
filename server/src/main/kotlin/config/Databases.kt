@@ -1,4 +1,4 @@
-package com.carspotter.config
+package com.revio.server.config
 
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource

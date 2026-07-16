@@ -1,12 +1,12 @@
-package com.carspotter.features.user
+package com.revio.server.features.user
 
-import com.carspotter.core.storage.IStorageService
-import com.carspotter.features.leaderboard.StreakCalculator
-import com.carspotter.features.user.dto.SelfUserDTO
-import com.carspotter.features.user.dto.UpdateUserRequest
-import com.carspotter.features.user.dto.UserDTO
-import com.carspotter.features.user.dto.toDTO
-import com.carspotter.features.user.dto.toSelfDTO
+import com.revio.server.core.storage.IStorageService
+import com.revio.server.features.leaderboard.StreakCalculator
+import com.revio.server.features.user.dto.SelfUserDTO
+import com.revio.server.features.user.dto.UpdateUserRequest
+import com.revio.server.features.user.dto.UserDTO
+import com.revio.server.features.user.dto.toDTO
+import com.revio.server.features.user.dto.toSelfDTO
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -19,7 +19,16 @@ interface IUserService {
     suspend fun updateProfilePicture(userId: UUID, imagePath: String): UserDTO
     suspend fun getSelf(userId: UUID): SelfUserDTO?
     suspend fun updateUserProfile(userId: UUID, request: UpdateUserRequest): SelfUserDTO
+    suspend fun checkUsernameAvailability(userId: UUID, username: String): UsernameAvailabilityResult
 }
+
+data class UsernameAvailabilityResult(
+    val available: Boolean,
+    val normalized: String,
+    val reason: String?,
+)
+
+val profileChangeCooldown: Duration = Duration.ofDays(30)
 
 class UserService(
     private val userDao: IUserDAO,
@@ -30,7 +39,7 @@ class UserService(
         private const val maxUsernameLength = 50
         private const val maxPhoneNumberLength = 20
         private val usernameRegex = Regex("^[a-z0-9._]+$")
-        private val monthlyChangeCooldown: Duration = Duration.ofDays(30)
+        private val monthlyChangeCooldown: Duration = profileChangeCooldown
     }
 
     override suspend fun createUserProfile(authCredentialId: UUID, user: User): UUID {
@@ -143,14 +152,21 @@ class UserService(
             }
         }
 
+        val effectiveFullName = normalizedFullName?.takeIf { it != currentUser.fullName }
+        val effectiveCountry = normalizedCountry?.takeIf { it != currentUser.country }
+        val effectiveBirthDate = request.birthDate?.takeIf { it != currentUser.birthDate }
+        val effectiveUsername = normalizedUsername?.takeIf { it != currentUser.username }
+        val effectivePhoneNumber = normalizedPhoneNumber?.takeIf { it != currentUser.phoneNumber }
+        val effectiveSetPhoneNull = setPhoneNull && currentUser.phoneNumber != null
+
         val updatedRows = userDao.updateUserProfile(
             userId = userId,
-            fullName = normalizedFullName,
-            username = normalizedUsername,
-            country = normalizedCountry,
-            phoneNumber = normalizedPhoneNumber,
-            setPhoneNull = setPhoneNull,
-            birthDate = request.birthDate,
+            fullName = effectiveFullName,
+            username = effectiveUsername,
+            country = effectiveCountry,
+            phoneNumber = effectivePhoneNumber,
+            setPhoneNull = effectiveSetPhoneNull,
+            birthDate = effectiveBirthDate,
         )
         if (updatedRows == 0) {
             throw UserNotFoundException(userId)
@@ -158,6 +174,34 @@ class UserService(
         val user = requireNotNull(userDao.getUserById(userId)) { "Updated user could not be loaded" }
         val postCount = userDao.countPostsByUser(userId)
         return user.toSelfResponse(postCount = postCount.toInt())
+    }
+
+    override suspend fun checkUsernameAvailability(userId: UUID, username: String): UsernameAvailabilityResult {
+        val trimmedLower = username.trim().lowercase()
+
+        if (trimmedLower.isBlank()) {
+            return UsernameAvailabilityResult(available = false, normalized = trimmedLower, reason = "INVALID_FORMAT")
+        }
+        if (trimmedLower.length < minUsernameLength) {
+            return UsernameAvailabilityResult(available = false, normalized = trimmedLower, reason = "TOO_SHORT")
+        }
+        if (trimmedLower.length > maxUsernameLength) {
+            return UsernameAvailabilityResult(available = false, normalized = trimmedLower, reason = "TOO_LONG")
+        }
+        if (!usernameRegex.matches(trimmedLower)) {
+            return UsernameAvailabilityResult(available = false, normalized = trimmedLower, reason = "INVALID_FORMAT")
+        }
+
+        val currentUser = userDao.getUserById(userId)
+        if (currentUser != null && currentUser.username.lowercase() == trimmedLower) {
+            return UsernameAvailabilityResult(available = true, normalized = trimmedLower, reason = null)
+        }
+
+        if (userDao.usernameExistsIgnoreSelf(trimmedLower, userId)) {
+            return UsernameAvailabilityResult(available = false, normalized = trimmedLower, reason = "TAKEN")
+        }
+
+        return UsernameAvailabilityResult(available = true, normalized = trimmedLower, reason = null)
     }
 
     private fun normalizeUsername(username: String): String {

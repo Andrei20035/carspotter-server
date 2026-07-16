@@ -1,15 +1,16 @@
-package com.carspotter.features.user
+package com.revio.server.features.user
 
-import com.carspotter.core.storage.IStorageService
-import com.carspotter.core.util.getUuidClaim
-import com.carspotter.core.util.toUuidOrNull
-import com.carspotter.features.auth.JwtService
-import com.carspotter.features.auth.session.ISessionService
-import com.carspotter.features.user.dto.CreateUserRequest
-import com.carspotter.features.user.dto.CreateUserResponse
-import com.carspotter.features.user.dto.UpdateProfilePictureRequest
-import com.carspotter.features.user.dto.UpdateUserRequest
-import com.carspotter.features.user.dto.toUser
+import com.revio.server.core.error.ProfileErrorCode
+import com.revio.server.core.storage.IStorageService
+import com.revio.server.core.util.getUuidClaim
+import com.revio.server.core.util.toUuidOrNull
+import com.revio.server.features.auth.JwtService
+import com.revio.server.features.auth.session.ISessionService
+import com.revio.server.features.user.dto.CreateUserRequest
+import com.revio.server.features.user.dto.CreateUserResponse
+import com.revio.server.features.user.dto.UpdateProfilePictureRequest
+import com.revio.server.features.user.dto.UpdateUserRequest
+import com.revio.server.features.user.dto.toUser
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.PartData
@@ -23,6 +24,7 @@ import io.ktor.server.request.receive
 import io.ktor.server.request.receiveMultipart
 import io.ktor.server.response.respond
 import io.ktor.server.routing.*
+import kotlinx.serialization.Serializable
 import org.koin.ktor.ext.inject
 import java.time.LocalDate
 import java.util.UUID
@@ -96,6 +98,24 @@ fun Route.userRoutes() {
                 }
             }
 
+            get("/username-available") {
+                val userId = call.getUuidClaim("userId")
+                    ?: return@get call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Invalid or missing userId"))
+
+                val username = call.request.queryParameters["username"]
+                    ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Missing username"))
+
+                val result = userService.checkUsernameAvailability(userId, username)
+                call.respond(
+                    HttpStatusCode.OK,
+                    UsernameAvailabilityResponse(
+                        available = result.available,
+                        normalized = result.normalized,
+                        reason = result.reason,
+                    ),
+                )
+            }
+
             get("/me") {
                 val userId = call.getUuidClaim("userId")
                     ?: return@get call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Invalid or missing userId"))
@@ -122,27 +142,27 @@ fun Route.userRoutes() {
                 } catch (e: FullNameAlreadyChangedException) {
                     call.respond(
                         HttpStatusCode.Forbidden,
-                        forbiddenChangeError("FULL_NAME_ALREADY_CHANGED", e.message ?: "Full name can only be changed once"),
+                        forbiddenChangeError(ProfileErrorCode.FULL_NAME_ALREADY_CHANGED, e.message ?: "Full name can only be changed once"),
                     )
                 } catch (e: CountryAlreadyChangedException) {
                     call.respond(
                         HttpStatusCode.Forbidden,
-                        forbiddenChangeError("COUNTRY_ALREADY_CHANGED", e.message ?: "Country can only be changed once"),
+                        forbiddenChangeError(ProfileErrorCode.COUNTRY_ALREADY_CHANGED, e.message ?: "Country can only be changed once"),
                     )
                 } catch (e: BirthDateAlreadyChangedException) {
                     call.respond(
                         HttpStatusCode.Forbidden,
-                        forbiddenChangeError("BIRTH_DATE_ALREADY_CHANGED", e.message ?: "Date of birth can only be changed once"),
+                        forbiddenChangeError(ProfileErrorCode.BIRTH_DATE_ALREADY_CHANGED, e.message ?: "Date of birth can only be changed once"),
                     )
                 } catch (e: UsernameChangeTooSoonException) {
                     call.respond(
                         HttpStatusCode.Forbidden,
-                        forbiddenChangeError("USERNAME_CHANGE_TOO_SOON", e.message ?: "Username can only be changed once a month"),
+                        forbiddenChangeError(ProfileErrorCode.USERNAME_CHANGE_TOO_SOON, e.message ?: "Username can only be changed once a month"),
                     )
                 } catch (e: PhoneNumberChangeTooSoonException) {
                     call.respond(
                         HttpStatusCode.Forbidden,
-                        forbiddenChangeError("PHONE_NUMBER_CHANGE_TOO_SOON", e.message ?: "Phone number can only be changed once a month"),
+                        forbiddenChangeError(ProfileErrorCode.PHONE_NUMBER_CHANGE_TOO_SOON, e.message ?: "Phone number can only be changed once a month"),
                     )
                 } catch (e: IllegalArgumentException) {
                     call.respond(HttpStatusCode.BadRequest, mapOf("error" to (e.message ?: "Invalid request")))
@@ -183,8 +203,15 @@ fun Route.userRoutes() {
     }
 }
 
-private fun forbiddenChangeError(code: String, message: String) =
-    mapOf("error" to mapOf("code" to code, "message" to message))
+private fun forbiddenChangeError(code: ProfileErrorCode, message: String) =
+    mapOf("error" to mapOf("code" to code.name, "message" to message))
+
+@Serializable
+private data class UsernameAvailabilityResponse(
+    val available: Boolean,
+    val normalized: String,
+    val reason: String?,
+)
 
 private data class ProfilePictureMultipartPayload(
     val imageBytes: ByteArray,

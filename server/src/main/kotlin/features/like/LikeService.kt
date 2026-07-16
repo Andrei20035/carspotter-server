@@ -1,7 +1,7 @@
 package features.like
 
-import com.carspotter.features.post.IPostDAO
-import com.carspotter.features.scoring.IScoringService
+import com.revio.server.features.post.IPostDAO
+import com.revio.server.features.scoring.IScoringService
 import org.jetbrains.exposed.exceptions.ExposedSQLException
 import java.util.UUID
 

@@ -1,6 +1,6 @@
-package com.carspotter.features.auth.dto
+package com.revio.server.features.auth.dto
 
-import com.carspotter.features.auth.session.AuthSession
+import com.revio.server.features.auth.session.AuthSession
 import kotlinx.serialization.Serializable
 
 @Serializable

@@ -1,4 +1,4 @@
-package com.carspotter.features.car_model
+package com.revio.server.features.car_model
 
 import io.ktor.http.*
 import io.ktor.server.response.*

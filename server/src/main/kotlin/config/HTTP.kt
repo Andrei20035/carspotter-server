@@ -1,4 +1,4 @@
-package com.carspotter.config
+package com.revio.server.config
 
 import io.ktor.http.*
 import io.ktor.server.application.*

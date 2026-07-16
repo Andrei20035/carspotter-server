@@ -1,12 +1,12 @@
-package com.carspotter.routes
+package com.revio.server.routes
 
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
-import com.carspotter.features.auth.AuthProvider
-import com.carspotter.features.auth.dto.AuthResponse
-import com.carspotter.features.auth.dto.LoginRequest
-import com.carspotter.features.auth.dto.RegisterRequest
-import com.carspotter.features.auth.dto.UpdatePasswordRequest
+import com.revio.server.features.auth.AuthProvider
+import com.revio.server.features.auth.dto.AuthResponse
+import com.revio.server.features.auth.dto.LoginRequest
+import com.revio.server.features.auth.dto.RegisterRequest
+import com.revio.server.features.auth.dto.UpdatePasswordRequest
 import io.ktor.client.call.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
@@ -56,8 +56,8 @@ class AuthRoutesCharacterizationTest {
 
     private fun authTest(block: suspend ApplicationTestBuilder.(io.ktor.client.HttpClient) -> Unit) =
         testApplication {
-            application { testAuthModule(object : com.carspotter.features.auth.GoogleTokenVerifier {
-                override fun verify(googleIdToken: String): com.carspotter.features.auth.GoogleUser? = null
+            application { testAuthModule(object : com.revio.server.features.auth.GoogleTokenVerifier {
+                override fun verify(googleIdToken: String): com.revio.server.features.auth.GoogleUser? = null
             }) }
             val client = createClient {
                 install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; isLenient = true }) }

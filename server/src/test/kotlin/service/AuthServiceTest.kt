@@ -1,15 +1,15 @@
 package service
 
 import at.favre.lib.crypto.bcrypt.BCrypt
-import com.carspotter.features.auth.AuthCredential
-import com.carspotter.features.auth.AuthProvider
-import com.carspotter.features.auth.AuthService
-import com.carspotter.features.auth.CredentialCreationException
-import com.carspotter.features.auth.GoogleTokenVerifier
-import com.carspotter.features.auth.GoogleUser
-import com.carspotter.features.auth.IAuthDAO
-import com.carspotter.features.user.IUserService
-import com.carspotter.features.user.dto.UserDTO
+import com.revio.server.features.auth.AuthCredential
+import com.revio.server.features.auth.AuthProvider
+import com.revio.server.features.auth.AuthService
+import com.revio.server.features.auth.CredentialCreationException
+import com.revio.server.features.auth.GoogleTokenVerifier
+import com.revio.server.features.auth.GoogleUser
+import com.revio.server.features.auth.IAuthDAO
+import com.revio.server.features.user.IUserService
+import com.revio.server.features.user.dto.UserDTO
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk

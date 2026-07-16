@@ -1,8 +1,8 @@
 package service
 
-import com.carspotter.features.car_model.CarModelService
-import com.carspotter.features.car_model.ICarModelDAO
-import com.carspotter.features.car_model.dto.CarModelOption
+import com.revio.server.features.car_model.CarModelService
+import com.revio.server.features.car_model.ICarModelDAO
+import com.revio.server.features.car_model.dto.CarModelOption
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk

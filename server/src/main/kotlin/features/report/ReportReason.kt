@@ -1,4 +1,4 @@
-package com.carspotter.features.report
+package com.revio.server.features.report
 
 import kotlinx.serialization.Serializable
 

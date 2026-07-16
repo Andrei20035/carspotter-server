@@ -1,4 +1,4 @@
-package com.carspotter.core.storage
+package com.revio.server.core.storage
 
 import java.net.URI
 import java.nio.file.Files

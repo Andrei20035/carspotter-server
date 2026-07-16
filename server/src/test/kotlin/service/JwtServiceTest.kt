@@ -2,12 +2,12 @@ package service
 
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
-import com.carspotter.features.auth.JwtService
-import com.carspotter.features.auth.session.AuthSession
-import com.carspotter.features.auth.session.ISessionService
-import com.carspotter.features.auth.session.SessionScope
-import com.carspotter.features.auth.session.SessionStatus
-import com.carspotter.features.auth.session.TokenResult
+import com.revio.server.features.auth.JwtService
+import com.revio.server.features.auth.session.AuthSession
+import com.revio.server.features.auth.session.ISessionService
+import com.revio.server.features.auth.session.SessionScope
+import com.revio.server.features.auth.session.SessionStatus
+import com.revio.server.features.auth.session.TokenResult
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk

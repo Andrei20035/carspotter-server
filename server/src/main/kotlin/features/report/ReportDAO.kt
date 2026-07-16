@@ -1,8 +1,8 @@
 package features.report
 
-import com.carspotter.features.report.ReportReason
-import com.carspotter.features.report.ReportStatus
-import com.carspotter.features.report.ReportTable
+import com.revio.server.features.report.ReportReason
+import com.revio.server.features.report.ReportStatus
+import com.revio.server.features.report.ReportTable
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.util.UUID

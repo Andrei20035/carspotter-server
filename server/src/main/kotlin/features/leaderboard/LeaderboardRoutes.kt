@@ -1,6 +1,6 @@
-package com.carspotter.features.leaderboard
+package com.revio.server.features.leaderboard
 
-import com.carspotter.core.util.getUuidClaim
+import com.revio.server.core.util.getUuidClaim
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.auth.authenticate
 import io.ktor.server.response.respond

@@ -1,8 +1,8 @@
 package features.comment
 
-import com.carspotter.core.util.getUuidClaim
-import com.carspotter.core.util.toUuidOrNull
-import com.carspotter.features.comment.dto.CommentRequest
+import com.revio.server.core.util.getUuidClaim
+import com.revio.server.core.util.toUuidOrNull
+import com.revio.server.features.comment.dto.CommentRequest
 import io.ktor.http.*
 import io.ktor.server.auth.*
 import io.ktor.server.request.*

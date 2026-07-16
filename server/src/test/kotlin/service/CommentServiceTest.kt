@@ -1,10 +1,10 @@
 package service
 
-import com.carspotter.core.storage.LocalImageStorageService
-import com.carspotter.features.post.IPostDAO
-import com.carspotter.features.post.PostOwnerInfo
-import com.carspotter.features.post.PostSource
-import com.carspotter.features.scoring.IScoringService
+import com.revio.server.core.storage.LocalImageStorageService
+import com.revio.server.features.post.IPostDAO
+import com.revio.server.features.post.PostOwnerInfo
+import com.revio.server.features.post.PostSource
+import com.revio.server.features.scoring.IScoringService
 import features.comment.Comment
 import features.comment.ICommentDAO
 import features.comment.CommentForbiddenException

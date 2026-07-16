@@ -1,19 +1,19 @@
 package service
 
-import com.carspotter.features.auth.RefreshTokenGenerator
-import com.carspotter.features.auth.session.AuthSession
-import com.carspotter.features.auth.session.AuthSessionDAO
-import com.carspotter.features.auth.session.IAuthSessionDAO
-import com.carspotter.features.auth.session.NewAuthSession
-import com.carspotter.features.auth.session.RefreshTokenConsumedException
-import com.carspotter.features.auth.session.RefreshTokenExpiredException
-import com.carspotter.features.auth.session.RefreshTokenInvalidException
-import com.carspotter.features.auth.session.RefreshTokenReusedException
-import com.carspotter.features.auth.session.RevokeReason
-import com.carspotter.features.auth.session.SessionRevokedException
-import com.carspotter.features.auth.session.SessionScope
-import com.carspotter.features.auth.session.SessionService
-import com.carspotter.features.auth.session.SessionStatus
+import com.revio.server.features.auth.RefreshTokenGenerator
+import com.revio.server.features.auth.session.AuthSession
+import com.revio.server.features.auth.session.AuthSessionDAO
+import com.revio.server.features.auth.session.IAuthSessionDAO
+import com.revio.server.features.auth.session.NewAuthSession
+import com.revio.server.features.auth.session.RefreshTokenConsumedException
+import com.revio.server.features.auth.session.RefreshTokenExpiredException
+import com.revio.server.features.auth.session.RefreshTokenInvalidException
+import com.revio.server.features.auth.session.RefreshTokenReusedException
+import com.revio.server.features.auth.session.RevokeReason
+import com.revio.server.features.auth.session.SessionRevokedException
+import com.revio.server.features.auth.session.SessionScope
+import com.revio.server.features.auth.session.SessionService
+import com.revio.server.features.auth.session.SessionStatus
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -149,7 +149,7 @@ class SessionServiceTest {
 
     @Test
     fun `concurrent createSession calls leave exactly one ACTIVE session`() {
-        val authDao = com.carspotter.features.auth.AuthDAO()
+        val authDao = com.revio.server.features.auth.AuthDAO()
         val credentialId = runBlocking {
             authDao.createCredentials(
                 TestDataFactory.regularCredential(email = "concurrent-${UUID.randomUUID()}@test.com")
@@ -320,7 +320,7 @@ class SessionServiceTest {
             dao.rotateForPasswordChangeAtomically(any(), any(), any(), any())
         } returns null
 
-        assertThrows(com.carspotter.features.auth.session.SessionNotFoundException::class.java) {
+        assertThrows(com.revio.server.features.auth.session.SessionNotFoundException::class.java) {
             runBlocking { newService(dao).rotateForPasswordChange(UUID.randomUUID()) }
         }
     }
@@ -331,7 +331,7 @@ class SessionServiceTest {
         email: String = "alice@example.com",
         hash: String = "a".repeat(64),
     ): Pair<UUID, AuthSession> {
-        val authDao = com.carspotter.features.auth.AuthDAO()
+        val authDao = com.revio.server.features.auth.AuthDAO()
         val cred = TestDataFactory.regularCredential(email = email)
         val credId = authDao.createCredentials(cred)
         val session = authSessionDao.createSession(
@@ -367,7 +367,7 @@ class SessionServiceTest {
     fun `refreshTokens throws RefreshTokenExpiredException when idle TTL exceeded`() = runTest {
         val rawToken = "raw-token-expired-" + UUID.randomUUID()
         val hash = generator.hashOf(rawToken)
-        val authDao = com.carspotter.features.auth.AuthDAO()
+        val authDao = com.revio.server.features.auth.AuthDAO()
         val cred = TestDataFactory.regularCredential(email = "expired-${UUID.randomUUID()}@test.com")
         val credId = authDao.createCredentials(cred)
         authSessionDao.createSession(
@@ -411,7 +411,7 @@ class SessionServiceTest {
         service.refreshTokens(rawToken)
 
         // Manually backdate prevRotatedAt past the grace window
-        val table = com.carspotter.features.auth.session.AuthSessionTable
+        val table = com.revio.server.features.auth.session.AuthSessionTable
         transaction {
             table.update({ table.id eq session.id }) {
                 it[table.prevRotatedAt] =

@@ -1,8 +1,8 @@
-package com.carspotter.config
+package com.revio.server.config
 
-import com.carspotter.core.error.AuthApiError
-import com.carspotter.core.error.AuthApiException
-import com.carspotter.core.error.AuthErrorResponse
+import com.revio.server.core.error.AuthApiError
+import com.revio.server.core.error.AuthApiException
+import com.revio.server.core.error.AuthErrorResponse
 import io.ktor.server.application.Application
 import io.ktor.server.application.call
 import io.ktor.server.application.install

@@ -1,11 +1,11 @@
 package service
 
-import com.carspotter.core.storage.IStorageService
-import com.carspotter.features.leaderboard.ILeaderboardDAO
-import com.carspotter.features.leaderboard.ILeaderboardSnapshotDAO
-import com.carspotter.features.leaderboard.LeaderboardService
-import com.carspotter.features.leaderboard.RawLeaderboardEntry
-import com.carspotter.features.leaderboard.UserScoreStreak
+import com.revio.server.core.storage.IStorageService
+import com.revio.server.features.leaderboard.ILeaderboardDAO
+import com.revio.server.features.leaderboard.ILeaderboardSnapshotDAO
+import com.revio.server.features.leaderboard.LeaderboardService
+import com.revio.server.features.leaderboard.RawLeaderboardEntry
+import com.revio.server.features.leaderboard.UserScoreStreak
 import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest

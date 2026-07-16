@@ -1,8 +1,8 @@
 package dao
 
-import com.carspotter.features.post.PostDAO
-import com.carspotter.features.post.PostTable
-import com.carspotter.features.user.UserDao
+import com.revio.server.features.post.PostDAO
+import com.revio.server.features.post.PostTable
+import com.revio.server.features.user.UserDao
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.junit.jupiter.api.AfterAll

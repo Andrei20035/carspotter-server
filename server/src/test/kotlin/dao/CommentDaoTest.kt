@@ -1,8 +1,8 @@
 package dao
 
 import features.comment.CommentDAO
-import com.carspotter.features.comment.CommentTable
-import com.carspotter.features.post.PostTable
+import com.revio.server.features.comment.CommentTable
+import com.revio.server.features.post.PostTable
 import kotlinx.coroutines.test.runTest
 import org.jetbrains.exposed.exceptions.ExposedSQLException
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq

@@ -1,10 +1,10 @@
-package com.carspotter.features.scoring
+package com.revio.server.features.scoring
 
-import com.carspotter.core.util.resolveZone
-import com.carspotter.features.activity.ActivityEventType
-import com.carspotter.features.post.IPostDAO
-import com.carspotter.features.post.PostSource
-import com.carspotter.features.user.IUserDAO
+import com.revio.server.core.util.resolveZone
+import com.revio.server.features.activity.ActivityEventType
+import com.revio.server.features.post.IPostDAO
+import com.revio.server.features.post.PostSource
+import com.revio.server.features.user.IUserDAO
 import features.activity.ActivityDAO
 import features.activity.IActivityDAO
 import java.time.Instant

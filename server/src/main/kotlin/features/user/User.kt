@@ -1,4 +1,4 @@
-package com.carspotter.features.user
+package com.revio.server.features.user
 
 import java.time.Instant
 import java.time.LocalDate

@@ -1,12 +1,12 @@
-package com.carspotter.features.activity
+package com.revio.server.features.activity
 
-import com.carspotter.core.storage.IStorageService
-import com.carspotter.core.util.resolveZone
-import com.carspotter.features.activity.dto.ActivityItemDTO
-import com.carspotter.features.activity.dto.ActivityResponseDTO
-import com.carspotter.features.leaderboard.ILeaderboardDAO
-import com.carspotter.features.leaderboard.ILeaderboardSnapshotDAO
-import com.carspotter.features.post.IPostDAO
+import com.revio.server.core.storage.IStorageService
+import com.revio.server.core.util.resolveZone
+import com.revio.server.features.activity.dto.ActivityItemDTO
+import com.revio.server.features.activity.dto.ActivityResponseDTO
+import com.revio.server.features.leaderboard.ILeaderboardDAO
+import com.revio.server.features.leaderboard.ILeaderboardSnapshotDAO
+import com.revio.server.features.post.IPostDAO
 import features.activity.ActivityEventRow
 import features.activity.CommentActivityRow
 import features.activity.IActivityDAO

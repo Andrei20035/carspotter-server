@@ -1,6 +1,6 @@
 package testutils
 
-import com.carspotter.features.car_model.CarModelTable
+import com.revio.server.features.car_model.CarModelTable
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.util.UUID

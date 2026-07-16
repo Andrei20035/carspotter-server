@@ -1,6 +1,6 @@
-package com.carspotter.features.leaderboard
+package com.revio.server.features.leaderboard
 
-import com.carspotter.core.util.resolveZone
+import com.revio.server.core.util.resolveZone
 import java.time.Instant
 import java.time.LocalDate
 

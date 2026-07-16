@@ -1,6 +1,6 @@
 package service
 
-import com.carspotter.features.auth.RefreshTokenGenerator
+import com.revio.server.features.auth.RefreshTokenGenerator
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 

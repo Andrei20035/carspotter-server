@@ -1,7 +1,7 @@
-package com.carspotter.features.auth.session
+package com.revio.server.features.auth.session
 
-import com.carspotter.features.auth.AuthTable
-import com.carspotter.features.user.UserTable
+import com.revio.server.features.auth.AuthTable
+import com.revio.server.features.user.UserTable
 import org.jetbrains.exposed.dao.id.UUIDTable
 import org.jetbrains.exposed.sql.ReferenceOption
 import org.jetbrains.exposed.sql.javatime.CurrentTimestampWithTimeZone

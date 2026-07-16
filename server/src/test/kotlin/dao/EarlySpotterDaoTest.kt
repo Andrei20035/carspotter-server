@@ -1,7 +1,7 @@
 package dao
 
-import com.carspotter.features.user.UserDao
-import com.carspotter.features.user.UserTable
+import com.revio.server.features.user.UserDao
+import com.revio.server.features.user.UserTable
 import kotlinx.coroutines.Dispatchers
 import org.jetbrains.exposed.sql.selectAll
 import kotlinx.coroutines.async

@@ -1,6 +1,6 @@
 package dao
 
-import com.carspotter.features.activity.ActivityEventType
+import com.revio.server.features.activity.ActivityEventType
 import features.activity.ActivityDAO
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.AfterAll

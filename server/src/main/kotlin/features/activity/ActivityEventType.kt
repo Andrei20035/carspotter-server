@@ -1,4 +1,4 @@
-package com.carspotter.features.activity
+package com.revio.server.features.activity
 
 /** Milestone-type activity events, persisted at most once per (user, day). */
 enum class ActivityEventType {

@@ -1,9 +1,9 @@
 package dao
 
-import com.carspotter.features.post.PostSource
-import com.carspotter.features.post.PostTable
-import com.carspotter.features.scoring.ScoringDaoImpl
-import com.carspotter.features.user.UserTable
+import com.revio.server.features.post.PostSource
+import com.revio.server.features.post.PostTable
+import com.revio.server.features.scoring.ScoringDaoImpl
+import com.revio.server.features.user.UserTable
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq

@@ -1,7 +1,7 @@
-package com.carspotter.features.friend
+package com.revio.server.features.friend
 
-import com.carspotter.core.util.getUuidClaim
-import com.carspotter.core.util.toUuidOrNull
+import com.revio.server.core.util.getUuidClaim
+import com.revio.server.core.util.toUuidOrNull
 import io.ktor.http.*
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*

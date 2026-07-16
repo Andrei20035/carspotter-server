@@ -1,7 +1,7 @@
-package com.carspotter.routes
+package com.revio.server.routes
 
-import com.carspotter.features.auth.JwtService
-import com.carspotter.features.user_car.dto.UserCarDTO
+import com.revio.server.features.auth.JwtService
+import com.revio.server.features.user_car.dto.UserCarDTO
 import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.bearerAuth

@@ -1,6 +1,6 @@
 package testutils
 
-import com.carspotter.features.like.LikeTable
+import com.revio.server.features.like.LikeTable
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll

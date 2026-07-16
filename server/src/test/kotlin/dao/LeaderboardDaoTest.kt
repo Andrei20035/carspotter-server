@@ -1,7 +1,7 @@
 package dao
 
-import com.carspotter.features.leaderboard.LeaderboardDAO
-import com.carspotter.features.user.UserTable
+import com.revio.server.features.leaderboard.LeaderboardDAO
+import com.revio.server.features.user.UserTable
 import kotlinx.coroutines.test.runTest
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.update

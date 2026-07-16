@@ -1,4 +1,4 @@
-package com.carspotter.features.auth.session
+package com.revio.server.features.auth.session
 
 import java.util.UUID
 

@@ -1,7 +1,7 @@
-package com.carspotter.features.user
+package com.revio.server.features.user
 
-import com.carspotter.features.auth.AuthTable
-import com.carspotter.features.post.PostTable
+import com.revio.server.features.auth.AuthTable
+import com.revio.server.features.post.PostTable
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.neq

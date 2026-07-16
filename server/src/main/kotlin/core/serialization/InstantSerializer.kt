@@ -1,4 +1,4 @@
-package com.carspotter.core.serialization
+package com.revio.server.core.serialization
 
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.descriptors.PrimitiveKind

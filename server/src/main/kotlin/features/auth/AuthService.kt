@@ -1,9 +1,9 @@
-package com.carspotter.features.auth
+package com.revio.server.features.auth
 
 import at.favre.lib.crypto.bcrypt.BCrypt
-import com.carspotter.features.auth.dto.AuthDTO
-import com.carspotter.features.auth.dto.toDTO
-import com.carspotter.features.user.IUserService
+import com.revio.server.features.auth.dto.AuthDTO
+import com.revio.server.features.auth.dto.toDTO
+import com.revio.server.features.user.IUserService
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier
 import com.google.api.client.http.javanet.NetHttpTransport

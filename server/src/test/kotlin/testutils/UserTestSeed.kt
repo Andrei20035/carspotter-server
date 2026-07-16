@@ -1,9 +1,9 @@
 package testutils
 
 import at.favre.lib.crypto.bcrypt.BCrypt
-import com.carspotter.features.auth.AuthTable
-import com.carspotter.features.user.User
-import com.carspotter.features.user.UserTable
+import com.revio.server.features.auth.AuthTable
+import com.revio.server.features.user.User
+import com.revio.server.features.user.UserTable
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.time.LocalDate

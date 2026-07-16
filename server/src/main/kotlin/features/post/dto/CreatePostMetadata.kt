@@ -1,6 +1,6 @@
-package com.carspotter.features.post.dto
+package com.revio.server.features.post.dto
 
-import com.carspotter.core.serialization.UUIDSerializer
+import com.revio.server.core.serialization.UUIDSerializer
 import kotlinx.serialization.Serializable
 import java.util.UUID
 

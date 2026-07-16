@@ -1,6 +1,6 @@
-package com.carspotter.features.post.dto
+package com.revio.server.features.post.dto
 
-import com.carspotter.features.post.PostSource
+import com.revio.server.features.post.PostSource
 import java.util.UUID
 
 class PersistPostDTO(

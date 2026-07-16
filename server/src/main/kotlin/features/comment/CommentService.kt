@@ -1,10 +1,10 @@
 package features.comment
 
-import com.carspotter.core.storage.IStorageService
-import com.carspotter.features.comment.dto.CommentDTO
-import com.carspotter.features.comment.dto.toDTO
-import com.carspotter.features.post.IPostDAO
-import com.carspotter.features.scoring.IScoringService
+import com.revio.server.core.storage.IStorageService
+import com.revio.server.features.comment.dto.CommentDTO
+import com.revio.server.features.comment.dto.toDTO
+import com.revio.server.features.post.IPostDAO
+import com.revio.server.features.scoring.IScoringService
 import org.jetbrains.exposed.exceptions.ExposedSQLException
 import java.util.UUID
 

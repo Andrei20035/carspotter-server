@@ -1,10 +1,10 @@
-package com.carspotter.features.leaderboard
+package com.revio.server.features.leaderboard
 
-import com.carspotter.core.storage.IStorageService
-import com.carspotter.core.util.resolveZone
-import com.carspotter.features.leaderboard.dto.CurrentUserStandingDTO
-import com.carspotter.features.leaderboard.dto.LeaderboardEntryDTO
-import com.carspotter.features.leaderboard.dto.LeaderboardResponseDTO
+import com.revio.server.core.storage.IStorageService
+import com.revio.server.core.util.resolveZone
+import com.revio.server.features.leaderboard.dto.CurrentUserStandingDTO
+import com.revio.server.features.leaderboard.dto.LeaderboardEntryDTO
+import com.revio.server.features.leaderboard.dto.LeaderboardResponseDTO
 import java.time.Instant
 import java.util.UUID
 

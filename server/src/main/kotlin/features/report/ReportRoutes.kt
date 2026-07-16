@@ -1,8 +1,8 @@
 package features.report
 
-import com.carspotter.core.util.getUuidClaim
-import com.carspotter.core.util.toUuidOrNull
-import com.carspotter.features.report.dto.ReportRequestDTO
+import com.revio.server.core.util.getUuidClaim
+import com.revio.server.core.util.toUuidOrNull
+import com.revio.server.features.report.dto.ReportRequestDTO
 import io.ktor.server.plugins.*
 import io.ktor.http.*
 import io.ktor.server.auth.*

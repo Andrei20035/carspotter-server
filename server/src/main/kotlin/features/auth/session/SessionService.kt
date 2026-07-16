@@ -1,6 +1,6 @@
-package com.carspotter.features.auth.session
+package com.revio.server.features.auth.session
 
-import com.carspotter.features.auth.RefreshTokenGenerator
+import com.revio.server.features.auth.RefreshTokenGenerator
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID

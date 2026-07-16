@@ -1,9 +1,9 @@
-package com.carspotter.features.auth
+package com.revio.server.features.auth
 
-import com.carspotter.features.auth.session.AuthSessionDAO
-import com.carspotter.features.auth.session.IAuthSessionDAO
-import com.carspotter.features.auth.session.ISessionService
-import com.carspotter.features.auth.session.SessionService
+import com.revio.server.features.auth.session.AuthSessionDAO
+import com.revio.server.features.auth.session.IAuthSessionDAO
+import com.revio.server.features.auth.session.ISessionService
+import com.revio.server.features.auth.session.SessionService
 import org.koin.dsl.module
 
 val authModule = module {

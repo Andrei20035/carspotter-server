@@ -1,4 +1,4 @@
-package com.carspotter.features.user
+package com.revio.server.features.user
 
 import org.koin.dsl.module
 

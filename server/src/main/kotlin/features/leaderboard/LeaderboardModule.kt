@@ -1,4 +1,4 @@
-package com.carspotter.features.leaderboard
+package com.revio.server.features.leaderboard
 
 import org.koin.dsl.module
 

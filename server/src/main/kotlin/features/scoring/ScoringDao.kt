@@ -1,7 +1,7 @@
-package com.carspotter.features.scoring
+package com.revio.server.features.scoring
 
-import com.carspotter.features.post.PostTable
-import com.carspotter.features.user.UserTable
+import com.revio.server.features.post.PostTable
+import com.revio.server.features.user.UserTable
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.select

@@ -1,12 +1,12 @@
 package dao
 
-import com.carspotter.features.auth.AuthDAO
-import com.carspotter.features.auth.AuthTable
-import com.carspotter.features.auth.session.AuthSessionDAO
-import com.carspotter.features.auth.session.NewAuthSession
-import com.carspotter.features.auth.session.RevokeReason
-import com.carspotter.features.auth.session.SessionScope
-import com.carspotter.features.auth.session.SessionStatus
+import com.revio.server.features.auth.AuthDAO
+import com.revio.server.features.auth.AuthTable
+import com.revio.server.features.auth.session.AuthSessionDAO
+import com.revio.server.features.auth.session.NewAuthSession
+import com.revio.server.features.auth.session.RevokeReason
+import com.revio.server.features.auth.session.SessionScope
+import com.revio.server.features.auth.session.SessionStatus
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq

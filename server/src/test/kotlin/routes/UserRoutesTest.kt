@@ -1,17 +1,17 @@
-package com.carspotter.routes
+package com.revio.server.routes
 
-import com.carspotter.features.auth.JwtService
-import com.carspotter.features.auth.RefreshTokenGenerator
-import com.carspotter.features.auth.session.AuthSessionDAO
-import com.carspotter.features.auth.session.SessionScope
-import com.carspotter.features.auth.session.SessionService
-import com.carspotter.features.user.UserDao
-import com.carspotter.features.user.dto.CreateUserRequest
-import com.carspotter.features.user.dto.CreateUserResponse
-import com.carspotter.features.user.dto.SelfUserDTO
-import com.carspotter.features.user.dto.UpdateProfilePictureRequest
-import com.carspotter.features.user.dto.UpdateUserRequest
-import com.carspotter.features.user.dto.UserDTO
+import com.revio.server.features.auth.JwtService
+import com.revio.server.features.auth.RefreshTokenGenerator
+import com.revio.server.features.auth.session.AuthSessionDAO
+import com.revio.server.features.auth.session.SessionScope
+import com.revio.server.features.auth.session.SessionService
+import com.revio.server.features.user.UserDao
+import com.revio.server.features.user.dto.CreateUserRequest
+import com.revio.server.features.user.dto.CreateUserResponse
+import com.revio.server.features.user.dto.SelfUserDTO
+import com.revio.server.features.user.dto.UpdateProfilePictureRequest
+import com.revio.server.features.user.dto.UpdateUserRequest
+import com.revio.server.features.user.dto.UserDTO
 import io.ktor.client.call.body
 import io.ktor.client.statement.bodyAsText
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -31,6 +31,9 @@ import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.testing.*
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -650,5 +653,204 @@ class UserRoutesTest {
         }
 
         assertEquals(HttpStatusCode.NotFound, response.status)
+    }
+
+    // --- PATCH /users/me: 403 restriction codes ---
+
+    private suspend fun assertForbiddenChangeError(response: io.ktor.client.statement.HttpResponse, expectedCode: String) {
+        assertEquals(HttpStatusCode.Forbidden, response.status)
+        val error = Json.parseToJsonElement(response.bodyAsText()).jsonObject["error"]!!.jsonObject
+        assertEquals(expectedCode, error["code"]!!.jsonPrimitive.content)
+        assertTrue(error["message"]!!.jsonPrimitive.content.isNotBlank())
+    }
+
+    @Test
+    fun `PATCH users me returns 403 FULL_NAME_ALREADY_CHANGED with structured error body`() = userTest { client ->
+        val credential = UserTestSeed.seedAuthCredential("fullname403@example.com")
+        val userId = UserTestSeed.seedUser(credential.authCredentialId, username = "fullname403")
+        UserDao().updateUserProfile(userId, fullName = "Already Changed")
+        val token = profileToken(credential.authCredentialId, userId, credential.email)
+
+        val response = client.patch("/api/users/me") {
+            bearerAuth(token)
+            contentType(ContentType.Application.Json)
+            setBody(UpdateUserRequest(fullName = "Another Name"))
+        }
+
+        assertForbiddenChangeError(response, "FULL_NAME_ALREADY_CHANGED")
+    }
+
+    @Test
+    fun `PATCH users me returns 403 COUNTRY_ALREADY_CHANGED with structured error body`() = userTest { client ->
+        val credential = UserTestSeed.seedAuthCredential("country403@example.com")
+        val userId = UserTestSeed.seedUser(credential.authCredentialId, username = "country403")
+        UserDao().updateUserProfile(userId, country = "US")
+        val token = profileToken(credential.authCredentialId, userId, credential.email)
+
+        val response = client.patch("/api/users/me") {
+            bearerAuth(token)
+            contentType(ContentType.Application.Json)
+            setBody(UpdateUserRequest(country = "FR"))
+        }
+
+        assertForbiddenChangeError(response, "COUNTRY_ALREADY_CHANGED")
+    }
+
+    @Test
+    fun `PATCH users me returns 403 BIRTH_DATE_ALREADY_CHANGED with structured error body`() = userTest { client ->
+        val credential = UserTestSeed.seedAuthCredential("birthdate403@example.com")
+        val userId = UserTestSeed.seedUser(credential.authCredentialId, username = "birthdate403")
+        UserDao().updateUserProfile(userId, birthDate = java.time.LocalDate.of(1990, 1, 1))
+        val token = profileToken(credential.authCredentialId, userId, credential.email)
+
+        val response = client.patch("/api/users/me") {
+            bearerAuth(token)
+            contentType(ContentType.Application.Json)
+            setBody(UpdateUserRequest(birthDate = java.time.LocalDate.of(1991, 2, 2)))
+        }
+
+        assertForbiddenChangeError(response, "BIRTH_DATE_ALREADY_CHANGED")
+    }
+
+    @Test
+    fun `PATCH users me returns 403 USERNAME_CHANGE_TOO_SOON with structured error body`() = userTest { client ->
+        val credential = UserTestSeed.seedAuthCredential("username403@example.com")
+        val userId = UserTestSeed.seedUser(credential.authCredentialId, username = "username403")
+        UserDao().updateUserProfile(userId, username = "username403changed")
+        val token = profileToken(credential.authCredentialId, userId, credential.email)
+
+        val response = client.patch("/api/users/me") {
+            bearerAuth(token)
+            contentType(ContentType.Application.Json)
+            setBody(UpdateUserRequest(username = "username403again"))
+        }
+
+        assertForbiddenChangeError(response, "USERNAME_CHANGE_TOO_SOON")
+    }
+
+    @Test
+    fun `PATCH users me returns 403 PHONE_NUMBER_CHANGE_TOO_SOON with structured error body`() = userTest { client ->
+        val credential = UserTestSeed.seedAuthCredential("phone403@example.com")
+        val userId = UserTestSeed.seedUser(credential.authCredentialId, username = "phone403")
+        UserDao().updateUserProfile(userId, phoneNumber = "+40700000020")
+        val token = profileToken(credential.authCredentialId, userId, credential.email)
+
+        val response = client.patch("/api/users/me") {
+            bearerAuth(token)
+            contentType(ContentType.Application.Json)
+            setBody(UpdateUserRequest(phoneNumber = "+40700000021"))
+        }
+
+        assertForbiddenChangeError(response, "PHONE_NUMBER_CHANGE_TOO_SOON")
+    }
+
+    // --- SelfUserDTO eligibility fields ---
+
+    @Test
+    fun `GET users me returns canChange true and null next-change timestamps for a fresh user`() = userTest { client ->
+        val credential = UserTestSeed.seedAuthCredential("fresheligibility@example.com")
+        val userId = UserTestSeed.seedUser(credential.authCredentialId, username = "fresheligibility")
+        val token = profileToken(credential.authCredentialId, userId, credential.email)
+
+        val response = client.get("/api/users/me") { bearerAuth(token) }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body: SelfUserDTO = response.body()
+        assertTrue(body.canChangeFullName)
+        assertTrue(body.canChangeCountry)
+        assertTrue(body.canChangeBirthDate)
+        assertTrue(body.canChangeUsername)
+        assertTrue(body.canChangePhoneNumber)
+        assertNull(body.nextUsernameChangeAt)
+        assertNull(body.nextPhoneNumberChangeAt)
+    }
+
+    @Test
+    fun `GET users me returns canChange false and a future next-change timestamp after a recent username change`() = userTest { client ->
+        val credential = UserTestSeed.seedAuthCredential("lockedeligibility@example.com")
+        val userId = UserTestSeed.seedUser(credential.authCredentialId, username = "lockedeligibility")
+        UserDao().updateUserProfile(userId, fullName = "Locked Name", username = "lockedeligibility2")
+        val token = profileToken(credential.authCredentialId, userId, credential.email)
+
+        val response = client.get("/api/users/me") { bearerAuth(token) }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body: SelfUserDTO = response.body()
+        assertEquals(false, body.canChangeFullName)
+        assertEquals(false, body.canChangeUsername)
+        assertNotNull(body.nextUsernameChangeAt)
+        assertTrue(body.nextUsernameChangeAt!!.isAfter(java.time.Instant.now()))
+    }
+
+    // --- GET /users/username-available ---
+
+    @Test
+    fun `GET users username-available returns available true for a free username`() = userTest { client ->
+        val credential = UserTestSeed.seedAuthCredential("checkfree@example.com")
+        val userId = UserTestSeed.seedUser(credential.authCredentialId, username = "checkfree")
+        val token = profileToken(credential.authCredentialId, userId, credential.email)
+
+        val response = client.get("/api/users/username-available?username=brandnewname") {
+            bearerAuth(token)
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body = Json.parseToJsonElement(response.bodyAsText()).jsonObject
+        assertEquals(true, body["available"]!!.jsonPrimitive.boolean)
+        assertEquals("brandnewname", body["normalized"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `GET users username-available returns available false with TAKEN reason for a taken username`() = userTest { client ->
+        UserTestSeed.seedUser(UserTestSeed.seedAuthCredential("owner@example.com").authCredentialId, username = "ownedname")
+        val credential = UserTestSeed.seedAuthCredential("checker@example.com")
+        val userId = UserTestSeed.seedUser(credential.authCredentialId, username = "checker")
+        val token = profileToken(credential.authCredentialId, userId, credential.email)
+
+        val response = client.get("/api/users/username-available?username=OwnedName") {
+            bearerAuth(token)
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body = Json.parseToJsonElement(response.bodyAsText()).jsonObject
+        assertEquals(false, body["available"]!!.jsonPrimitive.boolean)
+        assertEquals("TAKEN", body["reason"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `GET users username-available returns available false with INVALID_FORMAT reason for disallowed characters`() = userTest { client ->
+        val credential = UserTestSeed.seedAuthCredential("checkerinvalid@example.com")
+        val userId = UserTestSeed.seedUser(credential.authCredentialId, username = "checkerinvalid")
+        val token = profileToken(credential.authCredentialId, userId, credential.email)
+
+        val response = client.get("/api/users/username-available?username=bad-name") {
+            bearerAuth(token)
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body = Json.parseToJsonElement(response.bodyAsText()).jsonObject
+        assertEquals(false, body["available"]!!.jsonPrimitive.boolean)
+        assertEquals("INVALID_FORMAT", body["reason"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `GET users username-available returns available true for the caller's own current username`() = userTest { client ->
+        val credential = UserTestSeed.seedAuthCredential("checkerself@example.com")
+        val userId = UserTestSeed.seedUser(credential.authCredentialId, username = "checkerself")
+        val token = profileToken(credential.authCredentialId, userId, credential.email)
+
+        val response = client.get("/api/users/username-available?username=CheckerSelf") {
+            bearerAuth(token)
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body = Json.parseToJsonElement(response.bodyAsText()).jsonObject
+        assertEquals(true, body["available"]!!.jsonPrimitive.boolean)
+    }
+
+    @Test
+    fun `GET users username-available returns 401 without JWT`() = userTest { client ->
+        val response = client.get("/api/users/username-available?username=anything")
+        assertEquals(HttpStatusCode.Unauthorized, response.status)
     }
 }

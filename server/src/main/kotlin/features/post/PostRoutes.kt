@@ -1,15 +1,15 @@
-package com.carspotter.features.post
+package com.revio.server.features.post
 
-import com.carspotter.core.error.AuthErrorCode
-import com.carspotter.core.error.AuthApiError
-import com.carspotter.core.error.AuthErrorResponse
-import com.carspotter.core.util.getUuidClaim
-import com.carspotter.core.util.toUuidOrNull
-import com.carspotter.features.auth.JwtService
-import com.carspotter.features.auth.session.ISessionService
-import com.carspotter.features.auth.session.TokenResult
-import com.carspotter.features.post.dto.CreatePostDTO
-import com.carspotter.features.post.dto.CreatePostMetadata
+import com.revio.server.core.error.AuthErrorCode
+import com.revio.server.core.error.AuthApiError
+import com.revio.server.core.error.AuthErrorResponse
+import com.revio.server.core.util.getUuidClaim
+import com.revio.server.core.util.toUuidOrNull
+import com.revio.server.features.auth.JwtService
+import com.revio.server.features.auth.session.ISessionService
+import com.revio.server.features.auth.session.TokenResult
+import com.revio.server.features.post.dto.CreatePostDTO
+import com.revio.server.features.post.dto.CreatePostMetadata
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.PartData

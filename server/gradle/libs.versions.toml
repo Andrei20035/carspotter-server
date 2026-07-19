@@ -17,7 +17,7 @@ mockk = "1.14.2"
 flyway = "11.9.1"
 api-client = "2.8.0"
 oauth-client = "1.39.0"
-amazon-s3 = "2.31.73"
+r2-sdk = "2.47.5"
 
 [libraries]
 ktor-server-host-common = { module = "io.ktor:ktor-server-host-common", version.ref = "ktor" }
@@ -65,6 +65,7 @@ koin-test-junit5 = { module = "io.insert-koin:koin-test-junit5", version.ref = "
 testcontainers-core = { module = "org.testcontainers:testcontainers", version.ref = "testcontainers" }
 testcontainers-junit = { module = "org.testcontainers:junit-jupiter", version.ref = "testcontainers" }
 testcontainers-postgresql = { module = "org.testcontainers:postgresql", version.ref = "testcontainers" }
+testcontainers-minio = { module = "org.testcontainers:minio", version.ref = "testcontainers" }
 
 junit-api = { module = "org.junit.jupiter:junit-jupiter-api", version.ref = "junit" }
 junit-engine = { module = "org.junit.jupiter:junit-jupiter-engine", version.ref = "junit" }
@@ -78,7 +79,7 @@ flyway-database-postgres = { module = "org.flywaydb:flyway-database-postgresql",
 google-api-client = {module = "com.google.api-client:google-api-client", version.ref = "api-client"}
 google-oauth-client = { module = "com.google.oauth-client:google-oauth-client", version.ref = "oauth-client"}
 
-aws-sdk = { module = "software.amazon.awssdk:s3", version.ref = "amazon-s3"}
+r2-storage = { module = "software.amazon.awssdk:s3", version.ref = "r2-sdk"}
 
 
 [plugins]

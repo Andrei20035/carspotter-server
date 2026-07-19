@@ -185,7 +185,7 @@ fun Application.testCarModelModule() {
  * Modul Ktor pentru testele rutei /posts/{postId}/comments și /comments/{id}.
  * Folosește același config JWT ca testele de auth.
  */
-fun Application.testCommentModule() {
+fun Application.testCommentModule(storage: IStorageService? = null) {
     val uploadsDir = Files.createTempDirectory("comment-route-test-uploads")
     val koinTestModule = module {
         single<ICommentDAO> { CommentDAO() }
@@ -194,7 +194,7 @@ fun Application.testCommentModule() {
         single<IAuthSessionDAO> { AuthSessionDAO() }
         single { RefreshTokenGenerator() }
         single<ISessionService> { SessionService(get(), get()) }
-        single<IStorageService> { LocalImageStorageService(uploadsDir, "http://localhost:8080") }
+        single<IStorageService> { storage ?: LocalImageStorageService(uploadsDir, "http://localhost:8080") }
         single<IScoringDao> { ScoringDaoImpl() }
         single<IScoringService> { ScoringServiceImpl(get(), get(), get()) }
         single<ICommentService> { CommentService(get(), get(), get(), get()) }
@@ -293,7 +293,7 @@ fun Application.testReportModule() {
     }
 }
 
-fun Application.testPostModule() {
+fun Application.testPostModule(storage: IStorageService? = null) {
     val uploadsDir = Files.createTempDirectory("posts-route-test-uploads")
     val koinTestModule = module {
         single<ICarModelDAO> { CarModelDAO() }
@@ -304,7 +304,7 @@ fun Application.testPostModule() {
         single<IAuthSessionDAO> { AuthSessionDAO() }
         single { RefreshTokenGenerator() }
         single<ISessionService> { SessionService(get(), get()) }
-        single<IStorageService> { LocalImageStorageService(uploadsDir, "http://localhost:8080") }
+        single<IStorageService> { storage ?: LocalImageStorageService(uploadsDir, "http://localhost:8080") }
         single<IScoringDao> { ScoringDaoImpl() }
         single<IScoringService> { ScoringServiceImpl(get(), get(), get()) }
         single<IPostService> { PostServiceImpl(get(), get(), get(), get(), get(), get(), get()) }
@@ -331,7 +331,7 @@ fun Application.testPostModule() {
     }
 }
 
-fun Application.testUserCarModule() {
+fun Application.testUserCarModule(storage: IStorageService? = null) {
     val uploadsDir = Files.createTempDirectory("user-car-route-test-uploads")
     val koinTestModule = module {
         single<ICarModelDAO> { CarModelDAO() }
@@ -339,7 +339,7 @@ fun Application.testUserCarModule() {
         single<IAuthSessionDAO> { AuthSessionDAO() }
         single { RefreshTokenGenerator() }
         single<ISessionService> { SessionService(get(), get()) }
-        single<IStorageService> { LocalImageStorageService(uploadsDir, "http://localhost:8080") }
+        single<IStorageService> { storage ?: LocalImageStorageService(uploadsDir, "http://localhost:8080") }
         single<IUserCarService> { UserCarServiceImpl(get(), get(), get()) }
         single {
             JwtService(
@@ -364,14 +364,14 @@ fun Application.testUserCarModule() {
     }
 }
 
-fun Application.testUserModule() {
+fun Application.testUserModule(storage: IStorageService? = null) {
     val uploadsDir = Files.createTempDirectory("user-route-test-uploads")
     val koinTestModule = module {
         single<IUserDAO> { UserDao() }
         single<IAuthSessionDAO> { AuthSessionDAO() }
         single { RefreshTokenGenerator() }
         single<ISessionService> { SessionService(get(), get()) }
-        single<IStorageService> { LocalImageStorageService(uploadsDir, "http://localhost:8080") }
+        single<IStorageService> { storage ?: LocalImageStorageService(uploadsDir, "http://localhost:8080") }
         single<IUserService> { UserService(get(), get()) }
         single {
             JwtService(
@@ -396,7 +396,7 @@ fun Application.testUserModule() {
     }
 }
 
-fun Application.testLeaderboardModule() {
+fun Application.testLeaderboardModule(storage: IStorageService? = null) {
     val uploadsDir = Files.createTempDirectory("leaderboard-route-test-uploads")
     val koinTestModule = module {
         single<ILeaderboardDAO> { LeaderboardDAO() }
@@ -404,7 +404,7 @@ fun Application.testLeaderboardModule() {
         single<IAuthSessionDAO> { AuthSessionDAO() }
         single { RefreshTokenGenerator() }
         single<ISessionService> { SessionService(get(), get()) }
-        single<IStorageService> { LocalImageStorageService(uploadsDir, "http://localhost:8080") }
+        single<IStorageService> { storage ?: LocalImageStorageService(uploadsDir, "http://localhost:8080") }
         single<ILeaderboardService> { LeaderboardService(get(), get(), get()) }
         single {
             JwtService(

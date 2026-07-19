@@ -23,7 +23,9 @@ fun Application.configureRouting() {
     routing {
         // Static resources
         staticResources("/static", "static")
-        staticFiles("/uploads", File(System.getenv("LOCAL_STORAGE_BASE_DIR") ?: "uploads"))
+        if ((System.getenv("STORAGE_PROVIDER") ?: "local") != "r2") {
+            staticFiles("/uploads", File(System.getenv("LOCAL_STORAGE_BASE_DIR") ?: "uploads"))
+        }
 
         // API routes
         route("/api") {

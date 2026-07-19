@@ -54,7 +54,7 @@ dependencies {
     implementation(libs.flyway.core)
     implementation(libs.flyway.database.postgres)
 
-    implementation(libs.aws.sdk)
+    implementation(libs.r2.storage)
 
     implementation(libs.exposed.core)
     implementation(libs.exposed.jdbc)
@@ -83,6 +83,7 @@ dependencies {
     testImplementation(libs.testcontainers.core)
     testImplementation(libs.testcontainers.junit)
     testImplementation(libs.testcontainers.postgresql)
+    testImplementation(libs.testcontainers.minio)
     testImplementation(libs.junit.api)
     testRuntimeOnly(libs.junit.engine)
     testImplementation(libs.mockk)

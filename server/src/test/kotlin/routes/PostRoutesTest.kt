@@ -10,6 +10,7 @@ import com.revio.server.core.error.AuthErrorCode
 import com.revio.server.core.error.AuthErrorResponse
 import com.revio.server.features.post.dto.FeedResponseDTO
 import com.revio.server.features.post.dto.PostDTO
+import com.revio.server.features.post.dto.UpdatePostRequest
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -17,6 +18,7 @@ import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
+import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentDisposition
@@ -24,6 +26,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.contentType
 import io.ktor.client.request.forms.MultiPartFormDataContent
 import io.ktor.client.request.forms.formData
 import io.ktor.serialization.kotlinx.json.json
@@ -570,5 +573,101 @@ class PostRoutesTest {
         }
 
         assertEquals(HttpStatusCode.NoContent, response.status)
+    }
+
+    @Test
+    fun `PATCH returns 401 without a token`() = postTest { client ->
+        val owner = CommentTestSeed.seedUser(username = "owner")
+        val post = CommentTestSeed.seedPost(owner.userId)
+
+        val response = client.patch("/api/posts/${post.postId}") {
+            contentType(ContentType.Application.Json)
+            setBody(UpdatePostRequest(customBrand = "Audi", customModel = "RS6"))
+        }
+
+        assertEquals(HttpStatusCode.Unauthorized, response.status)
+    }
+
+    @Test
+    fun `PATCH returns 403 when trying to edit another user's post`() = postTest { client ->
+        val owner = CommentTestSeed.seedUser(username = "owner")
+        val intruder = CommentTestSeed.seedUser(username = "intruder", email = "intruder@example.com")
+        val post = CommentTestSeed.seedPost(owner.userId)
+        val token = tokenFor(intruder.authId, intruder.userId, intruder.email)
+
+        val response = client.patch("/api/posts/${post.postId}") {
+            bearerAuth(token)
+            contentType(ContentType.Application.Json)
+            setBody(UpdatePostRequest(customBrand = "Audi", customModel = "RS6"))
+        }
+
+        assertEquals(HttpStatusCode.Forbidden, response.status)
+    }
+
+    @Test
+    fun `PATCH returns 404 when the post does not exist`() = postTest { client ->
+        val owner = CommentTestSeed.seedUser(username = "owner")
+        val token = tokenFor(owner.authId, owner.userId, owner.email)
+
+        val response = client.patch("/api/posts/${UUID.randomUUID()}") {
+            bearerAuth(token)
+            contentType(ContentType.Application.Json)
+            setBody(UpdatePostRequest(customBrand = "Audi", customModel = "RS6"))
+        }
+
+        assertEquals(HttpStatusCode.NotFound, response.status)
+    }
+
+    @Test
+    fun `PATCH returns 400 when caption exceeds max length`() = postTest { client ->
+        val owner = CommentTestSeed.seedUser(username = "owner")
+        val post = CommentTestSeed.seedPost(owner.userId)
+        val token = tokenFor(owner.authId, owner.userId, owner.email)
+
+        val response = client.patch("/api/posts/${post.postId}") {
+            bearerAuth(token)
+            contentType(ContentType.Application.Json)
+            setBody(
+                UpdatePostRequest(
+                    customBrand = "Audi",
+                    customModel = "RS6",
+                    caption = "a".repeat(1001),
+                )
+            )
+        }
+
+        assertEquals(HttpStatusCode.BadRequest, response.status)
+    }
+
+    @Test
+    fun `PATCH returns 200 for the post author and updates brand, model and caption`() = postTest { client ->
+        val owner = CommentTestSeed.seedUser(username = "owner")
+        val post = CommentTestSeed.seedPost(owner.userId, customBrand = "bmw", customModel = "m3")
+        val token = tokenFor(owner.authId, owner.userId, owner.email)
+
+        val response = client.patch("/api/posts/${post.postId}") {
+            bearerAuth(token)
+            contentType(ContentType.Application.Json)
+            setBody(
+                UpdatePostRequest(
+                    customBrand = "Audi",
+                    customModel = "RS6",
+                    caption = "updated caption",
+                )
+            )
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val updated = response.body<PostDTO>()
+        assertEquals("Audi", updated.brand)
+        assertEquals("RS6", updated.model)
+        assertEquals("updated caption", updated.caption)
+
+        val getResponse = client.get("/api/posts/${post.postId}")
+        assertEquals(HttpStatusCode.OK, getResponse.status)
+        val persisted = getResponse.body<PostDTO>()
+        assertEquals("Audi", persisted.brand)
+        assertEquals("RS6", persisted.model)
+        assertEquals("updated caption", persisted.caption)
     }
 }

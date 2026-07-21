@@ -10,6 +10,7 @@ import com.revio.server.features.auth.session.ISessionService
 import com.revio.server.features.auth.session.TokenResult
 import com.revio.server.features.post.dto.CreatePostDTO
 import com.revio.server.features.post.dto.CreatePostMetadata
+import com.revio.server.features.post.dto.UpdatePostRequest
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.PartData
@@ -18,6 +19,7 @@ import io.ktor.http.content.streamProvider
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.auth.authenticate
 import io.ktor.server.plugins.BadRequestException
+import io.ktor.server.request.receive
 import io.ktor.server.request.receiveMultipart
 import io.ktor.server.response.respond
 import io.ktor.server.routing.*
@@ -204,6 +206,25 @@ fun Route.postRoutes() {
         }
 
         route("/posts") {
+            patch("/{postId}") {
+                val postId = call.parameters["postId"].toUuidOrNull()
+                    ?: return@patch call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid postId"))
+                val userId = call.getUuidClaim("userId")
+                    ?: return@patch call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Invalid or missing userId"))
+
+                try {
+                    val request = call.receive<UpdatePostRequest>()
+                    val updated = postService.updatePostAsAuthor(postId, userId, request)
+                    call.respond(HttpStatusCode.OK, updated)
+                } catch (e: PostNotFoundException) {
+                    call.respond(HttpStatusCode.NotFound, mapOf("error" to "Post not found"))
+                } catch (e: PostForbiddenException) {
+                    call.respond(HttpStatusCode.Forbidden, mapOf("error" to "You do not have permission to edit this post"))
+                } catch (e: IllegalArgumentException) {
+                    call.respond(HttpStatusCode.BadRequest, mapOf("error" to (e.message ?: "Invalid request")))
+                }
+            }
+
             delete("/{postId}") {
                 val postId = call.parameters["postId"].toUuidOrNull()
                     ?: return@delete call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid postId"))

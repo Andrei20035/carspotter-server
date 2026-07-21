@@ -34,6 +34,15 @@ interface IPostDAO {
     suspend fun deleteById(postId: UUID): Int
 
     /**
+     * Updates the car and/or caption of [postId].
+     *
+     * [carModelId] and the [customBrand]/[customModel] pair are mutually exclusive (mirrors the
+     * `chk_post_car_source` DB check): whichever side is set, the other is cleared to NULL in the
+     * same UPDATE statement. [caption] replaces the existing caption as-is (pass null to clear it).
+     */
+    suspend fun updateById(postId: UUID, carModelId: UUID?, customBrand: String?, customModel: String?, caption: String?): Int
+
+    /**
      * Count how many CAMERA posts [userId] made on [localDay] (computed using [zoneId]).
      * Uses a UTC range query so it works correctly with DST-aware zones.
      */
@@ -151,6 +160,21 @@ class PostDAO : IPostDAO {
 
     override suspend fun deleteById(postId: UUID): Int = transaction {
         PostTable.deleteWhere { id eq postId }
+    }
+
+    override suspend fun updateById(postId: UUID, carModelId: UUID?, customBrand: String?, customModel: String?, caption: String?): Int = transaction {
+        PostTable.update({ PostTable.id eq postId }) {
+            if (carModelId != null) {
+                it[PostTable.carModelId] = carModelId
+                it[PostTable.customBrand] = null
+                it[PostTable.customModel] = null
+            } else {
+                it[PostTable.carModelId] = null
+                it[PostTable.customBrand] = customBrand
+                it[PostTable.customModel] = customModel
+            }
+            it[PostTable.caption] = caption
+        }
     }
 
     override suspend fun countCameraPostsOnDay(userId: UUID, localDay: LocalDate, zoneId: ZoneId): Long = transaction {

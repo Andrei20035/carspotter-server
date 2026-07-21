@@ -7,6 +7,7 @@ import com.revio.server.features.post.dto.FeedCursorDTO
 import com.revio.server.features.post.dto.FeedResponseDTO
 import com.revio.server.features.post.dto.PersistPostDTO
 import com.revio.server.features.post.dto.PostDTO
+import com.revio.server.features.post.dto.UpdatePostRequest
 import com.revio.server.features.post.dto.toDTO
 import com.revio.server.features.post.dto.toFeedDTO
 import com.revio.server.features.scoring.IScoringDao
@@ -29,6 +30,7 @@ interface IPostService {
     ): FeedResponseDTO
     suspend fun listPostsByUser(userId: UUID, limit: Int, cursorCreatedAt: String?, cursorPostId: String?, currentUserId: UUID?): FeedResponseDTO
     suspend fun deletePostAsAuthor(postId: UUID, authorId: UUID)
+    suspend fun updatePostAsAuthor(postId: UUID, authorId: UUID, request: UpdatePostRequest): PostDTO
 }
 
 class PostServiceImpl(
@@ -179,6 +181,55 @@ class PostServiceImpl(
         scoringDao.reverseAndDeletePost(ownerId = authorId, postId = postId, points = post.points)
         runCatching { storageService.deleteImage(post.imageKey) }
             .onFailure { logger.warn("Post {} deleted but image cleanup failed", postId, it) }
+    }
+
+    override suspend fun updatePostAsAuthor(postId: UUID, authorId: UUID, request: UpdatePostRequest): PostDTO {
+        val post = postDao.findById(postId) ?: throw PostNotFoundException(postId)
+        if (post.userId != authorId) {
+            throw PostForbiddenException(postId, authorId)
+        }
+
+        validateUpdateRequest(request)
+
+        val caption = request.caption?.trim()
+        postDao.updateById(
+            postId = postId,
+            carModelId = request.carModelId,
+            customBrand = request.customBrand?.trim(),
+            customModel = request.customModel?.trim(),
+            caption = caption,
+        )
+
+        val updated = postDao.findById(postId) ?: throw PostNotFoundException(postId)
+        return toResponse(updated)
+    }
+
+    private suspend fun validateUpdateRequest(request: UpdatePostRequest) {
+        val caption = request.caption?.trim()
+        require(caption == null || caption.isNotEmpty()) { "Caption cannot be blank" }
+        require(caption == null || caption.length <= maxCaptionLength) {
+            "Caption must be at most $maxCaptionLength characters"
+        }
+
+        val hasCarModelId = request.carModelId != null
+        val brand = request.customBrand?.trim()
+        val model = request.customModel?.trim()
+        val hasCustomSource = !brand.isNullOrEmpty() || !model.isNullOrEmpty()
+
+        require(hasCarModelId.xor(hasCustomSource)) {
+            "Provide either carModelId or customBrand + customModel"
+        }
+
+        if (hasCarModelId) {
+            require(brand == null && model == null) {
+                "customBrand/customModel cannot be sent together with carModelId"
+            }
+            require(carModelDao.exists(request.carModelId!!)) { "carModelId does not exist" }
+        } else {
+            require(!brand.isNullOrEmpty() && !model.isNullOrEmpty()) {
+                "customBrand and customModel are required when carModelId is missing"
+            }
+        }
     }
 
     private suspend fun validateCreateRequest(request: CreatePostDTO) {

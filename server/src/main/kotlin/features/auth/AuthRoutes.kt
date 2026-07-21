@@ -3,7 +3,11 @@ package com.revio.server.features.auth
 import com.revio.server.core.error.AuthBadRequestException
 import com.revio.server.core.error.AuthConflictException
 import com.revio.server.core.error.AuthErrorCode
+import com.revio.server.core.error.AuthNotFoundException
 import com.revio.server.core.error.AuthUnauthorizedException
+import com.revio.server.features.account_deletion.IAccountDeletionService
+import com.revio.server.features.auth.dto.DeleteAccountRequest
+import com.revio.server.features.auth.dto.DeletionContextDTO
 import com.revio.server.features.auth.dto.LoginRequest
 import com.revio.server.features.auth.dto.RefreshRequest
 import com.revio.server.features.auth.dto.RegisterRequest
@@ -21,12 +25,17 @@ import com.revio.server.features.auth.session.RefreshTokenReusedException
 import com.revio.server.features.auth.session.RevokeReason
 import com.revio.server.features.auth.session.SessionRevokedException
 import com.revio.server.features.auth.session.SessionScope
+import com.revio.server.features.leaderboard.ILeaderboardService
+import com.revio.server.features.user.IUserService
+import features.like.ILikeDAO
 import io.ktor.http.*
 import io.ktor.server.auth.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.koin.ktor.ext.inject
+import java.time.Duration
+import java.time.Instant
 
 fun Route.authRoutes() {
     val authService: IAuthService by application.inject()
@@ -34,6 +43,10 @@ fun Route.authRoutes() {
     val jwtService: JwtService by application.inject()
     val sessionService: ISessionService by application.inject()
     val sessionDao: IAuthSessionDAO by application.inject()
+    val userService: IUserService by application.inject()
+    val likeDao: ILikeDAO by application.inject()
+    val leaderboardService: ILeaderboardService by application.inject()
+    val accountDeletionService: IAccountDeletionService by application.inject()
 
     route("/auth") {
         post("/register") {
@@ -322,29 +335,64 @@ fun Route.authRoutes() {
                 call.respond(HttpStatusCode.OK, sessions)
             }
 
+            get("/account/deletion-context") {
+                val credentialId = call.getUuidClaim("credentialId")
+                    ?: throw AuthUnauthorizedException(
+                        AuthErrorCode.ACCESS_TOKEN_INVALID,
+                        "Invalid or missing credential id"
+                    )
+                val userId = call.getUuidClaim("userId")
+                    ?: throw AuthUnauthorizedException(
+                        AuthErrorCode.ACCESS_TOKEN_INVALID,
+                        "Invalid or missing user id"
+                    )
+
+                val credential = authService.getCredentialsById(credentialId)
+                    ?: throw AuthNotFoundException(AuthErrorCode.ACCOUNT_NOT_FOUND, "Account not found")
+                val user = userService.getSelf(userId)
+                    ?: throw AuthNotFoundException(AuthErrorCode.ACCOUNT_NOT_FOUND, "Account not found")
+
+                val likesReceived = likeDao.getLikesReceivedByUser(userId)
+                val leaderboardRank = leaderboardService.getUserRank(userId)
+                val accountAgeDays = user.createdAt
+                    ?.let { Duration.between(it, Instant.now()).toDays().toInt() }
+                    ?: 0
+
+                call.respond(
+                    HttpStatusCode.OK,
+                    DeletionContextDTO(
+                        provider = credential.provider,
+                        postCount = user.postCount,
+                        likesReceived = likesReceived.toInt(),
+                        leaderboardRank = leaderboardRank,
+                        streakDays = user.streakDays,
+                        accountAgeDays = accountAgeDays,
+                    )
+                )
+            }
+
             delete("/account") {
                 val credentialId = call.getUuidClaim("credentialId")
-                    ?: return@delete call.respond(
-                        HttpStatusCode.Unauthorized,
-                        mapOf("error" to "Invalid or missing credentialId")
+                    ?: throw AuthUnauthorizedException(
+                        AuthErrorCode.ACCESS_TOKEN_INVALID,
+                        "Invalid or missing credential id"
                     )
-                val credential = authService.getCredentialsById(credentialId)
-                    ?: return@delete call.respond(
-                        HttpStatusCode.NotFound,
-                        mapOf("error" to "Account not found")
-                    )
-                val deletedRows = authService.deleteCredentials(credentialId)
-                if (deletedRows > 0) {
-                    call.respond(
-                        HttpStatusCode.OK,
-                        mapOf("message" to "Account deleted successfully")
-                    )
-                } else {
-                    call.respond(
-                        HttpStatusCode.NotFound,
-                        mapOf("error" to "Account not found")
+
+                val request = try {
+                    call.receive<DeleteAccountRequest>()
+                } catch (e: Exception) {
+                    throw AuthBadRequestException(
+                        AuthErrorCode.VALIDATION_ERROR,
+                        "Request body is required"
                     )
                 }
+
+                accountDeletionService.deleteAccount(credentialId, request)
+
+                call.respond(
+                    HttpStatusCode.OK,
+                    mapOf("message" to "Account deleted successfully")
+                )
             }
 
             put("/password") {

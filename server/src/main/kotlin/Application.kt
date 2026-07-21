@@ -10,6 +10,7 @@ import com.revio.server.config.configureSerialization
 import com.revio.server.config.configureSockets
 import com.revio.server.core.di.appModule
 import com.revio.server.core.util.resolveZone
+import com.revio.server.features.account_deletion.accountDeletionModule
 import com.revio.server.features.activity.activityModule
 import com.revio.server.features.auth.authModule
 import com.revio.server.features.car_model.carModelModule
@@ -55,7 +56,8 @@ fun Application.module() {
             reportModule,
             userCarModule,
             leaderboardModule,
-            activityModule
+            activityModule,
+            accountDeletionModule
         )
     }
 

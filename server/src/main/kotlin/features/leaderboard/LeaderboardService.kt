@@ -10,6 +10,9 @@ import java.util.UUID
 
 interface ILeaderboardService {
     suspend fun getLeaderboard(currentUserId: UUID, limit: Int): LeaderboardResponseDTO
+
+    /** Rank of a single user, without fetching the rest of the board. */
+    suspend fun getUserRank(userId: UUID): Int
 }
 
 class LeaderboardService(
@@ -64,4 +67,6 @@ class LeaderboardService(
 
         return LeaderboardResponseDTO(currentUser = currentUser, entries = entries)
     }
+
+    override suspend fun getUserRank(userId: UUID): Int = leaderboardDao.getUserRank(userId)
 }

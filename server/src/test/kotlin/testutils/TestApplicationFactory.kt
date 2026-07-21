@@ -5,6 +5,10 @@ import com.revio.server.config.configureSerialization
 import com.revio.server.config.configureAuthStatusPages
 import com.revio.server.core.storage.IStorageService
 import com.revio.server.core.storage.LocalImageStorageService
+import com.revio.server.features.account_deletion.AccountDeletionFeedbackDAO
+import com.revio.server.features.account_deletion.AccountDeletionService
+import com.revio.server.features.account_deletion.IAccountDeletionFeedbackDAO
+import com.revio.server.features.account_deletion.IAccountDeletionService
 import com.revio.server.features.auth.AuthDAO
 import com.revio.server.features.auth.AuthService
 import com.revio.server.features.auth.GoogleTokenVerifier
@@ -116,7 +120,7 @@ private fun setEnv(key: String, value: String) {
  * NU invocă configureDatabases (DB-ul e deja pornit de TestDatabaseFactory).
  * NU invocă configureSockets / configureHTTP (inutile pentru testele /auth).
  */
-fun Application.testAuthModule(googleTokenVerifier: GoogleTokenVerifier) {
+fun Application.testAuthModule(googleTokenVerifier: GoogleTokenVerifier, storage: IStorageService? = null) {
     val uploadsDir = Files.createTempDirectory("auth-route-test-uploads")
     val koinTestModule = module {
         single<IAuthDAO> { AuthDAO() }
@@ -124,10 +128,16 @@ fun Application.testAuthModule(googleTokenVerifier: GoogleTokenVerifier) {
         single { RefreshTokenGenerator() }
         single<ISessionService> { SessionService(get(), get()) }
         single<IUserDAO> { UserDao() }
-        single<IStorageService> { LocalImageStorageService(uploadsDir, "http://localhost:8080") }
+        single<IStorageService> { storage ?: LocalImageStorageService(uploadsDir, "http://localhost:8080") }
         single<IUserService> { UserService(get(), get()) }
         single<GoogleTokenVerifier> { googleTokenVerifier }
         single<IAuthService> { AuthService(get(), get(), get()) }
+        single<ILikeDAO> { LikeDAO() }
+        single<ILeaderboardDAO> { LeaderboardDAO() }
+        single<ILeaderboardSnapshotDAO> { LeaderboardSnapshotDAO() }
+        single<ILeaderboardService> { LeaderboardService(get(), get(), get()) }
+        single<IAccountDeletionFeedbackDAO> { AccountDeletionFeedbackDAO() }
+        single<IAccountDeletionService> { AccountDeletionService(get(), get(), get(), get(), get()) }
         single {
             JwtService(
                 jwtSecret = TestEnv.JWT_SECRET,

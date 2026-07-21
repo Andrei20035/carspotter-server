@@ -2,8 +2,10 @@ package com.revio.server.routes
 
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
+import com.revio.server.features.auth.AuthDAO
 import com.revio.server.features.auth.AuthProvider
 import com.revio.server.features.auth.dto.AuthResponse
+import com.revio.server.features.auth.dto.DeleteAccountRequest
 import com.revio.server.features.auth.dto.LoginRequest
 import com.revio.server.features.auth.dto.RegisterRequest
 import com.revio.server.features.auth.dto.UpdatePasswordRequest
@@ -22,6 +24,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import testutils.TestDatabaseFactory
 import testutils.TestEnv
+import testutils.UserTestSeed
 import testutils.setTestEnv
 import testutils.stopKoinSafely
 import testutils.testAuthModule
@@ -177,14 +180,22 @@ class AuthRoutesCharacterizationTest {
         }
         val token = registerResp.body<AuthResponse>().accessToken
 
+        // Profil complet, altfel AccountDeletionService nu poate rezolva userul.
+        val credentialId = AuthDAO().getCredentialsForLogin("alice@example.com")!!.id!!
+        UserTestSeed.seedUser(authCredentialId = credentialId, username = "alice-characterization")
+
         // Ștergere cont
         val deleteResp = client.delete("/api/auth/account") {
             bearerAuth(token)
+            contentType(ContentType.Application.Json)
+            setBody(DeleteAccountRequest(password = "Passw0rd!"))
         }
         assertEquals(HttpStatusCode.OK, deleteResp.status)
 
         val afterDelete = client.delete("/api/auth/account") {
             bearerAuth(token)
+            contentType(ContentType.Application.Json)
+            setBody(DeleteAccountRequest(password = "Passw0rd!"))
         }
         assertEquals(
             HttpStatusCode.Unauthorized, afterDelete.status,

@@ -1,6 +1,7 @@
 package features.like
 
 import com.revio.server.features.like.LikeTable
+import com.revio.server.features.post.PostTable
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.transaction
@@ -17,6 +18,9 @@ interface ILikeDAO {
 
     /** Subset of the given postIds that the user has liked. */
     suspend fun getLikedPostIds(userId: UUID, postIds: List<UUID>): Set<UUID>
+
+    /** Total likes received across all of this user's posts. */
+    suspend fun getLikesReceivedByUser(userId: UUID): Long
 }
 
 class LikeDAO : ILikeDAO {
@@ -67,5 +71,13 @@ class LikeDAO : ILikeDAO {
             .where { (LikeTable.userId eq userId) and (LikeTable.postId inList postIds) }
             .map { it[LikeTable.postId] }
             .toSet()
+    }
+
+    override suspend fun getLikesReceivedByUser(userId: UUID): Long = transaction {
+        LikeTable
+            .innerJoin(PostTable, { LikeTable.postId }, { PostTable.id })
+            .select(LikeTable.id)
+            .where { PostTable.userId eq userId }
+            .count()
     }
 }

@@ -1,11 +1,18 @@
 package com.revio.server.routes
 
+import com.revio.server.core.storage.IStorageService
+import com.revio.server.core.storage.StoredImage
+import com.revio.server.features.account_deletion.AccountDeletionFeedbackTable
 import com.revio.server.features.auth.AuthDAO
 import com.revio.server.features.auth.AuthProvider
+import com.revio.server.features.auth.AuthTable
+import com.revio.server.features.auth.JwtService
 import com.revio.server.features.auth.RefreshTokenGenerator
 import com.revio.server.features.auth.GoogleTokenVerifier
 import com.revio.server.features.auth.GoogleUser
 import com.revio.server.features.auth.dto.AuthResponse
+import com.revio.server.features.auth.dto.DeleteAccountRequest
+import com.revio.server.features.auth.dto.DeletionContextDTO
 import com.revio.server.features.auth.dto.LoginRequest
 import com.revio.server.features.auth.dto.OnboardingStep
 import com.revio.server.features.auth.dto.RefreshRequest
@@ -14,7 +21,11 @@ import com.revio.server.features.auth.dto.SessionDTO
 import com.revio.server.features.auth.dto.UpdatePasswordRequest
 import com.revio.server.features.auth.session.AuthSessionDAO
 import com.revio.server.features.auth.session.SessionScope
+import com.revio.server.features.auth.session.SessionService
 import com.revio.server.features.auth.session.SessionStatus
+import com.revio.server.features.post.PostTable
+import com.revio.server.features.user.UserTable
+import com.revio.server.features.user_car.UserCarTable
 import com.revio.server.core.error.AuthErrorCode
 import com.revio.server.core.error.AuthErrorResponse
 import io.ktor.client.call.*
@@ -26,19 +37,28 @@ import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.testing.*
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.insert
+import org.jetbrains.exposed.sql.select
+import org.jetbrains.exposed.sql.selectAll
+import org.jetbrains.exposed.sql.transactions.transaction
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import testutils.TestDatabaseFactory
+import testutils.TestEnv
+import testutils.UserTestSeed
 import testutils.setTestEnv
 import testutils.stopKoinSafely
 import testutils.testAuthModule
+import java.util.UUID
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class AuthRoutesTest {
@@ -49,7 +69,31 @@ class AuthRoutesTest {
         override fun verify(googleIdToken: String): GoogleUser? = response
     }
 
+    /** Fake pentru testele de cleanup storage la ștergerea contului. */
+    private class FakeStorageService(private val failing: Boolean = false) : IStorageService {
+        val deletedKeys = mutableListOf<String>()
+
+        override suspend fun uploadImage(bytes: ByteArray, objectKey: String, contentType: String): StoredImage {
+            throw NotImplementedError("not used by these tests")
+        }
+
+        override suspend fun deleteImage(objectKey: String) {
+            if (failing) throw RuntimeException("storage unavailable")
+            deletedKeys += objectKey
+        }
+
+        override fun normalizeObjectKey(pathOrUrl: String): String =
+            pathOrUrl.removePrefix("http://fake-storage/")
+
+        override fun resolveUrl(objectKey: String): String = "http://fake-storage/$objectKey"
+    }
+
     private val googleVerifier = FakeGoogleVerifier()
+    private val jwt = JwtService(
+        jwtSecret = TestEnv.JWT_SECRET,
+        jwtIssuer = TestEnv.JWT_ISSUER,
+        jwtAudience = TestEnv.JWT_AUDIENCE,
+    )
 
     @BeforeAll
     fun setup() {
@@ -70,10 +114,13 @@ class AuthRoutesTest {
     }
 
     // ---- helper: rulează un test in-app cu DB real + verifier fake ----
-    private fun authTest(block: suspend ApplicationTestBuilder.(io.ktor.client.HttpClient) -> Unit) =
+    private fun authTest(
+        storage: IStorageService? = null,
+        block: suspend ApplicationTestBuilder.(io.ktor.client.HttpClient) -> Unit,
+    ) =
         testApplication {
             application {
-                testAuthModule(googleVerifier)
+                testAuthModule(googleVerifier, storage)
             }
             val client = createClient {
                 install(ContentNegotiation) {
@@ -470,23 +517,177 @@ class AuthRoutesTest {
     // ---- DELETE /auth/account ----
 
     @Test
-    fun `delete account with valid token returns 200 and removes credential from DB`() = authTest { client ->
-        val token = registerAndGetToken(client, "alice@example.com", "Passw0rd!")
+    fun `delete account REGULAR with correct password returns 200, removes credential, cascades, and stores anonymous feedback`() =
+        authTest { client ->
+            val (credentialId, userId, token) = seedRegularAccountWithToken()
+
+            val resp = client.delete("/api/auth/account") {
+                bearerAuth(token)
+                contentType(ContentType.Application.Json)
+                setBody(DeleteAccountRequest(password = "Passw0rd!", reason = "TAKING_A_BREAK"))
+            }
+            assertEquals(HttpStatusCode.OK, resp.status)
+
+            assertNull(AuthDAO().getCredentialsById(credentialId), "credential should have been deleted")
+            assertTrue(!userExists(userId), "user row should have cascaded away")
+
+            val feedback = feedbackRows()
+            assertEquals(1, feedback.size)
+            assertEquals("TAKING_A_BREAK", feedback.single().first)
+
+            val afterDelete = client.get("/api/auth/sessions") {
+                bearerAuth(token)
+            }
+            assertEquals(HttpStatusCode.Unauthorized, afterDelete.status)
+            assertEquals(AuthErrorCode.SESSION_REVOKED, afterDelete.body<AuthErrorResponse>().error.code)
+        }
+
+    @Test
+    fun `delete account REGULAR with wrong password returns 401 and account still exists`() = authTest { client ->
+        val (credentialId, _, token) = seedRegularAccountWithToken()
+
+        val resp = client.delete("/api/auth/account") {
+            bearerAuth(token)
+            contentType(ContentType.Application.Json)
+            setBody(DeleteAccountRequest(password = "WrongPass!", reason = "OTHER"))
+        }
+        assertEquals(HttpStatusCode.Unauthorized, resp.status)
+        assertEquals(AuthErrorCode.INVALID_CURRENT_PASSWORD, resp.body<AuthErrorResponse>().error.code)
+
+        assertNotNull(AuthDAO().getCredentialsById(credentialId), "account should still exist")
+    }
+
+    @Test
+    fun `delete account without request body returns 400 VALIDATION_ERROR`() = authTest { client ->
+        val (_, _, token) = seedRegularAccountWithToken()
 
         val resp = client.delete("/api/auth/account") {
             bearerAuth(token)
         }
+        assertEquals(HttpStatusCode.BadRequest, resp.status)
+        assertEquals(AuthErrorCode.VALIDATION_ERROR, resp.body<AuthErrorResponse>().error.code)
+    }
+
+    @Test
+    fun `delete account REGULAR with blank password returns 400 VALIDATION_ERROR`() = authTest { client ->
+        val (_, _, token) = seedRegularAccountWithToken()
+
+        val resp = client.delete("/api/auth/account") {
+            bearerAuth(token)
+            contentType(ContentType.Application.Json)
+            setBody(DeleteAccountRequest(password = ""))
+        }
+        assertEquals(HttpStatusCode.BadRequest, resp.status)
+        assertEquals(AuthErrorCode.VALIDATION_ERROR, resp.body<AuthErrorResponse>().error.code)
+    }
+
+    @Test
+    fun `delete account GOOGLE with matching username returns 200 (case and whitespace insensitive)`() =
+        authTest { client ->
+            val (credentialId, _, token) = seedGoogleAccountWithToken(username = "bob")
+
+            val resp = client.delete("/api/auth/account") {
+                bearerAuth(token)
+                contentType(ContentType.Application.Json)
+                setBody(DeleteAccountRequest(usernameConfirmation = "  BOB  "))
+            }
+            assertEquals(HttpStatusCode.OK, resp.status)
+            assertNull(AuthDAO().getCredentialsById(credentialId))
+        }
+
+    @Test
+    fun `delete account GOOGLE with wrong username returns 400 USERNAME_CONFIRMATION_MISMATCH`() = authTest { client ->
+        val (credentialId, _, token) = seedGoogleAccountWithToken(username = "bob")
+
+        val resp = client.delete("/api/auth/account") {
+            bearerAuth(token)
+            contentType(ContentType.Application.Json)
+            setBody(DeleteAccountRequest(usernameConfirmation = "not-bob"))
+        }
+        assertEquals(HttpStatusCode.BadRequest, resp.status)
+        assertEquals(AuthErrorCode.USERNAME_CONFIRMATION_MISMATCH, resp.body<AuthErrorResponse>().error.code)
+        assertNotNull(AuthDAO().getCredentialsById(credentialId))
+    }
+
+    @Test
+    fun `delete account GOOGLE with password instead of username returns 400`() = authTest { client ->
+        val (_, _, token) = seedGoogleAccountWithToken(username = "bob")
+
+        val resp = client.delete("/api/auth/account") {
+            bearerAuth(token)
+            contentType(ContentType.Application.Json)
+            setBody(DeleteAccountRequest(password = "Passw0rd!"))
+        }
+        assertEquals(HttpStatusCode.BadRequest, resp.status)
+        assertEquals(AuthErrorCode.VALIDATION_ERROR, resp.body<AuthErrorResponse>().error.code)
+    }
+
+    @Test
+    fun `delete account with OTHER reason persists details, surviving user deletion`() = authTest { client ->
+        val (_, _, token) = seedRegularAccountWithToken()
+
+        val resp = client.delete("/api/auth/account") {
+            bearerAuth(token)
+            contentType(ContentType.Application.Json)
+            setBody(DeleteAccountRequest(password = "Passw0rd!", reason = "OTHER", details = "test feedback"))
+        }
         assertEquals(HttpStatusCode.OK, resp.status)
 
-        val dao = AuthDAO()
-        val stored = dao.getCredentialsForLogin("alice@example.com")
-        assertTrue(stored == null, "credential should have been deleted")
+        val feedback = feedbackRows()
+        assertEquals(1, feedback.size)
+        assertEquals("OTHER" to "test feedback", feedback.single())
+    }
 
-        val afterDelete = client.get("/api/auth/sessions") {
+    @Test
+    fun `delete account with unknown reason returns 400 VALIDATION_ERROR`() = authTest { client ->
+        val (credentialId, _, token) = seedRegularAccountWithToken()
+
+        val resp = client.delete("/api/auth/account") {
             bearerAuth(token)
+            contentType(ContentType.Application.Json)
+            setBody(DeleteAccountRequest(password = "Passw0rd!", reason = "NOT_A_REAL_REASON"))
         }
-        assertEquals(HttpStatusCode.Unauthorized, afterDelete.status)
-        assertEquals(AuthErrorCode.SESSION_REVOKED, afterDelete.body<AuthErrorResponse>().error.code)
+        assertEquals(HttpStatusCode.BadRequest, resp.status)
+        assertEquals(AuthErrorCode.VALIDATION_ERROR, resp.body<AuthErrorResponse>().error.code)
+        assertNotNull(AuthDAO().getCredentialsById(credentialId))
+    }
+
+    @Test
+    fun `delete account deletes collected storage objects for profile picture, posts, and user car`() {
+        val fakeStorage = FakeStorageService()
+        authTest(storage = fakeStorage) { client ->
+            val (_, userId, token) = seedRegularAccountWithToken(profilePicturePath = "avatars/alice.jpg")
+            seedPost(userId, "posts/alice-1.jpg")
+            seedUserCar(userId, "cars/alice.jpg")
+
+            val resp = client.delete("/api/auth/account") {
+                bearerAuth(token)
+                contentType(ContentType.Application.Json)
+                setBody(DeleteAccountRequest(password = "Passw0rd!"))
+            }
+            assertEquals(HttpStatusCode.OK, resp.status)
+
+            assertEquals(
+                setOf("avatars/alice.jpg", "posts/alice-1.jpg", "cars/alice.jpg"),
+                fakeStorage.deletedKeys.toSet(),
+            )
+        }
+    }
+
+    @Test
+    fun `delete account still returns 200 when storage deletion fails`() {
+        val fakeStorage = FakeStorageService(failing = true)
+        authTest(storage = fakeStorage) { client ->
+            val (credentialId, _, token) = seedRegularAccountWithToken(profilePicturePath = "avatars/alice.jpg")
+
+            val resp = client.delete("/api/auth/account") {
+                bearerAuth(token)
+                contentType(ContentType.Application.Json)
+                setBody(DeleteAccountRequest(password = "Passw0rd!"))
+            }
+            assertEquals(HttpStatusCode.OK, resp.status)
+            assertNull(AuthDAO().getCredentialsById(credentialId))
+        }
     }
 
     @Test
@@ -495,19 +696,122 @@ class AuthRoutesTest {
         assertEquals(HttpStatusCode.Unauthorized, resp.status)
     }
 
+    // ---- GET /auth/account/deletion-context ----
+
+    @Test
+    fun `GET deletion-context returns REGULAR provider and stats`() = authTest { client ->
+        val (_, _, token) = seedRegularAccountWithToken()
+
+        val resp = client.get("/api/auth/account/deletion-context") {
+            bearerAuth(token)
+        }
+        assertEquals(HttpStatusCode.OK, resp.status)
+        val body = resp.body<DeletionContextDTO>()
+        assertEquals(AuthProvider.REGULAR, body.provider)
+        assertEquals(0, body.postCount)
+        assertEquals(0, body.likesReceived)
+        assertEquals(0, body.streakDays)
+        assertTrue(body.accountAgeDays >= 0)
+    }
+
+    @Test
+    fun `GET deletion-context returns GOOGLE provider`() = authTest { client ->
+        val (_, _, token) = seedGoogleAccountWithToken(username = "bob")
+
+        val resp = client.get("/api/auth/account/deletion-context") {
+            bearerAuth(token)
+        }
+        assertEquals(HttpStatusCode.OK, resp.status)
+        assertEquals(AuthProvider.GOOGLE, resp.body<DeletionContextDTO>().provider)
+    }
+
+    @Test
+    fun `GET deletion-context without token returns 401`() = authTest { client ->
+        val resp = client.get("/api/auth/account/deletion-context")
+        assertEquals(HttpStatusCode.Unauthorized, resp.status)
+    }
+
     // ---- helpers ----
 
-    private suspend fun registerAndGetToken(
-        client: io.ktor.client.HttpClient,
-        email: String,
-        password: String
-    ): String {
-        val resp = client.post("/api/auth/register") {
-            contentType(ContentType.Application.Json)
-            setBody(RegisterRequest(email, password, AuthProvider.REGULAR))
+    private suspend fun mintFullToken(credentialId: UUID, userId: UUID, email: String): String {
+        val (session, _) = SessionService(AuthSessionDAO(), RefreshTokenGenerator()).createSession(
+            credentialId = credentialId,
+            scope = SessionScope.FULL,
+            userId = userId,
+            deviceId = null,
+            deviceName = null,
+            userAgent = null,
+            ip = null,
+        )
+        return jwt.generateAccessToken(session, credentialId, email, userId)
+    }
+
+    /** Seed a REGULAR credential + full profile and mint a FULL-scope token for it. */
+    private suspend fun seedRegularAccountWithToken(
+        email: String = "alice@example.com",
+        password: String = "Passw0rd!",
+        username: String = "alice",
+        profilePicturePath: String? = null,
+    ): Triple<UUID, UUID, String> {
+        val credential = UserTestSeed.seedAuthCredential(email = email, password = password)
+        val userId = UserTestSeed.seedUser(
+            authCredentialId = credential.authCredentialId,
+            username = username,
+            profilePicturePath = profilePicturePath,
+        )
+        val token = mintFullToken(credential.authCredentialId, userId, email)
+        return Triple(credential.authCredentialId, userId, token)
+    }
+
+    /** Seed a GOOGLE credential + full profile and mint a FULL-scope token for it. */
+    private suspend fun seedGoogleAccountWithToken(
+        email: String = "bob@example.com",
+        googleId: String = "gid-1",
+        username: String = "bob",
+    ): Triple<UUID, UUID, String> {
+        val credentialId = transaction {
+            AuthTable.insert {
+                it[AuthTable.email] = email
+                it[AuthTable.password] = null
+                it[AuthTable.provider] = AuthProvider.GOOGLE.name
+                it[AuthTable.googleId] = googleId
+            }[AuthTable.id].value
         }
-        assertEquals(HttpStatusCode.Created, resp.status)
-        return resp.body<AuthResponse>().accessToken
+        val userId = UserTestSeed.seedUser(authCredentialId = credentialId, username = username)
+        val token = mintFullToken(credentialId, userId, email)
+        return Triple(credentialId, userId, token)
+    }
+
+    private fun userExists(userId: UUID): Boolean = transaction {
+        UserTable.select(UserTable.id).where { UserTable.id eq userId }.any()
+    }
+
+    private fun feedbackRows(): List<Pair<String, String?>> = transaction {
+        AccountDeletionFeedbackTable.selectAll().map {
+            it[AccountDeletionFeedbackTable.reason] to it[AccountDeletionFeedbackTable.details]
+        }
+    }
+
+    private fun seedPost(userId: UUID, imageKey: String) {
+        transaction {
+            PostTable.insert {
+                it[PostTable.userId] = userId
+                it[PostTable.imageKey] = imageKey
+                it[PostTable.customBrand] = "CustomBrand"
+                it[PostTable.customModel] = "CustomModel"
+            }
+        }
+    }
+
+    private fun seedUserCar(userId: UUID, imageKey: String) {
+        transaction {
+            UserCarTable.insert {
+                it[UserCarTable.userId] = userId
+                it[UserCarTable.imageKey] = imageKey
+                it[UserCarTable.customBrand] = "CustomBrand"
+                it[UserCarTable.customModel] = "CustomModel"
+            }
+        }
     }
 
     private suspend fun registerAndGetAuthResponse(

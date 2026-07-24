@@ -8,7 +8,7 @@ import org.testcontainers.containers.PostgreSQLContainer
 import javax.sql.DataSource
 
 /**
- * Pornește un PostgreSQL real în Docker, aplică Flyway (V1__init.sql),
+ * Pornește un PostgreSQL real în Docker, aplică Flyway (baseline-ul curent și migrațiile ulterioare),
  * conectează Exposed la el și oferă un DataSource pentru alte nevoi (ex. Ktor testing).
  *
  * Un singur container per JVM run — pornim o dată, curățăm tabelele între teste.

@@ -140,6 +140,7 @@ Why this structure works well here:
 - Feature ownership is clear. A change to posts usually stays in `features/post`, with shared infrastructure under `core` or `config`.
 - HTTP details do not leak into DAOs. Routes parse Ktor calls; services enforce business rules; DAOs express persistence.
 - Schema guarantees are centralized in Flyway. Exposed table objects mirror table shape for queries, but the migration is the source of truth for constraints and indexes.
+- Fresh databases start from the `B18__schema_baseline.sql` Flyway baseline. Existing databases keep their original `V1`-`V18` history and data; Flyway ignores the baseline once a schema history already exists. Keep the legacy versioned migrations available for validation and upgrades of installations that have not yet reached V18.
 - Storage is abstracted behind `IStorageService`, so post and user-car services depend on object keys and URLs rather than local filesystem details.
 
 ## Project Structure
@@ -179,7 +180,8 @@ Why this structure works well here:
     │       └── user_car
     ├── src/main/resources
     │   ├── application.yaml
-    │   ├── db/migrations/V1__init.sql
+    │   ├── db/migrations/B18__schema_baseline.sql
+    │   ├── db/migrations/V1__init.sql ... V18__account_deletion_feedback.sql
     │   ├── logback.xml
     │   └── openapi/documentation.yaml
     └── src/test/kotlin
@@ -234,7 +236,7 @@ Not every authenticated token contains a `userId`. Registration can create crede
 
 ## Database Design
 
-The schema is managed by `V1__init.sql`. It uses UUID primary keys, relational foreign keys, check constraints, uniqueness constraints, and targeted indexes for common access patterns.
+The schema is managed by Flyway. Fresh installations use `B18__schema_baseline.sql`; the original `V1`-`V18` migrations remain available for existing installations. The schema uses UUID primary keys, relational foreign keys, check constraints, uniqueness constraints, and targeted indexes for common access patterns.
 
 ```mermaid
 erDiagram

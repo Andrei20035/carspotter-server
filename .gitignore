@@ -17,6 +17,8 @@ server/cars.csv
 server/seed/posts
 server/seed/profile_pictures
 server/seed/compressed
+server/uploads
+uploads/
 
 ### STS ###
 .apt_generated

@@ -1,966 +1,1494 @@
 openapi: 3.0.3
 info:
-  title: CarSpotter API
-  description: API for the CarSpotter application
-  version: 1.0.0
+  title: Revio API
+  description: >
+    REST API for the Revio application (Ktor backend). All endpoints are mounted under `/api`.
+
+    Authentication uses JWT bearer access tokens. Access tokens carry session claims
+    (`sid`, `ver`, `credentialId`, `userId`, `email`) and are validated against the active
+    session on every request; a revoked or superseded session fails validation even when the
+    token signature is still valid. Auth failures return a machine-readable error code
+    (see `AuthErrorResponse`) that the Android client uses to drive token refresh.
+
+    Sessions have two scopes: `ONBOARDING` (credentials exist, no user profile yet) and
+    `FULL` (profile created). Endpoints requiring a `userId` claim are only usable with a
+    `FULL`-scope token.
+  version: 2.0.0
 servers:
   - url: /api
     description: Main API server
+
+tags:
+  - name: Authentication
+    description: Registration, login, token refresh, sessions, password and account deletion
+  - name: Users
+    description: User profile creation, self profile, public profiles, profile picture
+  - name: Posts
+    description: Feed, post detail, create/update/delete posts
+  - name: Comments
+    description: Post comments
+  - name: Likes
+    description: Post like status and toggling
+  - name: Reports
+    description: Post reporting
+  - name: User Cars
+    description: The single car owned by a user profile
+  - name: Car Models
+    description: Car brand and model catalogue
+  - name: Friends
+    description: Friendships
+  - name: Friend Requests
+    description: Pending friend requests
+  - name: Leaderboard
+    description: Spot-score leaderboard
+  - name: Activity
+    description: Activity feed for the current user
+  - name: Admin
+    description: Operator and cron endpoints (separate header-based secrets, not JWT)
+
 paths:
-  /auth/login:
+  # ---------------------------------------------------------------- Authentication
+  /auth/register:
     post:
-      summary: User login
-      description: Authenticate a user with email and password or Google ID
-      tags:
-        - Authentication
+      summary: Register new credentials
+      description: >
+        Creates auth credentials and returns an `ONBOARDING`-scope session. The caller must
+        then create a user profile via `POST /users` to be promoted to `FULL` scope.
+        For `provider: GOOGLE`, `googleIdToken` is required and the email is taken from the
+        verified Google token; for `provider: REGULAR`, `email` and `password` are required.
+      tags: [Authentication]
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                email:
-                  type: string
-                  format: email
-                password:
-                  type: string
-                googleId:
-                  type: string
-                provider:
-                  type: string
-                  enum: [REGULAR, GOOGLE]
-              required:
-                - email
-                - provider
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Credentials created; onboarding session issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Validation error or weak password (`VALIDATION_ERROR`, `WEAK_PASSWORD`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthErrorResponse'
+        '401':
+          description: Invalid Google token (`INVALID_GOOGLE_TOKEN`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthErrorResponse'
+        '409':
+          description: Email already registered (`EMAIL_TAKEN`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthErrorResponse'
+
+  /auth/login:
+    post:
+      summary: Log in
+      description: >
+        Authenticates with email/password or a Google ID token. The returned session scope is
+        `ONBOARDING` when no user profile exists yet, otherwise `FULL`.
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
       responses:
         '200':
-          description: Successful login
+          description: Authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Validation error (`VALIDATION_ERROR`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthErrorResponse'
+        '401':
+          description: Invalid credentials (`INVALID_CREDENTIALS`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthErrorResponse'
+        '409':
+          description: Account uses a different sign-in provider (`PROVIDER_MISMATCH`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthErrorResponse'
+
+  /auth/refresh:
+    post:
+      summary: Refresh tokens
+      description: >
+        Exchanges a refresh token for a new access token and a rotated refresh token.
+        Refresh tokens are single-use; replaying a consumed token revokes the session
+        (`REFRESH_TOKEN_REUSED`).
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: New token pair
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Missing refresh token (`VALIDATION_ERROR`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthErrorResponse'
+        '401':
+          description: >
+            Refresh failed. Codes: `REFRESH_TOKEN_INVALID`, `REFRESH_TOKEN_EXPIRED`,
+            `REFRESH_TOKEN_REUSED`, `REFRESH_TOKEN_CONSUMED`, `SESSION_REVOKED`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthErrorResponse'
+
+  /auth/logout:
+    post:
+      summary: Log out current session
+      description: Revokes the session identified by the `sid` claim of the access token.
+      tags: [Authentication]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204':
+          description: Session revoked
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+
+  /auth/logout-all:
+    post:
+      summary: Log out all sessions
+      description: Revokes every active session for the credential.
+      tags: [Authentication]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204':
+          description: All sessions revoked
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+
+  /auth/sessions:
+    get:
+      summary: List active sessions
+      tags: [Authentication]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: >
+            Active sessions for the credential; the calling session is flagged with
+            `current: true`.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SessionDTO'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+
+  /auth/account/deletion-context:
+    get:
+      summary: Account deletion context
+      description: >
+        Stats shown on the delete-account confirmation screen. `provider` tells the client
+        whether a password confirmation is required (`REGULAR`) or a username confirmation
+        (`GOOGLE`). Requires a `FULL`-scope token.
+      tags: [Authentication]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Deletion context
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletionContextDTO'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '404':
+          description: Account not found (`ACCOUNT_NOT_FOUND`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthErrorResponse'
+
+  /auth/account:
+    delete:
+      summary: Delete account
+      description: >
+        Permanently deletes the account. `REGULAR` accounts must supply `password`;
+        `GOOGLE` accounts must supply `usernameConfirmation`. `reason`/`details` are optional
+        feedback.
+      tags: [Authentication]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteAccountRequest'
+      responses:
+        '200':
+          description: Account deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          description: >
+            Missing body or failed confirmation (`VALIDATION_ERROR`,
+            `INVALID_CURRENT_PASSWORD`, `USERNAME_CONFIRMATION_MISMATCH`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthErrorResponse'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+
+  /auth/password:
+    put:
+      summary: Change password
+      description: >
+        Only valid for `REGULAR` credentials. On success the current session's tokens are
+        rotated and a fresh token pair is returned, so the client must replace its stored
+        tokens.
+      tags: [Authentication]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePasswordRequest'
+      responses:
+        '200':
+          description: Password updated; rotated token pair returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: >
+            `VALIDATION_ERROR`, `WEAK_PASSWORD`, `INVALID_CURRENT_PASSWORD`,
+            or `PROVIDER_NOT_REGULAR`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthErrorResponse'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '404':
+          description: Credentials not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ---------------------------------------------------------------- Users
+  /users:
+    post:
+      summary: Create user profile (finish onboarding)
+      description: >
+        Creates the user profile for the authenticated credential and promotes the current
+        `ONBOARDING` session to `FULL`. Returns a new token pair carrying the `userId` claim.
+      tags: [Users]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: Profile created; promoted token pair returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateUserResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '409':
+          description: Username already taken, or a profile already exists for this credential
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /users/me:
+    get:
+      summary: Get own profile
+      tags: [Users]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Own profile, including per-field change eligibility
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SelfUserDTO'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      summary: Update own profile
+      description: >
+        Partial update. `fullName`, `country` and `birthDate` may each be changed only once
+        ever; `username` and `phoneNumber` are rate-limited to one change per cooldown
+        window. Violations return 403 with a `ProfileErrorCode`.
+      tags: [Users]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SelfUserDTO'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          description: Change not currently allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileErrorResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Username or phone number already in use
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /users/me/profile-picture:
+    patch:
+      summary: Update profile picture
+      description: >
+        Accepts either `multipart/form-data` with an `image` file part (max 10 MiB;
+        `image/jpeg`, `image/png`, `image/webp`), which the server uploads to storage itself,
+        or `application/json` with an already-uploaded `imagePath`.
+      tags: [Users]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                image:
+                  type: string
+                  format: binary
+                  description: Image file, max 10485760 bytes
+              required: [image]
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProfilePictureRequest'
+      responses:
+        '200':
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SelfUserDTO'
+        '400':
+          description: Missing image, oversized image, or unsupported content type
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /users/username-available:
+    get:
+      summary: Check username availability
+      tags: [Users]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: username
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Availability result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsernameAvailabilityResponse'
+        '400':
+          description: Missing username
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+
+  /users/{userId}:
+    get:
+      summary: Get public profile
+      description: Public endpoint; no authentication required.
+      tags: [Users]
+      parameters:
+        - $ref: '#/components/parameters/UserIdPath'
+      responses:
+        '200':
+          description: Public profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDTO'
+        '400':
+          description: Invalid userId
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ---------------------------------------------------------------- Posts
+  /posts/feed:
+    get:
+      summary: Global feed
+      description: >
+        Keyset-paginated feed, newest first. Authentication is optional: with a valid bearer
+        token, `likedByCurrentUser` reflects the viewer. A malformed, expired or revoked
+        token is rejected with 401 rather than treated as anonymous. Pass both
+        `cursorCreatedAt` and `cursorPostId` from `nextCursor` to fetch the next page.
+      tags: [Posts]
+      security:
+        - {}
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: cursorCreatedAt
+          in: query
+          description: ISO-8601 instant from `nextCursor.lastCreatedAt`
+          schema:
+            type: string
+            format: date-time
+        - name: cursorPostId
+          in: query
+          description: UUID from `nextCursor.lastPostId`
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Feed page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedResponseDTO'
+        '400':
+          description: Invalid limit or cursor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+
+  /users/{userId}/posts:
+    get:
+      summary: Posts by user
+      description: Same keyset pagination and optional-auth semantics as `/posts/feed`.
+      tags: [Posts]
+      security:
+        - {}
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UserIdPath'
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: cursorCreatedAt
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: cursorPostId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Page of the user's posts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedResponseDTO'
+        '400':
+          description: Invalid userId, limit or cursor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+
+  /posts:
+    post:
+      summary: Create post
+      description: >
+        `multipart/form-data` with a JSON `metadata` part (`CreatePostMetadata`) and an
+        `image` file part (max 10 MiB). Either `carModelId` or the
+        `customBrand`/`customModel` pair identifies the car.
+      tags: [Posts]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                metadata:
+                  $ref: '#/components/schemas/CreatePostMetadata'
+                image:
+                  type: string
+                  format: binary
+                  description: Image file, max 10485760 bytes
+              required: [metadata, image]
+            encoding:
+              metadata:
+                contentType: application/json
+      responses:
+        '201':
+          description: Post created
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  token:
+                  postId:
                     type: string
+                    format: uuid
+                required: [postId]
         '400':
-          description: Bad request
+          description: Missing/invalid metadata, missing image, or image too large
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
-          description: Unauthorized
+          $ref: '#/components/responses/AuthUnauthorized'
+        '500':
+          description: Failed to create post
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
-  /auth/register:
-    post:
-      summary: User registration
-      description: Register a new user
-      tags:
-        - Authentication
+  /posts/{postId}:
+    get:
+      summary: Get post by id
+      description: Public endpoint; no authentication required.
+      tags: [Posts]
+      parameters:
+        - $ref: '#/components/parameters/PostIdPath'
+      responses:
+        '200':
+          description: Post
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostDTO'
+        '400':
+          description: Invalid postId
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      summary: Update own post
+      description: Author only. Updates the car identification and/or caption.
+      tags: [Posts]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PostIdPath'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                email:
-                  type: string
-                  format: email
-                password:
-                  type: string
-                provider:
-                  type: string
-                  enum: [REGULAR, GOOGLE]
-              required:
-                - email
-                - provider
+              $ref: '#/components/schemas/UpdatePostRequest'
       responses:
-        '201':
-          description: User registered successfully
+        '200':
+          description: Updated post
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostDTO'
         '400':
-          description: Bad request
-
-  /auth/account:
-    delete:
-      summary: Delete account
-      description: Delete the current user's account
-      tags:
-        - Authentication
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: Account deleted successfully
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
-          description: Unauthorized
-        '500':
-          description: Internal server error
-
-  /auth/password:
-    put:
-      summary: Update password
-      description: Update the current user's password
-      tags:
-        - Authentication
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                newPassword:
-                  type: string
-              required:
-                - newPassword
-      responses:
-        '200':
-          description: Password updated successfully
-        '400':
-          description: Bad request
-        '401':
-          description: Unauthorized
-        '500':
-          description: Internal server error
-
-  /user/me:
-    get:
-      summary: Get current user
-      description: Get the current user's profile
-      tags:
-        - Users
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: User profile
-        '401':
-          description: Unauthorized
-        '404':
-          description: User not found
-    delete:
-      summary: Delete user
-      description: Delete the current user
-      tags:
-        - Users
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: User deleted successfully
-        '401':
-          description: Unauthorized
-        '404':
-          description: User not found
-
-  /user/all:
-    get:
-      summary: Get all users
-      description: Get all users (admin only)
-      tags:
-        - Users
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: List of users
-        '401':
-          description: Unauthorized
+          $ref: '#/components/responses/AuthUnauthorized'
         '403':
-          description: Forbidden
-
-  /user/by-username/{username}:
-    get:
-      summary: Get users by username
-      description: Get users by username
-      tags:
-        - Users
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: username
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: List of users
-        '400':
-          description: Bad request
-        '401':
-          description: Unauthorized
-
-  /user:
-    post:
-      summary: Create user
-      description: Create a new user
-      tags:
-        - Users
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                username:
-                  type: string
-                firstName:
-                  type: string
-                lastName:
-                  type: string
-                birthDate:
-                  type: string
-                  format: date
-                country:
-                  type: string
-              required:
-                - username
-                - firstName
-                - lastName
-                - birthDate
-                - country
-      responses:
-        '201':
-          description: User created successfully
-        '400':
-          description: Bad request
-        '401':
-          description: Unauthorized
-        '500':
-          description: Internal server error
-
-  /user/profile-picture:
-    put:
-      summary: Update profile picture
-      description: Update the current user's profile picture
-      tags:
-        - Users
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                imagePath:
-                  type: string
-              required:
-                - imagePath
-      responses:
-        '200':
-          description: Profile picture updated successfully
-        '401':
-          description: Unauthorized
+          description: Not the author
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: User not found
-
-  /car-models:
-    get:
-      summary: Get all car models
-      description: Get a list of all car models
-      tags:
-        - Car Models
-      responses:
-        '200':
-          description: List of car models
-        '404':
-          description: No car models found
-
-  /car-models/{modelId}:
-    get:
-      summary: Get car model by ID
-      description: Get a specific car model by ID
-      tags:
-        - Car Models
+          $ref: '#/components/responses/NotFound'
+    delete:
+      summary: Delete own post
+      description: Author only.
+      tags: [Posts]
+      security: [{ bearerAuth: [] }]
       parameters:
-        - name: modelId
-          in: path
-          required: true
-          schema:
-            type: integer
+        - $ref: '#/components/parameters/PostIdPath'
       responses:
-        '200':
-          description: Car model details
-        '400':
-          description: Invalid model ID
-        '404':
-          description: Car model not found
-
-  /comments/{postId}:
-    get:
-      summary: Get comments for post
-      description: Get all comments for a specific post
-      tags:
-        - Comments
-      parameters:
-        - name: postId
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        '200':
-          description: List of comments
         '204':
-          description: No comments found
+          description: Post deleted
         '400':
-          description: Invalid post ID
+          description: Invalid postId
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          description: Not the author
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
-  /comments:
+  # ---------------------------------------------------------------- Comments
+  /posts/{postId}/comments:
+    get:
+      summary: List comments for a post
+      description: >
+        Public endpoint. An empty list is a valid 200 response; post existence is not
+        verified.
+      tags: [Comments]
+      parameters:
+        - $ref: '#/components/parameters/PostIdPath'
+      responses:
+        '200':
+          description: Comments, oldest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CommentDTO'
+        '400':
+          description: Invalid postId
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     post:
       summary: Add comment
-      description: Add a comment to a post
-      tags:
-        - Comments
-      security:
-        - bearerAuth: []
+      tags: [Comments]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PostIdPath'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                postId:
-                  type: integer
-                commentText:
-                  type: string
-              required:
-                - postId
-                - commentText
+              $ref: '#/components/schemas/CommentRequest'
       responses:
         '201':
-          description: Comment created successfully
+          description: Comment created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommentDTO'
         '400':
-          description: Bad request
+          description: Invalid postId or comment text
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
-          description: Unauthorized
-        '500':
-          description: Internal server error
+          $ref: '#/components/responses/AuthUnauthorized'
+        '404':
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /comments/{commentId}:
     delete:
-      summary: Delete comment
-      description: Delete a specific comment
-      tags:
-        - Comments
-      security:
-        - bearerAuth: []
+      summary: Delete own comment
+      tags: [Comments]
+      security: [{ bearerAuth: [] }]
       parameters:
         - name: commentId
           in: path
           required: true
           schema:
-            type: integer
+            type: string
+            format: uuid
       responses:
-        '200':
-          description: Comment deleted successfully
+        '204':
+          description: Comment deleted
         '400':
-          description: Invalid comment ID
+          description: Invalid commentId
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
-          description: Unauthorized
+          $ref: '#/components/responses/AuthUnauthorized'
         '403':
-          description: Forbidden
+          description: Not the comment author
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Comment not found
-        '500':
-          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
-  /friend-requests:
+  # ---------------------------------------------------------------- Likes
+  /posts/{postId}/likes:
     get:
-      summary: Get friend requests
-      description: Get all friend requests for the current user
-      tags:
-        - Friend Requests
+      summary: Get like status
+      description: >
+        Authentication is optional. Without a token `liked` is always `false`; with a valid
+        token it reflects the caller.
+      tags: [Likes]
       security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: List of friend requests
-        '204':
-          description: No friend requests found
-        '401':
-          description: Unauthorized
-
-  /friend-requests/admin:
-    get:
-      summary: Get all friend requests (admin)
-      description: Get all friend requests in the system (admin only)
-      tags:
-        - Friend Requests
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: List of all friend requests
-        '401':
-          description: Unauthorized
-        '403':
-          description: Forbidden
-
-  /friend-requests/{receiverId}:
-    post:
-      summary: Send friend request
-      description: Send a friend request to another user
-      tags:
-        - Friend Requests
-      security:
+        - {}
         - bearerAuth: []
       parameters:
-        - name: receiverId
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        '201':
-          description: Friend request sent
-        '400':
-          description: Bad request
-        '401':
-          description: Unauthorized
-        '500':
-          description: Internal server error
-
-  /friend-requests/{senderId}/accept:
-    post:
-      summary: Accept friend request
-      description: Accept a friend request from another user
-      tags:
-        - Friend Requests
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: senderId
-          in: path
-          required: true
-          schema:
-            type: integer
+        - $ref: '#/components/parameters/PostIdPath'
       responses:
         '200':
-          description: Friend request accepted
+          description: Like status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LikeStatusDTO'
         '400':
-          description: Bad request
+          description: Invalid postId
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Toggle like
+      description: Likes the post if not already liked, otherwise unlikes it.
+      tags: [Likes]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PostIdPath'
+      responses:
+        '200':
+          description: Resulting like status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LikeStatusDTO'
+        '400':
+          description: Invalid postId
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
-          description: Unauthorized
+          $ref: '#/components/responses/AuthUnauthorized'
         '404':
-          description: Friend request not found
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
-  /friend-requests/{senderId}/decline:
-    post:
-      summary: Decline friend request
-      description: Decline a friend request from another user
-      tags:
-        - Friend Requests
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: senderId
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        '200':
-          description: Friend request declined
-        '400':
-          description: Bad request
-        '401':
-          description: Unauthorized
-        '404':
-          description: Friend request not found
-
-  /friends:
-    get:
-      summary: Get friends
-      description: Get all friends for the current user
-      tags:
-        - Friends
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: List of friends
-        '204':
-          description: No friends found
-        '401':
-          description: Unauthorized
-
-  /friends/admin:
-    get:
-      summary: Get all friendships (admin)
-      description: Get all friendships in the system (admin only)
-      tags:
-        - Friends
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: List of all friendships
-        '401':
-          description: Unauthorized
-        '403':
-          description: Forbidden
-
-  /friends/{friendId}:
-    post:
-      summary: Add friend
-      description: Add a user as a friend
-      tags:
-        - Friends
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: friendId
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        '201':
-          description: Friend added
-        '400':
-          description: Bad request
-        '401':
-          description: Unauthorized
-        '409':
-          description: Friendship already exists
-    delete:
-      summary: Delete friend
-      description: Remove a user from friends
-      tags:
-        - Friends
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: friendId
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        '200':
-          description: Friend deleted
-        '400':
-          description: Bad request
-        '401':
-          description: Unauthorized
-        '404':
-          description: Friendship not found
-
-  /likes/{postId}:
-    post:
-      summary: Like post
-      description: Like a post
-      tags:
-        - Likes
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: postId
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        '200':
-          description: Post liked successfully
-        '400':
-          description: Bad request
-        '401':
-          description: Unauthorized
-        '409':
-          description: Already liked
-    delete:
-      summary: Unlike post
-      description: Remove a like from a post
-      tags:
-        - Likes
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: postId
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        '200':
-          description: Post unliked successfully
-        '400':
-          description: Bad request
-        '401':
-          description: Unauthorized
-        '404':
-          description: Like not found
-
-  /likes/posts/{postId}:
-    get:
-      summary: Get likes for post
-      description: Get all users who liked a post
-      tags:
-        - Likes
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: postId
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        '200':
-          description: List of users who liked the post
-        '204':
-          description: No likes for this post
-        '400':
-          description: Bad request
-        '401':
-          description: Unauthorized
-
+  # ---------------------------------------------------------------- Reports
   /posts/{postId}/reports:
     post:
       summary: Report post
       description: >
-        Report a post for a typed reason. One report per user/post/reason; a
-        repeat report is accepted as an idempotent no-op.
-      tags:
-        - Reports
-      security:
-        - bearerAuth: []
+        One report per user/post/reason; a repeat report is accepted as an idempotent no-op
+        and returns 200 with `status: already_reported`.
+      tags: [Reports]
+      security: [{ bearerAuth: [] }]
       parameters:
-        - name: postId
+        - $ref: '#/components/parameters/PostIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportRequestDTO'
+      responses:
+        '201':
+          description: Report recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportStatusResponse'
+        '200':
+          description: Already reported (idempotent)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportStatusResponse'
+        '400':
+          description: Invalid postId or reason
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '404':
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ---------------------------------------------------------------- User cars
+  /me/car:
+    get:
+      summary: Get own car
+      tags: [User Cars]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Own car
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserCarDTO'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '404':
+          description: User car not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Create own car
+      description: >
+        `multipart/form-data` with a required JSON `metadata` part (`UserCarRequest`) and a
+        required `image` file part (max 10 MiB). A user profile may own at most one car.
+      tags: [User Cars]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                metadata:
+                  $ref: '#/components/schemas/UserCarRequest'
+                image:
+                  type: string
+                  format: binary
+                  description: Image file, max 10485760 bytes
+              required: [metadata, image]
+            encoding:
+              metadata:
+                contentType: application/json
+      responses:
+        '201':
+          description: Car created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserCarDTO'
+        '400':
+          description: Missing/invalid metadata or image
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '409':
+          description: User already has a car
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to create user car
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    patch:
+      summary: Update own car
+      description: >
+        `multipart/form-data`; both parts are optional. Send `metadata`
+        (`UserCarUpdateRequest`) to change the car identification and/or `image` to replace
+        the photo.
+      tags: [User Cars]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                metadata:
+                  $ref: '#/components/schemas/UserCarUpdateRequest'
+                image:
+                  type: string
+                  format: binary
+                  description: Image file, max 10485760 bytes
+            encoding:
+              metadata:
+                contentType: application/json
+      responses:
+        '200':
+          description: Updated car
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserCarDTO'
+        '400':
+          description: Invalid metadata or image
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '404':
+          description: User car not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to update user car
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      summary: Delete own car
+      tags: [User Cars]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204':
+          description: Car deleted
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '404':
+          description: User car not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /users/{userId}/car:
+    get:
+      summary: Get another user's car
+      description: Public endpoint; no authentication required.
+      tags: [User Cars]
+      parameters:
+        - $ref: '#/components/parameters/UserIdPath'
+      responses:
+        '200':
+          description: The user's car
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserCarDTO'
+        '400':
+          description: Invalid userId
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: User car not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ---------------------------------------------------------------- Car models
+  /car-models/brands:
+    get:
+      summary: List car brands
+      description: Public endpoint; no authentication required.
+      tags: [Car Models]
+      responses:
+        '200':
+          description: Brand names
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+
+  /car-models/brands/{brand}/models:
+    get:
+      summary: List models for a brand
+      description: Public endpoint; no authentication required.
+      tags: [Car Models]
+      parameters:
+        - name: brand
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Models for the brand
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CarModelOption'
+        '400':
+          description: Missing brand parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ---------------------------------------------------------------- Friends
+  /friends:
+    get:
+      summary: List own friends
+      description: Returns 204 with no body when the user has no friends.
+      tags: [Friends]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Friendships
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FriendDTO'
+        '204':
+          description: No friends
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+
+  /friends/admin:
+    get:
+      summary: List all friendships (admin)
+      description: Requires a JWT with the `isAdmin` claim.
+      tags: [Friends, Admin]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: All friendships
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FriendDTO'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /friends/{friendId}:
+    post:
+      summary: Add friend
+      tags: [Friends]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: friendId
           in: path
           required: true
           schema:
             type: string
             format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                reason:
-                  type: string
-                  enum:
-                    - INCORRECT_CAR_MODEL
-                    - DUPLICATE_POST
-                    - INAPPROPRIATE_CONTENT
-              required:
-                - reason
       responses:
         '201':
-          description: Report recorded
-        '200':
-          description: Already reported (idempotent)
+          description: Friend added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
         '400':
-          description: Invalid postId or reason
+          description: Invalid friendId, or attempting to add yourself
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
-          description: Unauthorized
-        '404':
-          description: Post not found
-
-  /posts:
-    get:
-      summary: Get all posts
-      description: Get all posts
-      tags:
-        - Posts
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: List of posts
-        '401':
-          description: Unauthorized
-    post:
-      summary: Create post
-      description: Create a new post
-      tags:
-        - Posts
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                imagePath:
-                  type: string
-                description:
-                  type: string
-              required:
-                - imagePath
-      responses:
-        '200':
-          description: Post created successfully
-        '400':
-          description: Bad request
-        '401':
-          description: Unauthorized
-
-  /posts/{postId}:
-    get:
-      summary: Get post by ID
-      description: Get a specific post by ID
-      tags:
-        - Posts
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: postId
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        '200':
-          description: Post details
-        '400':
-          description: Invalid post ID
-        '401':
-          description: Unauthorized
-        '404':
-          description: Post not found
-    put:
-      summary: Update post
-      description: Update a post's description
-      tags:
-        - Posts
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: postId
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                newDescription:
-                  type: string
-              required:
-                - newDescription
-      responses:
-        '200':
-          description: Post updated successfully
-        '400':
-          description: Bad request
-        '401':
-          description: Unauthorized
-        '403':
-          description: Forbidden
-        '404':
-          description: Post not found
+          $ref: '#/components/responses/AuthUnauthorized'
+        '409':
+          description: Friendship already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     delete:
-      summary: Delete post
-      description: Delete a post
-      tags:
-        - Posts
-      security:
-        - bearerAuth: []
+      summary: Remove friend
+      tags: [Friends]
+      security: [{ bearerAuth: [] }]
       parameters:
-        - name: postId
+        - name: friendId
           in: path
           required: true
           schema:
-            type: integer
+            type: string
+            format: uuid
       responses:
         '200':
-          description: Post deleted successfully
+          description: Friend deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
         '400':
-          description: Bad request
+          description: Invalid friendId
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
-          description: Unauthorized
-        '403':
-          description: Forbidden
+          $ref: '#/components/responses/AuthUnauthorized'
         '404':
-          description: Post not found
+          description: Friendship does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
-  /posts/current-day:
+  # ---------------------------------------------------------------- Friend requests
+  /friend-requests:
     get:
-      summary: Get current day posts
-      description: Get all posts for the current day for the current user
-      tags:
-        - Posts
-      security:
-        - bearerAuth: []
+      summary: List incoming friend requests
+      description: Returns 204 with no body when there are none.
+      tags: [Friend Requests]
+      security: [{ bearerAuth: [] }]
       responses:
         '200':
-          description: List of posts
+          description: Friend requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FriendRequestDTO'
+        '204':
+          description: No friend requests
         '401':
-          description: Unauthorized
+          $ref: '#/components/responses/AuthUnauthorized'
 
-  /user-cars:
+  /friend-requests/admin:
     get:
-      summary: Get all user cars
-      description: Get all user cars
-      tags:
-        - User Cars
-      security:
-        - bearerAuth: []
+      summary: List all friend requests (admin)
+      description: Requires a JWT with the `isAdmin` claim.
+      tags: [Friend Requests, Admin]
+      security: [{ bearerAuth: [] }]
       responses:
         '200':
-          description: List of user cars
+          description: All friend requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FriendRequestDTO'
         '401':
-          description: Unauthorized
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /friend-requests/{receiverId}:
     post:
-      summary: Create user car
-      description: Create a new user car
-      tags:
-        - User Cars
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                carModelId:
-                  type: integer
-                imagePath:
-                  type: string
-              required:
-                - carModelId
-                - imagePath
+      summary: Send friend request
+      tags: [Friend Requests]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: receiverId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
       responses:
         '201':
-          description: User car created successfully
+          description: Friend request sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
         '400':
-          description: Bad request
+          description: Invalid receiverId, or sending a request to yourself
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
-          description: Unauthorized
+          $ref: '#/components/responses/AuthUnauthorized'
         '500':
-          description: Internal server error
-    put:
-      summary: Update user car
-      description: Update a user car
-      tags:
-        - User Cars
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                imagePath:
-                  type: string
-                carModelId:
-                  type: integer
-              required:
-                - imagePath
-                - carModelId
-      responses:
-        '200':
-          description: User car updated successfully
-        '401':
-          description: Unauthorized
-        '404':
-          description: User car not found
-    delete:
-      summary: Delete user car
-      description: Delete a user car
-      tags:
-        - User Cars
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: User car deleted successfully
-        '401':
-          description: Unauthorized
-        '404':
-          description: User car not found
+          description: A problem occurred when sending the friend request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
-  /user-cars/{userCarId}:
-    get:
-      summary: Get user car by ID
-      description: Get a specific user car by ID
-      tags:
-        - User Cars
-      security:
-        - bearerAuth: []
+  /friend-requests/{senderId}/accept:
+    post:
+      summary: Accept friend request
+      tags: [Friend Requests]
+      security: [{ bearerAuth: [] }]
       parameters:
-        - name: userCarId
+        - name: senderId
           in: path
           required: true
           schema:
-            type: integer
+            type: string
+            format: uuid
       responses:
         '200':
-          description: User car details
+          description: Friend request accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
         '400':
-          description: Invalid user car ID
+          description: Invalid senderId, or accepting your own request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
-          description: Unauthorized
+          $ref: '#/components/responses/AuthUnauthorized'
         '404':
-          description: User car not found
+          description: Friend request not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
-  /user-cars/by-user/{userId}:
-    get:
-      summary: Get user car by user ID
-      description: Get a user car by user ID
-      tags:
-        - User Cars
-      security:
-        - bearerAuth: []
+  /friend-requests/{senderId}/decline:
+    post:
+      summary: Decline friend request
+      tags: [Friend Requests]
+      security: [{ bearerAuth: [] }]
       parameters:
-        - name: userId
+        - name: senderId
           in: path
           required: true
           schema:
-            type: integer
+            type: string
+            format: uuid
       responses:
         '200':
-          description: User car details
+          description: Friend request declined
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
         '400':
-          description: Invalid user ID
+          description: Invalid senderId, or declining your own request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
-          description: Unauthorized
+          $ref: '#/components/responses/AuthUnauthorized'
         '404':
-          description: User car not found
+          description: Friend request not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
-  /user-cars/{userCarId}/user:
+  # ---------------------------------------------------------------- Leaderboard
+  /leaderboard:
     get:
-      summary: Get user by user car ID
-      description: Get the user associated with a user car
-      tags:
-        - User Cars
-      security:
-        - bearerAuth: []
+      summary: Get leaderboard
+      description: >
+        Top entries by spot score plus the calling user's own standing, including movement
+        relative to the latest rank snapshot.
+      tags: [Leaderboard]
+      security: [{ bearerAuth: [] }]
       parameters:
-        - name: userCarId
-          in: path
-          required: true
+        - name: limit
+          in: query
+          description: Coerced into 1..200
           schema:
             type: integer
+            default: 50
+            minimum: 1
+            maximum: 200
       responses:
         '200':
-          description: User details
-        '400':
-          description: Invalid user car ID
+          description: Leaderboard
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaderboardResponseDTO'
         '401':
-          description: Unauthorized
+          $ref: '#/components/responses/AuthUnauthorized'
+
+  # ---------------------------------------------------------------- Activity
+  /activity:
+    get:
+      summary: Get activity feed
+      description: >
+        Activity items for the calling user (likes and comments received, rank movement,
+        streaks), newest first, plus weekly spot score and today's interaction count.
+      tags: [Activity]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: limit
+          in: query
+          description: Coerced into 1..200
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 200
+        - name: timezone
+          in: query
+          description: IANA zone id used to compute "today" for the interaction count
+          schema:
+            type: string
+            example: Europe/Bucharest
+      responses:
+        '200':
+          description: Activity feed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivityResponseDTO'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+
+  # ---------------------------------------------------------------- Admin
+  /admin/leaderboard/snapshot:
+    post:
+      summary: Snapshot leaderboard ranks (operator)
+      description: >
+        Writes a rank snapshot for today in the configured snapshot zone. Authenticated with
+        the `X-Admin-Token` header (`ADMIN_SNAPSHOT_TOKEN`), not a JWT. Idempotent: the
+        snapshot for a date is deleted and reinserted, so retries never duplicate rows.
+      tags: [Admin]
+      security: [{ adminToken: [] }]
+      responses:
+        '200':
+          description: Snapshot written
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SnapshotResultDTO'
+        '401':
+          description: Invalid or missing admin token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/leaderboard/snapshot/today:
+    post:
+      summary: Snapshot leaderboard ranks (cron)
+      description: >
+        Same behaviour as `/admin/leaderboard/snapshot`, but authenticated with the
+        `X-Cron-Secret` header (`CRON_SECRET`) so the external daily scheduler uses a secret
+        distinct from the human-operated endpoint.
+      tags: [Admin]
+      security: [{ cronSecret: [] }]
+      responses:
+        '200':
+          description: Snapshot written
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SnapshotResultDTO'
+        '401':
+          description: Invalid or missing cron secret
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
 components:
   securitySchemes:
@@ -968,3 +1496,905 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+      description: JWT access token with `sid`/`ver` session claims
+    adminToken:
+      type: apiKey
+      in: header
+      name: X-Admin-Token
+    cronSecret:
+      type: apiKey
+      in: header
+      name: X-Cron-Secret
+
+  parameters:
+    UserIdPath:
+      name: userId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    PostIdPath:
+      name: postId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    AuthUnauthorized:
+      description: >
+        Access token missing, invalid, expired, or its session was revoked
+        (`ACCESS_TOKEN_MISSING`, `ACCESS_TOKEN_INVALID`, `ACCESS_TOKEN_EXPIRED`,
+        `SESSION_REVOKED`).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AuthErrorResponse'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    # ------------------------------------------------------------- shared
+    ErrorResponse:
+      type: object
+      description: Generic error envelope used by non-auth routes.
+      properties:
+        error:
+          type: string
+      required: [error]
+
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required: [message]
+
+    AuthErrorCode:
+      type: string
+      enum:
+        - ACCESS_TOKEN_EXPIRED
+        - ACCESS_TOKEN_INVALID
+        - ACCESS_TOKEN_MISSING
+        - REFRESH_TOKEN_INVALID
+        - REFRESH_TOKEN_EXPIRED
+        - REFRESH_TOKEN_REUSED
+        - REFRESH_TOKEN_CONSUMED
+        - SESSION_REVOKED
+        - SIGNED_IN_ON_ANOTHER_DEVICE
+        - INVALID_CREDENTIALS
+        - PROVIDER_MISMATCH
+        - INVALID_GOOGLE_TOKEN
+        - EMAIL_TAKEN
+        - WEAK_PASSWORD
+        - VALIDATION_ERROR
+        - USERNAME_TAKEN
+        - PROFILE_EXISTS
+        - ONBOARDING_REQUIRED
+        - ACCOUNT_NOT_FOUND
+        - ACCOUNT_DELETED
+        - INVALID_CURRENT_PASSWORD
+        - PROVIDER_NOT_REGULAR
+        - USERNAME_CONFIRMATION_MISMATCH
+
+    AuthErrorResponse:
+      type: object
+      description: >
+        Machine-readable auth error. The Android client keys token-refresh and forced-logout
+        behaviour off `error.code`, so codes must stay stable.
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              $ref: '#/components/schemas/AuthErrorCode'
+            message:
+              type: string
+          required: [code, message]
+      required: [error]
+
+    ProfileErrorCode:
+      type: string
+      enum:
+        - FULL_NAME_ALREADY_CHANGED
+        - COUNTRY_ALREADY_CHANGED
+        - BIRTH_DATE_ALREADY_CHANGED
+        - USERNAME_CHANGE_TOO_SOON
+        - PHONE_NUMBER_CHANGE_TOO_SOON
+
+    ProfileErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              $ref: '#/components/schemas/ProfileErrorCode'
+            message:
+              type: string
+          required: [code, message]
+      required: [error]
+
+    AuthProvider:
+      type: string
+      enum: [GOOGLE, REGULAR]
+
+    OnboardingStep:
+      type: string
+      enum: [PROFILE_REQUIRED, COMPLETED]
+
+    SessionScope:
+      type: string
+      enum: [ONBOARDING, FULL]
+
+    # ------------------------------------------------------------- auth
+    RegisterRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          description: Required for `REGULAR`; ignored for `GOOGLE`
+        password:
+          type: string
+          description: >
+            Required for `REGULAR`. At least 8 characters with uppercase, lowercase, digit
+            and special character.
+        provider:
+          $ref: '#/components/schemas/AuthProvider'
+        googleIdToken:
+          type: string
+          description: Required for `GOOGLE`
+        deviceId:
+          type: string
+          nullable: true
+        deviceName:
+          type: string
+          nullable: true
+      required: [provider]
+
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+        googleIdToken:
+          type: string
+        provider:
+          $ref: '#/components/schemas/AuthProvider'
+        deviceId:
+          type: string
+          nullable: true
+        deviceName:
+          type: string
+          nullable: true
+      required: [provider]
+
+    RefreshRequest:
+      type: object
+      properties:
+        refreshToken:
+          type: string
+        deviceId:
+          type: string
+          nullable: true
+      required: [refreshToken]
+
+    AuthResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        expiresIn:
+          type: integer
+          description: Access-token lifetime in seconds
+        scope:
+          $ref: '#/components/schemas/SessionScope'
+        onboardingStep:
+          $ref: '#/components/schemas/OnboardingStep'
+      required: [accessToken, refreshToken, expiresIn, scope, onboardingStep]
+
+    SessionDTO:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        current:
+          type: boolean
+        deviceId:
+          type: string
+          nullable: true
+        deviceName:
+          type: string
+          nullable: true
+        userAgent:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        lastUsedAt:
+          type: string
+          format: date-time
+        idleExpiresAt:
+          type: string
+          format: date-time
+        absoluteExpiresAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - current
+        - createdAt
+        - lastUsedAt
+        - idleExpiresAt
+        - absoluteExpiresAt
+
+    UpdatePasswordRequest:
+      type: object
+      properties:
+        oldPassword:
+          type: string
+        newPassword:
+          type: string
+      required: [oldPassword, newPassword]
+
+    DeleteAccountRequest:
+      type: object
+      properties:
+        password:
+          type: string
+          nullable: true
+          description: Required for `REGULAR` accounts
+        usernameConfirmation:
+          type: string
+          nullable: true
+          description: Required for `GOOGLE` accounts
+        reason:
+          type: string
+          nullable: true
+        details:
+          type: string
+          nullable: true
+
+    DeletionContextDTO:
+      type: object
+      properties:
+        provider:
+          $ref: '#/components/schemas/AuthProvider'
+        postCount:
+          type: integer
+        likesReceived:
+          type: integer
+        leaderboardRank:
+          type: integer
+          nullable: true
+        streakDays:
+          type: integer
+        accountAgeDays:
+          type: integer
+      required:
+        - provider
+        - postCount
+        - likesReceived
+        - streakDays
+        - accountAgeDays
+
+    # ------------------------------------------------------------- users
+    CreateUserRequest:
+      type: object
+      properties:
+        profilePicturePath:
+          type: string
+          nullable: true
+        fullName:
+          type: string
+        phoneNumber:
+          type: string
+          nullable: true
+        birthDate:
+          type: string
+          format: date
+        username:
+          type: string
+        country:
+          type: string
+      required: [fullName, birthDate, username, country]
+
+    CreateUserResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        userId:
+          type: string
+          format: uuid
+      required: [accessToken, refreshToken, userId]
+
+    UpdateUserRequest:
+      type: object
+      description: Partial update; omitted fields are left unchanged.
+      properties:
+        fullName:
+          type: string
+          nullable: true
+        username:
+          type: string
+          nullable: true
+        country:
+          type: string
+          nullable: true
+        phoneNumber:
+          type: string
+          nullable: true
+        birthDate:
+          type: string
+          format: date
+          nullable: true
+
+    UpdateProfilePictureRequest:
+      type: object
+      properties:
+        imagePath:
+          type: string
+      required: [imagePath]
+
+    UsernameAvailabilityResponse:
+      type: object
+      properties:
+        available:
+          type: boolean
+        normalized:
+          type: string
+        reason:
+          type: string
+          nullable: true
+      required: [available, normalized]
+
+    UserDTO:
+      type: object
+      description: Public profile.
+      properties:
+        id:
+          type: string
+          format: uuid
+        fullName:
+          type: string
+        profilePicturePath:
+          type: string
+          nullable: true
+          description: Resolved image URL
+        username:
+          type: string
+        country:
+          type: string
+        spotScore:
+          type: integer
+        postCount:
+          type: integer
+        isEarlySpotter:
+          type: boolean
+        earlySpotterNumber:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        streakDays:
+          type: integer
+      required: [id, fullName, username, country]
+
+    SelfUserDTO:
+      type: object
+      description: >
+        Own profile. Adds private fields (`phoneNumber`, `birthDate`) and the
+        `canChange*` / `next*ChangeAt` flags that drive the edit-profile UI.
+      properties:
+        id:
+          type: string
+          format: uuid
+        fullName:
+          type: string
+        profilePicturePath:
+          type: string
+          nullable: true
+        username:
+          type: string
+        country:
+          type: string
+        phoneNumber:
+          type: string
+          nullable: true
+        birthDate:
+          type: string
+          format: date
+        spotScore:
+          type: integer
+        postCount:
+          type: integer
+        isEarlySpotter:
+          type: boolean
+        earlySpotterNumber:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        streakDays:
+          type: integer
+        canChangeFullName:
+          type: boolean
+        canChangeCountry:
+          type: boolean
+        canChangeBirthDate:
+          type: boolean
+        canChangeUsername:
+          type: boolean
+        canChangePhoneNumber:
+          type: boolean
+        nextUsernameChangeAt:
+          type: string
+          format: date-time
+          nullable: true
+        nextPhoneNumberChangeAt:
+          type: string
+          format: date-time
+          nullable: true
+      required: [id, fullName, username, country, birthDate]
+
+    # ------------------------------------------------------------- posts
+    CreatePostMetadata:
+      type: object
+      description: JSON `metadata` part of the create-post multipart request.
+      properties:
+        carModelId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Catalogue model id; omit when using `customBrand`/`customModel`
+        customBrand:
+          type: string
+          nullable: true
+        customModel:
+          type: string
+          nullable: true
+        latitude:
+          type: number
+          format: double
+          nullable: true
+        longitude:
+          type: number
+          format: double
+          nullable: true
+        town:
+          type: string
+          nullable: true
+        country:
+          type: string
+          nullable: true
+        caption:
+          type: string
+          nullable: true
+        source:
+          type: string
+          description: Capture source; unrecognised values fall back to `GALLERY`
+          enum: [CAMERA, GALLERY]
+        createdAtTimezone:
+          type: string
+          nullable: true
+          description: IANA zone id of the capture, used for streak/day bucketing
+
+    UpdatePostRequest:
+      type: object
+      properties:
+        carModelId:
+          type: string
+          format: uuid
+          nullable: true
+        customBrand:
+          type: string
+          nullable: true
+        customModel:
+          type: string
+          nullable: true
+        caption:
+          type: string
+          nullable: true
+
+    PostDTO:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        username:
+          type: string
+        authorProfilePictureUrl:
+          type: string
+          nullable: true
+        carModelId:
+          type: string
+          format: uuid
+          nullable: true
+        brand:
+          type: string
+        model:
+          type: string
+        imageUrl:
+          type: string
+        caption:
+          type: string
+          nullable: true
+        latitude:
+          type: number
+          format: double
+          nullable: true
+        longitude:
+          type: number
+          format: double
+          nullable: true
+        town:
+          type: string
+          nullable: true
+        country:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        likeCount:
+          type: integer
+          format: int64
+        commentCount:
+          type: integer
+          format: int64
+        likedByCurrentUser:
+          type: boolean
+        authorIsEarlySpotter:
+          type: boolean
+        authorEarlySpotterNumber:
+          type: integer
+          nullable: true
+      required: [id, userId, username, brand, model, imageUrl, createdAt]
+
+    FeedCursorDTO:
+      type: object
+      description: >
+        Opaque keyset cursor pointing at the last post of the current page. The next request
+        returns posts strictly older than this `(createdAt, id)` pair.
+      properties:
+        lastCreatedAt:
+          type: string
+          format: date-time
+        lastPostId:
+          type: string
+          format: uuid
+      required: [lastCreatedAt, lastPostId]
+
+    FeedResponseDTO:
+      type: object
+      properties:
+        posts:
+          type: array
+          items:
+            $ref: '#/components/schemas/PostDTO'
+        nextCursor:
+          allOf:
+            - $ref: '#/components/schemas/FeedCursorDTO'
+          nullable: true
+        hasMore:
+          type: boolean
+      required: [posts, hasMore]
+
+    # ------------------------------------------------------------- comments
+    CommentRequest:
+      type: object
+      properties:
+        commentText:
+          type: string
+      required: [commentText]
+
+    CommentDTO:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        postId:
+          type: string
+          format: uuid
+        username:
+          type: string
+        profilePicturePath:
+          type: string
+          nullable: true
+          description: Resolved image URL
+        commentText:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, userId, postId, username, commentText, createdAt, updatedAt]
+
+    # ------------------------------------------------------------- likes
+    LikeStatusDTO:
+      type: object
+      properties:
+        liked:
+          type: boolean
+          description: Whether the calling user has liked the post; `false` when anonymous
+        count:
+          type: integer
+          format: int64
+      required: [liked, count]
+
+    # ------------------------------------------------------------- reports
+    ReportReason:
+      type: string
+      enum:
+        - INCORRECT_CAR_MODEL
+        - DUPLICATE_POST
+        - INAPPROPRIATE_CONTENT
+
+    ReportRequestDTO:
+      type: object
+      properties:
+        reason:
+          $ref: '#/components/schemas/ReportReason'
+      required: [reason]
+
+    ReportStatusResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [reported, already_reported]
+      required: [status]
+
+    # ------------------------------------------------------------- user cars
+    UserCarRequest:
+      type: object
+      description: JSON `metadata` part of the create-car multipart request.
+      properties:
+        carModelId:
+          type: string
+          format: uuid
+          nullable: true
+        customBrand:
+          type: string
+          nullable: true
+        customModel:
+          type: string
+          nullable: true
+
+    UserCarUpdateRequest:
+      type: object
+      description: JSON `metadata` part of the update-car multipart request.
+      properties:
+        carModelId:
+          type: string
+          format: uuid
+          nullable: true
+        customBrand:
+          type: string
+          nullable: true
+        customModel:
+          type: string
+          nullable: true
+
+    UserCarDTO:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        carModelId:
+          type: string
+          format: uuid
+          nullable: true
+        brand:
+          type: string
+        model:
+          type: string
+        imageUrl:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, userId, brand, model, imageUrl, createdAt, updatedAt]
+
+    # ------------------------------------------------------------- car models
+    CarModelOption:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        model:
+          type: string
+      required: [id, model]
+
+    # ------------------------------------------------------------- friends
+    FriendDTO:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+        friendId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+      required: [userId, friendId]
+
+    FriendRequestDTO:
+      type: object
+      properties:
+        senderId:
+          type: string
+          format: uuid
+        receiverId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+      required: [senderId, receiverId]
+
+    # ------------------------------------------------------------- leaderboard
+    LeaderboardEntryDTO:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+        rank:
+          type: integer
+        username:
+          type: string
+        avatarUrl:
+          type: string
+          nullable: true
+        spotScore:
+          type: integer
+        streakDays:
+          type: integer
+      required: [userId, rank, username, spotScore, streakDays]
+
+    CurrentUserStandingDTO:
+      type: object
+      properties:
+        entry:
+          $ref: '#/components/schemas/LeaderboardEntryDTO'
+        movement:
+          type: string
+          description: Direction of movement since the last rank snapshot
+        placesMoved:
+          type: integer
+      required: [entry, movement, placesMoved]
+
+    LeaderboardResponseDTO:
+      type: object
+      properties:
+        currentUser:
+          $ref: '#/components/schemas/CurrentUserStandingDTO'
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/LeaderboardEntryDTO'
+      required: [currentUser, entries]
+
+    SnapshotResultDTO:
+      type: object
+      properties:
+        snapshotDate:
+          type: string
+          format: date
+        rowsWritten:
+          type: integer
+      required: [snapshotDate, rowsWritten]
+
+    # ------------------------------------------------------------- activity
+    ActivityItemDTO:
+      type: object
+      description: >
+        Flat activity item discriminated by `type`. Fields not relevant to a given type are
+        null. `id` carries a type prefix (e.g. `like:<uuid>`) so it is unique and stable as a
+        list key.
+      properties:
+        type:
+          type: string
+        id:
+          type: string
+        actorUserId:
+          type: string
+          format: uuid
+          nullable: true
+        actorUsername:
+          type: string
+          nullable: true
+        actorAvatarUrl:
+          type: string
+          nullable: true
+        postId:
+          type: string
+          format: uuid
+          nullable: true
+        postThumbnailUrl:
+          type: string
+          nullable: true
+        brand:
+          type: string
+          nullable: true
+        model:
+          type: string
+          nullable: true
+        commentText:
+          type: string
+          nullable: true
+        placesMoved:
+          type: integer
+          nullable: true
+        streakDays:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required: [type, id, createdAt]
+
+    ActivityResponseDTO:
+      type: object
+      properties:
+        weeklySpotScore:
+          type: integer
+        todayInteractions:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActivityItemDTO'
+      required: [weeklySpotScore, todayInteractions, items]

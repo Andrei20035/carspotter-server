@@ -21,7 +21,7 @@ import java.util.UUID
 
 interface IPostService {
     suspend fun createPost(request: CreatePostDTO): UUID
-    suspend fun findPostById(postId: UUID): PostDTO?
+    suspend fun findPostById(postId: UUID, currentUserId: UUID?): PostDTO?
     suspend fun listFeed(
         limit: Int,
         cursorCreatedAt: String?,
@@ -106,8 +106,8 @@ class PostServiceImpl(
         }
     }
 
-    override suspend fun findPostById(postId: UUID): PostDTO? =
-        postDao.findById(postId)?.let(::toResponse)
+    override suspend fun findPostById(postId: UUID, currentUserId: UUID?): PostDTO? =
+        postDao.findById(postId)?.let { enrichPosts(listOf(it), currentUserId).first() }
 
     override suspend fun listFeed(
         limit: Int,

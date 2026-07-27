@@ -135,7 +135,12 @@ fun Route.postRoutes() {
         val postId = call.parameters["postId"].toUuidOrNull()
             ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid postId"))
 
-        val post = postService.findPostById(postId)
+        val currentUserId = when (val viewer = call.resolveOptionalViewer(jwtService, sessionService)) {
+            is ViewerResult.AlreadyResponded -> return@get
+            is ViewerResult.Resolved -> viewer.userId
+        }
+
+        val post = postService.findPostById(postId, currentUserId)
             ?: return@get call.respond(HttpStatusCode.NotFound, mapOf("error" to "Post not found"))
 
         call.respond(HttpStatusCode.OK, post)

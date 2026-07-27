@@ -670,4 +670,45 @@ class PostRoutesTest {
         assertEquals("RS6", persisted.model)
         assertEquals("updated caption", persisted.caption)
     }
+
+    @Test
+    fun `GET post detail with valid token returns real counts and likedByCurrentUser true`() = postTest { client ->
+        val author = CommentTestSeed.seedUser(username = "author")
+        val viewer = CommentTestSeed.seedUser(username = "viewer", email = "viewer@example.com")
+        val commenter = CommentTestSeed.seedUser(username = "commenter", email = "commenter@example.com")
+        val post = CommentTestSeed.seedPost(author.userId)
+        LikeTestSeed.insertLike(viewer.userId, post.postId)
+        CommentTestSeed.insertComment(commenter.userId, post.postId, "nice!")
+        val token = tokenFor(viewer.authId, viewer.userId, viewer.email)
+
+        val response = client.get("/api/posts/${post.postId}") { bearerAuth(token) }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val dto = response.body<PostDTO>()
+        assertEquals(1L, dto.likeCount)
+        assertEquals(1L, dto.commentCount)
+        assertEquals(true, dto.likedByCurrentUser)
+    }
+
+    @Test
+    fun `GET post detail anonymous request returns real counts but likedByCurrentUser false`() = postTest { client ->
+        val author = CommentTestSeed.seedUser(username = "author")
+        val liker = CommentTestSeed.seedUser(username = "liker", email = "liker@example.com")
+        val post = CommentTestSeed.seedPost(author.userId)
+        LikeTestSeed.insertLike(liker.userId, post.postId)
+
+        val response = client.get("/api/posts/${post.postId}")
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val dto = response.body<PostDTO>()
+        assertEquals(1L, dto.likeCount)
+        assertEquals(false, dto.likedByCurrentUser)
+    }
+
+    @Test
+    fun `GET post detail returns 404 when the post does not exist`() = postTest { client ->
+        val response = client.get("/api/posts/${UUID.randomUUID()}")
+
+        assertEquals(HttpStatusCode.NotFound, response.status)
+    }
 }

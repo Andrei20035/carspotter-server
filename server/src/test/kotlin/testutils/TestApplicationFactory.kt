@@ -317,6 +317,7 @@ fun Application.testPostModule(storage: IStorageService? = null) {
         single<IStorageService> { storage ?: LocalImageStorageService(uploadsDir, "http://localhost:8080") }
         single<IScoringDao> { ScoringDaoImpl() }
         single<IScoringService> { ScoringServiceImpl(get(), get(), get()) }
+        single<IUserService> { UserService(get(), get()) }
         single<IPostService> { PostServiceImpl(get(), get(), get(), get(), get(), get(), get()) }
         single {
             JwtService(

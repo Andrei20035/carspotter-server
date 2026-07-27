@@ -13757,6 +13757,12 @@ except ApiException as e:
           "postId" : {
             "type" : "string",
             "format" : "uuid"
+          },
+          "user" : {
+            "nullable" : true,
+            "allOf" : [ {
+              "$ref" : "#/components/schemas/SelfUserDTO"
+            } ]
           }
         },
         "x-content-type" : "application/json"

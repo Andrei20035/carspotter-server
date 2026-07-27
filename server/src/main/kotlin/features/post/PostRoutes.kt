@@ -10,7 +10,9 @@ import com.revio.server.features.auth.session.ISessionService
 import com.revio.server.features.auth.session.TokenResult
 import com.revio.server.features.post.dto.CreatePostDTO
 import com.revio.server.features.post.dto.CreatePostMetadata
+import com.revio.server.features.post.dto.CreatePostResponse
 import com.revio.server.features.post.dto.UpdatePostRequest
+import com.revio.server.features.user.IUserService
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.PartData
@@ -92,6 +94,7 @@ fun Route.postRoutes() {
     val postService: IPostService by application.inject()
     val jwtService: JwtService by application.inject()
     val sessionService: ISessionService by application.inject()
+    val userService: IUserService by application.inject()
     val json = Json { ignoreUnknownKeys = true }
 
     get("/posts/feed") {
@@ -200,7 +203,8 @@ fun Route.postRoutes() {
                     )
                 )
 
-                call.respond(HttpStatusCode.Created, mapOf("postId" to postId.toString()))
+                val user = runCatching { userService.getSelf(userId) }.getOrNull()
+                call.respond(HttpStatusCode.Created, CreatePostResponse(postId.toString(), user))
             } catch (e: BadRequestException) {
                 call.respond(HttpStatusCode.BadRequest, mapOf("error" to (e.message ?: "Invalid request")))
             } catch (e: IllegalArgumentException) {

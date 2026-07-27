@@ -8,6 +8,7 @@ import com.revio.server.features.auth.session.SessionScope
 import com.revio.server.features.auth.session.SessionService
 import com.revio.server.core.error.AuthErrorCode
 import com.revio.server.core.error.AuthErrorResponse
+import com.revio.server.features.post.dto.CreatePostResponse
 import com.revio.server.features.post.dto.FeedResponseDTO
 import com.revio.server.features.post.dto.PostDTO
 import com.revio.server.features.post.dto.UpdatePostRequest
@@ -33,6 +34,7 @@ import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.testing.*
 import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.AfterAll
+import org.junit.jupiter.api.Assertions.assertDoesNotThrow
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -507,6 +509,141 @@ class PostRoutesTest {
         assertEquals(0L, posts.first().likeCount)
         assertEquals(0L, posts.first().commentCount)
         assertTrue(posts.first().imageUrl.contains("/uploads/posts/"))
+    }
+
+    @Test
+    fun `POST posts on a new user returns 201 with user postCount 1, streakDays 1, spotScore greater than 0`() = postTest { client ->
+        val user = CommentTestSeed.seedUser(username = "carol")
+        val token = tokenFor(user.authId, user.userId, user.email)
+
+        val createResponse = client.post("/api/posts") {
+            bearerAuth(token)
+            setBody(
+                MultiPartFormDataContent(
+                    formData {
+                        append(
+                            "metadata",
+                            """{"customBrand":"BMW","customModel":"M3","caption":"clean shot","source":"CAMERA"}"""
+                        )
+                        append(
+                            "image",
+                            "fake-image".toByteArray(),
+                            Headers.build {
+                                append(HttpHeaders.ContentType, ContentType.Image.JPEG.toString())
+                                append(
+                                    HttpHeaders.ContentDisposition,
+                                    ContentDisposition.File.withParameter(
+                                        ContentDisposition.Parameters.Name,
+                                        "image"
+                                    ).withParameter(
+                                        ContentDisposition.Parameters.FileName,
+                                        "photo.jpg"
+                                    ).toString()
+                                )
+                            }
+                        )
+                    }
+                )
+            )
+        }
+
+        assertEquals(HttpStatusCode.Created, createResponse.status)
+        val body = createResponse.body<CreatePostResponse>()
+        assertNotNull(body.user)
+        assertEquals(user.userId, body.user?.id)
+        assertEquals(1, body.user?.postCount)
+        assertEquals(1, body.user?.streakDays)
+        assertTrue((body.user?.spotScore ?: 0) > 0)
+    }
+
+    @Test
+    fun `POST second post same day returns user postCount 2 and streakDays still 1`() = postTest { client ->
+        val user = CommentTestSeed.seedUser(username = "dave")
+        val token = tokenFor(user.authId, user.userId, user.email)
+
+        suspend fun createPost(): CreatePostResponse {
+            val response = client.post("/api/posts") {
+                bearerAuth(token)
+                setBody(
+                    MultiPartFormDataContent(
+                        formData {
+                            append(
+                                "metadata",
+                                """{"customBrand":"BMW","customModel":"M3","caption":"clean shot","source":"CAMERA"}"""
+                            )
+                            append(
+                                "image",
+                                "fake-image".toByteArray(),
+                                Headers.build {
+                                    append(HttpHeaders.ContentType, ContentType.Image.JPEG.toString())
+                                    append(
+                                        HttpHeaders.ContentDisposition,
+                                        ContentDisposition.File.withParameter(
+                                            ContentDisposition.Parameters.Name,
+                                            "image"
+                                        ).withParameter(
+                                            ContentDisposition.Parameters.FileName,
+                                            "photo.jpg"
+                                        ).toString()
+                                    )
+                                }
+                            )
+                        }
+                    )
+                )
+            }
+            assertEquals(HttpStatusCode.Created, response.status)
+            return response.body()
+        }
+
+        createPost()
+        val second = createPost()
+
+        assertNotNull(second.user)
+        assertEquals(2, second.user?.postCount)
+        assertEquals(1, second.user?.streakDays)
+    }
+
+    @Test
+    fun `POST posts response postId stays present and parsable as a UUID`() = postTest { client ->
+        val user = CommentTestSeed.seedUser(username = "erin")
+        val token = tokenFor(user.authId, user.userId, user.email)
+
+        val createResponse = client.post("/api/posts") {
+            bearerAuth(token)
+            setBody(
+                MultiPartFormDataContent(
+                    formData {
+                        append(
+                            "metadata",
+                            """{"customBrand":"BMW","customModel":"M3","caption":"clean shot","source":"CAMERA"}"""
+                        )
+                        append(
+                            "image",
+                            "fake-image".toByteArray(),
+                            Headers.build {
+                                append(HttpHeaders.ContentType, ContentType.Image.JPEG.toString())
+                                append(
+                                    HttpHeaders.ContentDisposition,
+                                    ContentDisposition.File.withParameter(
+                                        ContentDisposition.Parameters.Name,
+                                        "image"
+                                    ).withParameter(
+                                        ContentDisposition.Parameters.FileName,
+                                        "photo.jpg"
+                                    ).toString()
+                                )
+                            }
+                        )
+                    }
+                )
+            )
+        }
+
+        assertEquals(HttpStatusCode.Created, createResponse.status)
+        val body = createResponse.body<CreatePostResponse>()
+        assertNotNull(body.postId)
+        assertDoesNotThrow { UUID.fromString(body.postId) }
     }
 
     @Test

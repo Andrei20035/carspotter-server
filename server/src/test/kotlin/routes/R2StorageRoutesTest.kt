@@ -12,6 +12,7 @@ import com.revio.server.features.post.IPostDAO
 import com.revio.server.features.post.PostCreationException
 import com.revio.server.features.post.PostServiceImpl
 import com.revio.server.features.post.dto.CreatePostDTO
+import com.revio.server.features.post.dto.CreatePostResponse
 import com.revio.server.features.post.dto.FeedResponseDTO
 import com.revio.server.features.scoring.IScoringDao
 import com.revio.server.features.scoring.IScoringService
@@ -229,7 +230,7 @@ class R2StorageRoutesTest {
                 )
             )
         }
-        val postId = json.decodeFromString<Map<String, String>>(createResponse.bodyAsTextCompat()).getValue("postId")
+        val postId = json.decodeFromString<CreatePostResponse>(createResponse.bodyAsTextCompat()).postId
 
         val feed = client.get("/api/posts/feed").body<FeedResponseDTO>()
         val key = R2TestStorageFactory.keyFromUrl(feed.posts.single().imageUrl)

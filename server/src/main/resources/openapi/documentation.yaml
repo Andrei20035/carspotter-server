@@ -618,6 +618,10 @@ paths:
                   postId:
                     type: string
                     format: uuid
+                  user:
+                    allOf:
+                      - $ref: '#/components/schemas/SelfUserDTO'
+                    nullable: true
                 required: [postId]
         '400':
           description: Missing/invalid metadata, missing image, or image too large

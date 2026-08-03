@@ -4,6 +4,7 @@ import com.revio.server.features.activity.activityRoutes
 import com.revio.server.features.auth.authRoutes
 import com.revio.server.features.car_model.carModelRoutes
 import features.comment.commentRoutes
+import com.revio.server.features.feedback.feedbackRoutes
 import com.revio.server.features.friend.friendRoutes
 import com.revio.server.features.friend_request.friendRequestRoutes
 import com.revio.server.features.leaderboard.adminLeaderboardRoutes
@@ -33,6 +34,7 @@ fun Application.configureRouting() {
             authRoutes()
             carModelRoutes()
             commentRoutes()
+            feedbackRoutes()
             friendRequestRoutes()
             friendRoutes()
             adminLeaderboardRoutes()

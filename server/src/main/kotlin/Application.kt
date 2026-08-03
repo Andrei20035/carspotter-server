@@ -15,6 +15,7 @@ import com.revio.server.features.activity.activityModule
 import com.revio.server.features.auth.authModule
 import com.revio.server.features.car_model.carModelModule
 import features.comment.commentModule
+import com.revio.server.features.feedback.feedbackModule
 import com.revio.server.features.friend.friendModule
 import com.revio.server.features.friend_request.friendRequestModule
 import features.like.likeModule
@@ -57,7 +58,8 @@ fun Application.module() {
             userCarModule,
             leaderboardModule,
             activityModule,
-            accountDeletionModule
+            accountDeletionModule,
+            feedbackModule
         )
     }
 

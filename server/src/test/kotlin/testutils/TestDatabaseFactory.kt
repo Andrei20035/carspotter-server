@@ -89,7 +89,9 @@ object TestDatabaseFactory {
                         auth_sessions,
                         auth_credentials,
                         car_models,
-                        account_deletion_feedback
+                        account_deletion_feedback,
+                        first_post_feedback,
+                        feedback_prompt_state
                     RESTART IDENTITY CASCADE
                     """.trimIndent()
                 )

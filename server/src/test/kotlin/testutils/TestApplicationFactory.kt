@@ -26,6 +26,11 @@ import com.revio.server.features.car_model.CarModelService
 import com.revio.server.features.car_model.ICarModelDAO
 import com.revio.server.features.car_model.ICarModelService
 import com.revio.server.features.car_model.carModelRoutes
+import com.revio.server.features.feedback.FeedbackDAO
+import com.revio.server.features.feedback.FeedbackService
+import com.revio.server.features.feedback.IFeedbackDAO
+import com.revio.server.features.feedback.IFeedbackService
+import com.revio.server.features.feedback.feedbackRoutes
 import com.revio.server.features.leaderboard.ILeaderboardDAO
 import com.revio.server.features.leaderboard.ILeaderboardService
 import com.revio.server.features.leaderboard.ILeaderboardSnapshotDAO
@@ -299,6 +304,40 @@ fun Application.testReportModule() {
     routing {
         route("/api") {
             reportRoutes()
+        }
+    }
+}
+
+/**
+ * Modul Ktor pentru testele rutelor /feedback.
+ * Folosește același config JWT ca testele de auth.
+ */
+fun Application.testFeedbackModule() {
+    val koinTestModule = module {
+        single<IFeedbackDAO> { FeedbackDAO() }
+        single<IAuthSessionDAO> { AuthSessionDAO() }
+        single { RefreshTokenGenerator() }
+        single<ISessionService> { SessionService(get(), get()) }
+        single<IFeedbackService> { FeedbackService(get()) }
+        single {
+            JwtService(
+                jwtSecret = TestEnv.JWT_SECRET,
+                jwtIssuer = TestEnv.JWT_ISSUER,
+                jwtAudience = TestEnv.JWT_AUDIENCE
+            )
+        }
+    }
+
+    install(Koin) { modules(koinTestModule) }
+
+    configureSerialization()
+    configureSecurity(getKoin().get())
+
+    install(RoutingRoot)
+
+    routing {
+        route("/api") {
+            feedbackRoutes()
         }
     }
 }

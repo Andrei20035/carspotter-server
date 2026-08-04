@@ -43,6 +43,8 @@ tags:
     description: Spot-score leaderboard
   - name: Activity
     description: Activity feed for the current user
+  - name: Feedback
+    description: In-app feedback (bug reports, confusion, feature ideas, general feedback)
   - name: Admin
     description: Operator and cron endpoints (separate header-based secrets, not JWT)
 
@@ -1447,6 +1449,54 @@ paths:
         '401':
           $ref: '#/components/responses/AuthUnauthorized'
 
+  # ---------------------------------------------------------------- Feedback
+  /feedback/user:
+    post:
+      summary: Submit user feedback
+      description: >
+        Submits a category-driven feedback item (bug report, confusion, feature idea, or
+        general feedback) from the Settings feedback form. Idempotent on `clientFeedbackId`:
+        resubmitting the same id is accepted as a no-op and returns 200 with
+        `status: already_submitted`. Unlike `/feedback/first-post`, repeated submissions with
+        different `clientFeedbackId` values are allowed. When `includeDiagnostics` is `false`,
+        the server discards `appVersion`, `androidVersion`, `deviceModel`, `connectionType`,
+        and `lastErrorCode` even if the client sent them.
+      tags: [Feedback]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitUserFeedbackRequest'
+      responses:
+        '201':
+          description: Feedback recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserFeedbackResponse'
+        '200':
+          description: Already submitted (idempotent on clientFeedbackId)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserFeedbackResponse'
+        '400':
+          description: Invalid category/rating combination or missing required message
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   # ---------------------------------------------------------------- Admin
   /admin/leaderboard/snapshot:
     post:
@@ -2402,3 +2452,116 @@ components:
           items:
             $ref: '#/components/schemas/ActivityItemDTO'
       required: [weeklySpotScore, todayInteractions, items]
+
+    # ------------------------------------------------------------- feedback
+    FeedbackCategory:
+      type: string
+      enum: [NOT_WORKING, CONFUSING, FEATURE_IDEA, GENERAL]
+
+    FeedbackArea:
+      type: string
+      enum:
+        - POSTING
+        - FEED
+        - PROFILE
+        - ACTIVITY
+        - LEADERBOARD
+        - SETTINGS
+        - AUTHENTICATION
+        - NAVIGATION
+        - NEW_AREA
+        - NOT_SURE
+        - OTHER
+
+    FeedbackPriority:
+      type: string
+      enum: [NICE_TO_HAVE, IMPORTANT, BLOCKING]
+
+    ConfusionReason:
+      type: string
+      enum:
+        - DIDNT_KNOW_WHAT_TO_DO_NEXT
+        - WORDING_NOT_CLEAR
+        - COULDNT_FIND_SOMETHING
+        - UNEXPECTED_RESULT
+        - TOO_MUCH_INFORMATION
+        - OTHER
+
+    FeedbackSource:
+      type: string
+      enum: [SETTINGS_FEEDBACK, FIRST_POST_PROMPT]
+
+    SubmitUserFeedbackRequest:
+      type: object
+      description: >
+        `message` is required except for `GENERAL` feedback submitted with both `rating` and
+        `quickReason`. For `NOT_WORKING`, `message` is always required.
+      properties:
+        category:
+          $ref: '#/components/schemas/FeedbackCategory'
+        area:
+          $ref: '#/components/schemas/FeedbackArea'
+          nullable: true
+        message:
+          type: string
+          nullable: true
+        secondaryMessage:
+          type: string
+          nullable: true
+        quickReason:
+          $ref: '#/components/schemas/ConfusionReason'
+          nullable: true
+        priority:
+          $ref: '#/components/schemas/FeedbackPriority'
+          nullable: true
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+          nullable: true
+        keepMessage:
+          type: string
+          nullable: true
+        improveMessage:
+          type: string
+          nullable: true
+        source:
+          $ref: '#/components/schemas/FeedbackSource'
+        originScreen:
+          type: string
+          nullable: true
+        includeDiagnostics:
+          type: boolean
+          default: false
+        appVersion:
+          type: string
+          nullable: true
+        androidVersion:
+          type: string
+          nullable: true
+        deviceModel:
+          type: string
+          nullable: true
+        connectionType:
+          type: string
+          nullable: true
+        lastErrorCode:
+          type: string
+          nullable: true
+        clientFeedbackId:
+          type: string
+          format: uuid
+          description: Client-generated id used for idempotent resubmission.
+        clientSubmittedAt:
+          type: string
+          format: date-time
+          nullable: true
+      required: [category, source, clientFeedbackId]
+
+    UserFeedbackResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [recorded, already_submitted]
+      required: [status]

@@ -1,14 +1,18 @@
 package service
 
 import com.revio.server.features.feedback.FIRST_POST_FEEDBACK_KEY
+import com.revio.server.features.feedback.FeedbackCategory
 import com.revio.server.features.feedback.FeedbackService
+import com.revio.server.features.feedback.FeedbackSource
 import com.revio.server.features.feedback.FeedbackUserNotFoundException
+import com.revio.server.features.feedback.ConfusionReason
 import com.revio.server.features.feedback.IFeedbackDAO
 import com.revio.server.features.feedback.PromptStatus
 import com.revio.server.features.feedback.SubmitResult
 import com.revio.server.features.feedback.dto.FeedbackPromptStateDTO
 import com.revio.server.features.feedback.dto.PromptEvent
 import com.revio.server.features.feedback.dto.SubmitFirstPostFeedbackDTO
+import com.revio.server.features.feedback.dto.SubmitUserFeedbackDTO
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -155,5 +159,108 @@ class FeedbackServiceTest {
         newService(dao).recordPromptEvent(userId, FIRST_POST_FEEDBACK_KEY, PromptEvent.SHOWN)
 
         coVerify(exactly = 0) { dao.upsertPromptState(any(), any(), any(), any(), any()) }
+    }
+
+    private fun userFeedbackDto(
+        category: FeedbackCategory = FeedbackCategory.GENERAL,
+        message: String? = "hello",
+        rating: Int? = null,
+        quickReason: ConfusionReason? = null,
+        includeDiagnostics: Boolean = false,
+        appVersion: String? = null,
+    ) = SubmitUserFeedbackDTO(
+        category = category,
+        message = message,
+        rating = rating,
+        quickReason = quickReason,
+        source = FeedbackSource.SETTINGS_FEEDBACK,
+        includeDiagnostics = includeDiagnostics,
+        appVersion = appVersion,
+        clientFeedbackId = UUID.randomUUID(),
+    )
+
+    @Test
+    fun `submitUserFeedback throws IllegalArgumentException for NOT_WORKING with blank message`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            runBlocking {
+                newService().submitUserFeedback(
+                    UUID.randomUUID(),
+                    userFeedbackDto(category = FeedbackCategory.NOT_WORKING, message = "  "),
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `submitUserFeedback succeeds for GENERAL with only rating and reason`() = runTest {
+        val dao = mockk<IFeedbackDAO>(relaxed = true)
+        val userId = UUID.randomUUID()
+
+        val result = newService(dao).submitUserFeedback(
+            userId,
+            userFeedbackDto(category = FeedbackCategory.GENERAL, message = null, rating = 4, quickReason = ConfusionReason.OTHER),
+        )
+
+        assertEquals(SubmitResult.CREATED, result)
+        coVerify(exactly = 1) { dao.insertUserFeedback(userId, any()) }
+    }
+
+    @Test
+    fun `submitUserFeedback rejects rating outside 1 to 5`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            runBlocking { newService().submitUserFeedback(UUID.randomUUID(), userFeedbackDto(rating = 9)) }
+        }
+    }
+
+    @Test
+    fun `submitUserFeedback forces diagnostic fields to null when includeDiagnostics is false`() = runTest {
+        val dao = mockk<IFeedbackDAO>(relaxed = true)
+        val userId = UUID.randomUUID()
+
+        newService(dao).submitUserFeedback(
+            userId,
+            userFeedbackDto(includeDiagnostics = false, appVersion = "1.0"),
+        )
+
+        coVerify(exactly = 1) {
+            dao.insertUserFeedback(userId, match { it.appVersion == null })
+        }
+    }
+
+    @Test
+    fun `submitUserFeedback truncates message longer than 4000 characters`() = runTest {
+        val dao = mockk<IFeedbackDAO>(relaxed = true)
+        val userId = UUID.randomUUID()
+        val longMessage = "a".repeat(10000)
+
+        newService(dao).submitUserFeedback(userId, userFeedbackDto(message = longMessage))
+
+        coVerify(exactly = 1) {
+            dao.insertUserFeedback(userId, match { it.message?.length == 4000 })
+        }
+    }
+
+    @Test
+    fun `submitUserFeedback maps unique violation (23505) to ALREADY_SUBMITTED`() = runTest {
+        val dao = mockk<IFeedbackDAO>()
+        coEvery { dao.insertUserFeedback(any(), any()) } throws
+            ExposedSQLException(SQLException("dup", "23505"), emptyList(), mockk(relaxed = true))
+
+        val result = newService(dao).submitUserFeedback(UUID.randomUUID(), userFeedbackDto())
+
+        assertEquals(SubmitResult.ALREADY_SUBMITTED, result)
+    }
+
+    @Test
+    fun `submitUserFeedback maps FK violation (23503) to FeedbackUserNotFoundException`() {
+        val dao = mockk<IFeedbackDAO>()
+        coEvery { dao.insertUserFeedback(any(), any()) } throws
+            ExposedSQLException(SQLException("fk", "23503"), emptyList(), mockk(relaxed = true))
+
+        assertThrows(FeedbackUserNotFoundException::class.java) {
+            runBlocking {
+                newService(dao).submitUserFeedback(UUID.randomUUID(), userFeedbackDto())
+            }
+        }
     }
 }

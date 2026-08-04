@@ -91,7 +91,8 @@ object TestDatabaseFactory {
                         car_models,
                         account_deletion_feedback,
                         first_post_feedback,
-                        feedback_prompt_state
+                        feedback_prompt_state,
+                        user_feedback
                     RESTART IDENTITY CASCADE
                     """.trimIndent()
                 )

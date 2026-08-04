@@ -880,6 +880,10 @@
     }
   }
 };
+            defs["ConfusionReason"] = {
+  "type" : "string",
+  "enum" : [ "DIDNT_KNOW_WHAT_TO_DO_NEXT", "WORDING_NOT_CLEAR", "COULDNT_FIND_SOMETHING", "UNEXPECTED_RESULT", "TOO_MUCH_INFORMATION", "OTHER" ]
+};
             defs["CreatePostMetadata"] = {
   "type" : "object",
   "properties" : {
@@ -1084,6 +1088,22 @@
       "type" : "boolean"
     }
   }
+};
+            defs["FeedbackArea"] = {
+  "type" : "string",
+  "enum" : [ "POSTING", "FEED", "PROFILE", "ACTIVITY", "LEADERBOARD", "SETTINGS", "AUTHENTICATION", "NAVIGATION", "NEW_AREA", "NOT_SURE", "OTHER" ]
+};
+            defs["FeedbackCategory"] = {
+  "type" : "string",
+  "enum" : [ "NOT_WORKING", "CONFUSING", "FEATURE_IDEA", "GENERAL" ]
+};
+            defs["FeedbackPriority"] = {
+  "type" : "string",
+  "enum" : [ "NICE_TO_HAVE", "IMPORTANT", "BLOCKING" ]
+};
+            defs["FeedbackSource"] = {
+  "type" : "string",
+  "enum" : [ "SETTINGS_FEEDBACK", "FIRST_POST_PROMPT" ]
 };
             defs["FriendDTO"] = {
   "required" : [ "friendId", "userId" ],
@@ -1526,6 +1546,88 @@
     }
   }
 };
+            defs["SubmitUserFeedbackRequest"] = {
+  "required" : [ "category", "clientFeedbackId", "source" ],
+  "type" : "object",
+  "properties" : {
+    "category" : {
+      "$ref" : "#/components/schemas/FeedbackCategory"
+    },
+    "area" : {
+      "$ref" : "#/components/schemas/FeedbackArea"
+    },
+    "message" : {
+      "type" : "string",
+      "nullable" : true
+    },
+    "secondaryMessage" : {
+      "type" : "string",
+      "nullable" : true
+    },
+    "quickReason" : {
+      "$ref" : "#/components/schemas/ConfusionReason"
+    },
+    "priority" : {
+      "$ref" : "#/components/schemas/FeedbackPriority"
+    },
+    "rating" : {
+      "maximum" : 5,
+      "minimum" : 1,
+      "type" : "integer",
+      "nullable" : true
+    },
+    "keepMessage" : {
+      "type" : "string",
+      "nullable" : true
+    },
+    "improveMessage" : {
+      "type" : "string",
+      "nullable" : true
+    },
+    "source" : {
+      "$ref" : "#/components/schemas/FeedbackSource"
+    },
+    "originScreen" : {
+      "type" : "string",
+      "nullable" : true
+    },
+    "includeDiagnostics" : {
+      "type" : "boolean",
+      "default" : false
+    },
+    "appVersion" : {
+      "type" : "string",
+      "nullable" : true
+    },
+    "androidVersion" : {
+      "type" : "string",
+      "nullable" : true
+    },
+    "deviceModel" : {
+      "type" : "string",
+      "nullable" : true
+    },
+    "connectionType" : {
+      "type" : "string",
+      "nullable" : true
+    },
+    "lastErrorCode" : {
+      "type" : "string",
+      "nullable" : true
+    },
+    "clientFeedbackId" : {
+      "type" : "string",
+      "description" : "Client-generated id used for idempotent resubmission.",
+      "format" : "uuid"
+    },
+    "clientSubmittedAt" : {
+      "type" : "string",
+      "format" : "date-time",
+      "nullable" : true
+    }
+  },
+  "description" : "`message` is required except for `GENERAL` feedback submitted with both `rating` and `quickReason`. For `NOT_WORKING`, `message` is always required.\n"
+};
             defs["UpdatePasswordRequest"] = {
   "required" : [ "newPassword", "oldPassword" ],
   "type" : "object",
@@ -1721,6 +1823,16 @@
   },
   "description" : "Public profile."
 };
+            defs["UserFeedbackResponse"] = {
+  "required" : [ "status" ],
+  "type" : "object",
+  "properties" : {
+    "status" : {
+      "type" : "string",
+      "enum" : [ "recorded", "already_submitted" ]
+    }
+  }
+};
             defs["UsernameAvailabilityResponse"] = {
   "required" : [ "available", "normalized" ],
   "type" : "object",
@@ -1814,6 +1926,10 @@
                     </li>
                     <li data-group="Comments" data-name="postsPostIdCommentsPost" class="">
                       <a href="#api-Comments-postsPostIdCommentsPost">postsPostIdCommentsPost</a>
+                    </li>
+                  <li class="nav-header" data-group="Feedback"><a href="#api-Feedback">API Methods - Feedback</a></li>
+                    <li data-group="Feedback" data-name="feedbackUserPost" class="">
+                      <a href="#api-Feedback-feedbackUserPost">feedbackUserPost</a>
                     </li>
                   <li class="nav-header" data-group="FriendRequests"><a href="#api-FriendRequests">API Methods - FriendRequests</a></li>
                     <li data-group="FriendRequests" data-name="friendRequestsAdminGet" class="">
@@ -8646,6 +8762,483 @@ except ApiException as e:
                                     </script>
                                   </div>
                                   <input id='responses-postsPostIdCommentsPost-404-schema-data' type='hidden' value=''></input>
+                                </div>
+                            </div>
+
+                        </article>
+                      </div>
+                      <hr>
+                  </section>
+                <section id="api-Feedback">
+                  <h1>Feedback</h1>
+                    <div id="api-Feedback-feedbackUserPost">
+                      <article id="api-Feedback-feedbackUserPost-0" data-group="User" data-name="feedbackUserPost" data-version="0">
+                        <div class="pull-left">
+                          <h1>feedbackUserPost</h1>
+                          <p>Submit user feedback</p>
+                        </div>
+                        <div class="pull-right"></div>
+                        <div class="clearfix"></div>
+                        <p></p>
+                        <p class="marked">Submits a category-driven feedback item (bug report, confusion, feature idea, or general feedback) from the Settings feedback form. Idempotent on &#x60;clientFeedbackId&#x60;: resubmitting the same id is accepted as a no-op and returns 200 with &#x60;status: already_submitted&#x60;. Unlike &#x60;/feedback/first-post&#x60;, repeated submissions with different &#x60;clientFeedbackId&#x60; values are allowed. When &#x60;includeDiagnostics&#x60; is &#x60;false&#x60;, the server discards &#x60;appVersion&#x60;, &#x60;androidVersion&#x60;, &#x60;deviceModel&#x60;, &#x60;connectionType&#x60;, and &#x60;lastErrorCode&#x60; even if the client sent them.
+</p>
+                        <p></p>
+                        <br />
+                        <pre class="prettyprint language-html prettyprinted" data-type="post"><code><span class="pln">/feedback/user</span></code></pre>
+                        <p>
+                          <h3>Usage and SDK Samples</h3>
+                        </p>
+                        <ul class="nav nav-tabs nav-tabs-examples">
+                          <li class="active"><a href="#examples-Feedback-feedbackUserPost-0-curl">Curl</a></li>
+                          <li class=""><a href="#examples-Feedback-feedbackUserPost-0-java">Java</a></li>
+                          <li class=""><a href="#examples-Feedback-feedbackUserPost-0-android">Android</a></li>
+                          <!--<li class=""><a href="#examples-Feedback-feedbackUserPost-0-groovy">Groovy</a></li>-->
+                          <li class=""><a href="#examples-Feedback-feedbackUserPost-0-objc">Obj-C</a></li>
+                          <li class=""><a href="#examples-Feedback-feedbackUserPost-0-javascript">JavaScript</a></li>
+                          <!--<li class=""><a href="#examples-Feedback-feedbackUserPost-0-angular">Angular</a></li>-->
+                          <li class=""><a href="#examples-Feedback-feedbackUserPost-0-csharp">C#</a></li>
+                          <li class=""><a href="#examples-Feedback-feedbackUserPost-0-php">PHP</a></li>
+                          <li class=""><a href="#examples-Feedback-feedbackUserPost-0-perl">Perl</a></li>
+                          <li class=""><a href="#examples-Feedback-feedbackUserPost-0-python">Python</a></li>
+                        </ul>
+
+                        <div class="tab-content">
+                          <div class="tab-pane active" id="examples-Feedback-feedbackUserPost-0-curl">
+                           <pre class="prettyprint"><code class="language-bsh">curl -X POST\
+ -H "Authorization: Bearer [[accessToken]]"\
+-H "Accept: application/json"\
+-H "Content-Type: application/json"\
+"/api/feedback/user"</code></pre>
+                          </div>
+                          <div class="tab-pane" id="examples-Feedback-feedbackUserPost-0-java">
+                            <pre class="prettyprint"><code class="language-java">import io.swagger.client.*;
+import io.swagger.client.auth.*;
+import io.swagger.client.model.*;
+import io.swagger.client.api.FeedbackApi;
+
+import java.io.File;
+import java.util.*;
+
+public class FeedbackApiExample {
+
+    public static void main(String[] args) {
+        ApiClient defaultClient = Configuration.getDefaultApiClient();
+
+
+        FeedbackApi apiInstance = new FeedbackApi();
+        SubmitUserFeedbackRequest body = ; // SubmitUserFeedbackRequest | 
+        try {
+            UserFeedbackResponse result = apiInstance.feedbackUserPost(body);
+            System.out.println(result);
+        } catch (ApiException e) {
+            System.err.println("Exception when calling FeedbackApi#feedbackUserPost");
+            e.printStackTrace();
+        }
+    }
+}</code></pre>
+                          </div>
+
+                          <div class="tab-pane" id="examples-Feedback-feedbackUserPost-0-android">
+                            <pre class="prettyprint"><code class="language-java">import io.swagger.client.api.FeedbackApi;
+
+public class FeedbackApiExample {
+
+    public static void main(String[] args) {
+        FeedbackApi apiInstance = new FeedbackApi();
+        SubmitUserFeedbackRequest body = ; // SubmitUserFeedbackRequest | 
+        try {
+            UserFeedbackResponse result = apiInstance.feedbackUserPost(body);
+            System.out.println(result);
+        } catch (ApiException e) {
+            System.err.println("Exception when calling FeedbackApi#feedbackUserPost");
+            e.printStackTrace();
+        }
+    }
+}</code></pre>
+                          </div>
+  <!--
+  <div class="tab-pane" id="examples-Feedback-feedbackUserPost-0-groovy">
+  <pre class="prettyprint language-json prettyprinted" data-type="json"><code>Coming Soon!</code></pre>
+  </div> -->
+                            <div class="tab-pane" id="examples-Feedback-feedbackUserPost-0-objc">
+                              <pre class="prettyprint"><code class="language-cpp">Configuration *apiConfig = [Configuration sharedConfig];
+SubmitUserFeedbackRequest *body = ; // 
+
+FeedbackApi *apiInstance = [[FeedbackApi alloc] init];
+
+// Submit user feedback
+[apiInstance feedbackUserPostWith:body
+              completionHandler: ^(UserFeedbackResponse output, NSError* error) {
+                            if (output) {
+                                NSLog(@"%@", output);
+                            }
+                            if (error) {
+                                NSLog(@"Error: %@", error);
+                            }
+                        }];
+</code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Feedback-feedbackUserPost-0-javascript">
+                              <pre class="prettyprint"><code class="language-js">var RevioApi = require('revio_api');
+var defaultClient = RevioApi.ApiClient.instance;
+
+
+var api = new RevioApi.FeedbackApi()
+var body = ; // {{SubmitUserFeedbackRequest}} 
+
+var callback = function(error, data, response) {
+  if (error) {
+    console.error(error);
+  } else {
+    console.log('API called successfully. Returned data: ' + data);
+  }
+};
+api.feedbackUserPost(body, callback);
+</code></pre>
+                            </div>
+
+                            <!--<div class="tab-pane" id="examples-Feedback-feedbackUserPost-0-angular">
+              <pre class="prettyprint language-json prettyprinted" data-type="json"><code>Coming Soon!</code></pre>
+            </div>-->
+                            <div class="tab-pane" id="examples-Feedback-feedbackUserPost-0-csharp">
+                              <pre class="prettyprint"><code class="language-cs">using System;
+using System.Diagnostics;
+using IO.Swagger.Api;
+using IO.Swagger.Client;
+using IO.Swagger.Model;
+
+namespace Example
+{
+    public class feedbackUserPostExample
+    {
+        public void main()
+        {
+
+
+            var apiInstance = new FeedbackApi();
+            var body = new SubmitUserFeedbackRequest(); // SubmitUserFeedbackRequest | 
+
+            try
+            {
+                // Submit user feedback
+                UserFeedbackResponse result = apiInstance.feedbackUserPost(body);
+                Debug.WriteLine(result);
+            }
+            catch (Exception e)
+            {
+                Debug.Print("Exception when calling FeedbackApi.feedbackUserPost: " + e.Message );
+            }
+        }
+    }
+}
+</code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Feedback-feedbackUserPost-0-php">
+                              <pre class="prettyprint"><code class="language-php"><&#63;php
+require_once(__DIR__ . '/vendor/autoload.php');
+
+
+$api_instance = new Swagger\Client\ApiFeedbackApi();
+$body = ; // SubmitUserFeedbackRequest | 
+
+try {
+    $result = $api_instance->feedbackUserPost($body);
+    print_r($result);
+} catch (Exception $e) {
+    echo 'Exception when calling FeedbackApi->feedbackUserPost: ', $e->getMessage(), PHP_EOL;
+}
+?></code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Feedback-feedbackUserPost-0-perl">
+                              <pre class="prettyprint"><code class="language-perl">use Data::Dumper;
+use WWW::SwaggerClient::Configuration;
+use WWW::SwaggerClient::FeedbackApi;
+
+
+my $api_instance = WWW::SwaggerClient::FeedbackApi->new();
+my $body = WWW::SwaggerClient::Object::SubmitUserFeedbackRequest->new(); # SubmitUserFeedbackRequest | 
+
+eval { 
+    my $result = $api_instance->feedbackUserPost(body => $body);
+    print Dumper($result);
+};
+if ($@) {
+    warn "Exception when calling FeedbackApi->feedbackUserPost: $@\n";
+}</code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Feedback-feedbackUserPost-0-python">
+                              <pre class="prettyprint"><code class="language-python">from __future__ import print_statement
+import time
+import swagger_client
+from swagger_client.rest import ApiException
+from pprint import pprint
+
+
+# create an instance of the API class
+api_instance = swagger_client.FeedbackApi()
+body =  # SubmitUserFeedbackRequest | 
+
+try: 
+    # Submit user feedback
+    api_response = api_instance.feedback_user_post(body)
+    pprint(api_response)
+except ApiException as e:
+    print("Exception when calling FeedbackApi->feedbackUserPost: %s\n" % e)</code></pre>
+                            </div>
+                          </div>
+
+                          <h2>Parameters</h2>
+
+
+
+                            <div class="methodsubtabletitle">Body parameters</div>
+                            <table id="methodsubtable">
+                              <tr>
+                                <th width="150px">Name</th>
+                                <th>Description</th>
+                              </tr>
+                                <tr><td style="width:150px;">body <span style="color:red;">*</span></td>
+                                <td>
+                                
+                                
+                                <script>
+                                $(document).ready(function() {
+                                  var schemaWrapper = {
+  "content" : {
+    "application/json" : {
+      "schema" : {
+        "$ref" : "#/components/schemas/SubmitUserFeedbackRequest"
+      }
+    }
+  },
+  "required" : true
+};
+                                  var schema = schemaWrapper.content["application/json"].schema;
+                                  if (schema.$ref != null) {
+                                    schema = defsParser.$refs.get(schema.$ref);
+                                  } else {
+                                    schemaWrapper.components = {};
+                                    schemaWrapper.components.schemas = Object.assign({}, defs);
+                                    $RefParser.dereference(schemaWrapper).catch(function(err) {
+                                      console.log(err);
+                                    });
+                                  }
+                                
+                                  var view = new JSONSchemaView(schema,2,{isBodyParam: true});
+                                  var result = $('#d2e199_feedbackUserPost_body');
+                                  result.empty();
+                                  result.append(view.render());
+                                });
+                                </script>
+                                <div id="d2e199_feedbackUserPost_body"></div>
+                                </td>
+                                </tr>
+                            </table>
+
+
+
+                          <h2>Responses</h2>
+                            <h3> Status: 201 - Feedback recorded </h3>
+
+                            <ul class="nav nav-tabs nav-tabs-examples" >
+                                <li class="active">
+                                  <a data-toggle="tab" href="#responses-feedbackUserPost-201-schema">Schema</a>
+                                </li>
+
+                            </ul>
+
+                            <div class="tab-content" style='margin-bottom: 10px;'>
+                                <div class="tab-pane active" id="responses-feedbackUserPost-201-schema">
+                                  <div id='responses-feedbackUserPost-201-schema-201' style="padding: 30px; border-left: 1px solid #eee; border-right: 1px solid #eee; border-bottom: 1px solid #eee;">
+                                    <script>
+                                      $(document).ready(function() {
+                                        var schemaWrapper = {
+  "description" : "Feedback recorded",
+  "content" : {
+    "application/json" : {
+      "schema" : {
+        "$ref" : "#/components/schemas/UserFeedbackResponse"
+      }
+    }
+  }
+};
+                                        var schema = schemaWrapper.content["application/json"].schema;
+                                        if (schema.$ref != null) {
+                                          schema = defsParser.$refs.get(schema.$ref);
+                                        } else {
+                                          schemaWrapper.components = {};
+                                          schemaWrapper.components.schemas = Object.assign({}, defs);
+                                          $RefParser.dereference(schemaWrapper).catch(function(err) {
+                                            console.log(err);
+                                          });
+                                        }
+
+                                        //console.log(JSON.stringify(schema));
+                                        var view = new JSONSchemaView(schema, 3);
+                                        $('#responses-feedbackUserPost-201-schema-data').val(stringify(schema));
+                                        var result = $('#responses-feedbackUserPost-201-schema-201');
+                                        result.empty();
+                                        result.append(view.render());
+                                      });
+                                    </script>
+                                  </div>
+                                  <input id='responses-feedbackUserPost-201-schema-data' type='hidden' value=''></input>
+                                </div>
+                            </div>
+
+                            <h3> Status: 200 - Already submitted (idempotent on clientFeedbackId) </h3>
+
+                            <ul class="nav nav-tabs nav-tabs-examples" >
+                                <li class="active">
+                                  <a data-toggle="tab" href="#responses-feedbackUserPost-200-schema">Schema</a>
+                                </li>
+
+                            </ul>
+
+                            <div class="tab-content" style='margin-bottom: 10px;'>
+                                <div class="tab-pane active" id="responses-feedbackUserPost-200-schema">
+                                  <div id='responses-feedbackUserPost-200-schema-200' style="padding: 30px; border-left: 1px solid #eee; border-right: 1px solid #eee; border-bottom: 1px solid #eee;">
+                                    <script>
+                                      $(document).ready(function() {
+                                        var schemaWrapper = {
+  "description" : "Already submitted (idempotent on clientFeedbackId)",
+  "content" : {
+    "application/json" : {
+      "schema" : {
+        "$ref" : "#/components/schemas/UserFeedbackResponse"
+      }
+    }
+  }
+};
+                                        var schema = schemaWrapper.content["application/json"].schema;
+                                        if (schema.$ref != null) {
+                                          schema = defsParser.$refs.get(schema.$ref);
+                                        } else {
+                                          schemaWrapper.components = {};
+                                          schemaWrapper.components.schemas = Object.assign({}, defs);
+                                          $RefParser.dereference(schemaWrapper).catch(function(err) {
+                                            console.log(err);
+                                          });
+                                        }
+
+                                        //console.log(JSON.stringify(schema));
+                                        var view = new JSONSchemaView(schema, 3);
+                                        $('#responses-feedbackUserPost-200-schema-data').val(stringify(schema));
+                                        var result = $('#responses-feedbackUserPost-200-schema-200');
+                                        result.empty();
+                                        result.append(view.render());
+                                      });
+                                    </script>
+                                  </div>
+                                  <input id='responses-feedbackUserPost-200-schema-data' type='hidden' value=''></input>
+                                </div>
+                            </div>
+
+                            <h3> Status: 400 - Invalid category/rating combination or missing required message </h3>
+
+                            <ul class="nav nav-tabs nav-tabs-examples" >
+                                <li class="active">
+                                  <a data-toggle="tab" href="#responses-feedbackUserPost-400-schema">Schema</a>
+                                </li>
+
+                            </ul>
+
+                            <div class="tab-content" style='margin-bottom: 10px;'>
+                                <div class="tab-pane active" id="responses-feedbackUserPost-400-schema">
+                                  <div id='responses-feedbackUserPost-400-schema-400' style="padding: 30px; border-left: 1px solid #eee; border-right: 1px solid #eee; border-bottom: 1px solid #eee;">
+                                    <script>
+                                      $(document).ready(function() {
+                                        var schemaWrapper = {
+  "description" : "Invalid category/rating combination or missing required message",
+  "content" : {
+    "application/json" : {
+      "schema" : {
+        "$ref" : "#/components/schemas/ErrorResponse"
+      }
+    }
+  }
+};
+                                        var schema = schemaWrapper.content["application/json"].schema;
+                                        if (schema.$ref != null) {
+                                          schema = defsParser.$refs.get(schema.$ref);
+                                        } else {
+                                          schemaWrapper.components = {};
+                                          schemaWrapper.components.schemas = Object.assign({}, defs);
+                                          $RefParser.dereference(schemaWrapper).catch(function(err) {
+                                            console.log(err);
+                                          });
+                                        }
+
+                                        //console.log(JSON.stringify(schema));
+                                        var view = new JSONSchemaView(schema, 3);
+                                        $('#responses-feedbackUserPost-400-schema-data').val(stringify(schema));
+                                        var result = $('#responses-feedbackUserPost-400-schema-400');
+                                        result.empty();
+                                        result.append(view.render());
+                                      });
+                                    </script>
+                                  </div>
+                                  <input id='responses-feedbackUserPost-400-schema-data' type='hidden' value=''></input>
+                                </div>
+                            </div>
+
+                            <h3> Status: 401 -  </h3>
+
+                            <ul class="nav nav-tabs nav-tabs-examples" >
+                            </ul>
+
+                            <div class="tab-content" style='margin-bottom: 10px;'>
+                            </div>
+
+                            <h3> Status: 404 - User not found </h3>
+
+                            <ul class="nav nav-tabs nav-tabs-examples" >
+                                <li class="active">
+                                  <a data-toggle="tab" href="#responses-feedbackUserPost-404-schema">Schema</a>
+                                </li>
+
+                            </ul>
+
+                            <div class="tab-content" style='margin-bottom: 10px;'>
+                                <div class="tab-pane active" id="responses-feedbackUserPost-404-schema">
+                                  <div id='responses-feedbackUserPost-404-schema-404' style="padding: 30px; border-left: 1px solid #eee; border-right: 1px solid #eee; border-bottom: 1px solid #eee;">
+                                    <script>
+                                      $(document).ready(function() {
+                                        var schemaWrapper = {
+  "description" : "User not found",
+  "content" : {
+    "application/json" : {
+      "schema" : {
+        "$ref" : "#/components/schemas/ErrorResponse"
+      }
+    }
+  }
+};
+                                        var schema = schemaWrapper.content["application/json"].schema;
+                                        if (schema.$ref != null) {
+                                          schema = defsParser.$refs.get(schema.$ref);
+                                        } else {
+                                          schemaWrapper.components = {};
+                                          schemaWrapper.components.schemas = Object.assign({}, defs);
+                                          $RefParser.dereference(schemaWrapper).catch(function(err) {
+                                            console.log(err);
+                                          });
+                                        }
+
+                                        //console.log(JSON.stringify(schema));
+                                        var view = new JSONSchemaView(schema, 3);
+                                        $('#responses-feedbackUserPost-404-schema-data').val(stringify(schema));
+                                        var result = $('#responses-feedbackUserPost-404-schema-404');
+                                        result.empty();
+                                        result.append(view.render());
+                                      });
+                                    </script>
+                                  </div>
+                                  <input id='responses-feedbackUserPost-404-schema-data' type='hidden' value=''></input>
                                 </div>
                             </div>
 

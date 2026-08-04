@@ -3,6 +3,7 @@ package com.revio.server.features.feedback
 import com.revio.server.core.util.getUuidClaim
 import com.revio.server.features.feedback.dto.PromptStateUpdateDTO
 import com.revio.server.features.feedback.dto.SubmitFirstPostFeedbackDTO
+import com.revio.server.features.feedback.dto.SubmitUserFeedbackDTO
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
@@ -61,6 +62,30 @@ fun Route.feedbackRoutes() {
 
                 feedbackService.recordPromptEvent(userId, update.promptKey, update.event)
                 call.respond(HttpStatusCode.OK, mapOf("status" to "recorded"))
+            }
+
+            post("/user") {
+                val userId = call.getUuidClaim("userId")
+                    ?: return@post call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Invalid userId claim"))
+
+                val dto = try {
+                    call.receive<SubmitUserFeedbackDTO>()
+                } catch (e: BadRequestException) {
+                    return@post call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid feedback payload"))
+                }
+
+                try {
+                    when (feedbackService.submitUserFeedback(userId, dto)) {
+                        SubmitResult.CREATED ->
+                            call.respond(HttpStatusCode.Created, mapOf("status" to "recorded"))
+                        SubmitResult.ALREADY_SUBMITTED ->
+                            call.respond(HttpStatusCode.OK, mapOf("status" to "already_submitted"))
+                    }
+                } catch (e: IllegalArgumentException) {
+                    call.respond(HttpStatusCode.BadRequest, mapOf("error" to (e.message ?: "Invalid feedback")))
+                } catch (e: FeedbackUserNotFoundException) {
+                    call.respond(HttpStatusCode.NotFound, mapOf("error" to "User not found"))
+                }
             }
         }
     }

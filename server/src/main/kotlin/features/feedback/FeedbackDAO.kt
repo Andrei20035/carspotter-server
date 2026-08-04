@@ -2,6 +2,7 @@ package com.revio.server.features.feedback
 
 import com.revio.server.features.feedback.dto.FeedbackPromptStateDTO
 import com.revio.server.features.feedback.dto.SubmitFirstPostFeedbackDTO
+import com.revio.server.features.feedback.dto.SubmitUserFeedbackDTO
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
@@ -19,6 +20,9 @@ interface IFeedbackDAO {
     suspend fun upsertPromptState(userId: UUID, key: String, status: PromptStatus, shownCount: Int, lastShownAt: Instant?)
 
     suspend fun markSubmitted(userId: UUID, key: String)
+
+    /** Inserts a new user-feedback row. Throws on FK violation (user missing) or unique violation (duplicate clientFeedbackId). */
+    suspend fun insertUserFeedback(userId: UUID, dto: SubmitUserFeedbackDTO): UUID
 }
 
 class FeedbackDAO : IFeedbackDAO {
@@ -100,4 +104,29 @@ class FeedbackDAO : IFeedbackDAO {
             }
         }
     }
+
+    override suspend fun insertUserFeedback(userId: UUID, dto: SubmitUserFeedbackDTO): UUID = transaction {
+        UserFeedbackTable.insert {
+            it[UserFeedbackTable.userId] = userId
+            it[category] = dto.category.name
+            it[area] = dto.area?.name
+            it[message] = dto.message.orEmpty()
+            it[secondaryMessage] = dto.secondaryMessage
+            it[quickReason] = dto.quickReason?.name
+            it[priority] = dto.priority?.name
+            it[rating] = dto.rating?.toShort()
+            it[keepMessage] = dto.keepMessage
+            it[improveMessage] = dto.improveMessage
+            it[feedbackSource] = dto.source.name
+            it[originScreen] = dto.originScreen
+            it[includeDiagnostics] = dto.includeDiagnostics
+            it[appVersion] = dto.appVersion
+            it[androidVersion] = dto.androidVersion
+            it[deviceModel] = dto.deviceModel
+            it[connectionType] = dto.connectionType
+            it[lastErrorCode] = dto.lastErrorCode
+            it[clientFeedbackId] = dto.clientFeedbackId
+            it[clientSubmittedAt] = dto.clientSubmittedAt
+        } get UserFeedbackTable.id
+    }.value
 }

@@ -76,6 +76,17 @@ class ScoringDaoTest {
         }[PostTable.id].value
     }
 
+    private fun seedGalleryPost(ownerUserId: UUID, points: Int): UUID = transaction {
+        PostTable.insert {
+            it[PostTable.userId] = ownerUserId
+            it[PostTable.imageKey] = "posts/test.jpg"
+            it[PostTable.customBrand] = "bmw"
+            it[PostTable.customModel] = "m3"
+            it[PostTable.postSource] = PostSource.GALLERY.name
+            it[PostTable.points] = points
+        }[PostTable.id].value
+    }
+
     // ---------- applyCreationPoints ----------
 
     @Test
@@ -186,6 +197,20 @@ class ScoringDaoTest {
 
         assertEquals(1, deleted)
         assertEquals(7, spotScore(owner.userId))
+        assertNull(postPoints(postId))
+    }
+
+    @Test
+    fun `reverseAndDeletePost reverses points for a GALLERY post the same as CAMERA`() = runTest {
+        // Post source is irrelevant to reversal: it operates purely on the backfilled points value.
+        val owner = CommentTestSeed.seedUser(username = "owner")
+        val postId = seedGalleryPost(owner.userId, points = 10)
+        setSpotScore(owner.userId, 10)
+
+        val deleted = dao.reverseAndDeletePost(owner.userId, postId, 10)
+
+        assertEquals(1, deleted)
+        assertEquals(0, spotScore(owner.userId))
         assertNull(postPoints(postId))
     }
 

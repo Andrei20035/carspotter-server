@@ -23,8 +23,8 @@ import java.util.UUID
 
 class JwtServiceTest {
     private val secret = "test-secret-that-is-long-enough"
-    private val issuer = "carspotter-test"
-    private val audience = "carspotter-client"
+    private val issuer = "revio-test"
+    private val audience = "revio-client"
     private val jwtService = JwtService(secret, issuer, audience)
 
     private fun session(

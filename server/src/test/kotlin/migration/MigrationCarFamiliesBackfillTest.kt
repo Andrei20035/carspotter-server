@@ -29,7 +29,7 @@ class MigrationCarFamiliesBackfillTest {
 
     private fun startAtV22() {
         container = PostgreSQLContainer("postgres:16-alpine").apply {
-            withDatabaseName("carspotter_migration_test")
+            withDatabaseName("revio_migration_test")
             withUsername("test")
             withPassword("test")
             withReuse(false)

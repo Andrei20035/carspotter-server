@@ -1,4 +1,4 @@
-# CarSpotter — Seed Data
+# Revio — Seed Data
 
 Seed content for the **local PostgreSQL dev/test database**. The JSON files +
 `compressed/` images are imported by the Kotlin seeder

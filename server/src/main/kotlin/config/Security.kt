@@ -20,7 +20,7 @@ fun Application.configureSecurity(
     jwtIssuer: String = requireConfig("JWT_ISSUER"),
     jwtSecret: String = requireConfig("JWT_SECRET"),
 ) {
-    val jwtRealm = "CarSpotter-server"
+    val jwtRealm = "Revio-server"
 
     val jwtVerifier = JWT
         .require(Algorithm.HMAC256(jwtSecret))

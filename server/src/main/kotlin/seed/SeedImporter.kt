@@ -28,7 +28,7 @@ import java.time.ZoneOffset
 import java.util.UUID
 
 /**
- * Local seed importer for the CarSpotter dev/test database.
+ * Local seed importer for the Revio dev/test database.
  *
  * Reads the seed JSON files plus the compressed images and inserts auth_credentials ->
  * users -> posts, copying the (already client-equivalent compressed) images into

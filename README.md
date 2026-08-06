@@ -1,4 +1,4 @@
-# 🚗 CarSpotter Server
+# 🚗 Revio Server
 
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.1.20-7F52FF?logo=kotlin&logoColor=white)
 ![Ktor](https://img.shields.io/badge/Ktor-3.1.3-087CFA?logo=ktor&logoColor=white)
@@ -8,7 +8,7 @@
 ![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)
 ![Tests](https://img.shields.io/badge/tests-DAO%20%7C%20service%20%7C%20route-16A34A)
 
-CarSpotter Server is the Kotlin/Ktor backend for a social car spotting application. It manages authentication, user profiles, posts with image uploads, car model lookup, likes, comments, friendships, friend requests, and a single-car profile per user.
+Revio Server is the Kotlin/Ktor backend for a social car spotting application. It manages authentication, user profiles, posts with image uploads, car model lookup, likes, comments, friendships, friend requests, and a single-car profile per user.
 
 The codebase is intentionally organized around feature modules and explicit boundaries: routes handle HTTP concerns, services own business rules, DAOs/repositories isolate persistence, Flyway owns schema evolution, and storage is accessed through an interface rather than hard-wired into post/user-car logic.
 
@@ -37,7 +37,7 @@ This README documents the system as implemented. It avoids aspirational claims a
 
 ## System Overview
 
-CarSpotter is built as a modular monolith. That is the right level of distribution for the current product surface: the domain is still cohesive, most workflows share the same user/post/social graph, and strong relational constraints are valuable.
+Revio is built as a modular monolith. That is the right level of distribution for the current product surface: the domain is still cohesive, most workflows share the same user/post/social graph, and strong relational constraints are valuable.
 
 ```mermaid
 flowchart LR
@@ -356,7 +356,7 @@ erDiagram
 
 ## Authentication Flow
 
-CarSpotter distinguishes authentication credentials from user profiles. That allows a user to register or sign in first, then complete profile onboarding separately.
+Revio distinguishes authentication credentials from user profiles. That allows a user to register or sign in first, then complete profile onboarding separately.
 
 ```mermaid
 sequenceDiagram
@@ -671,7 +671,7 @@ docker compose up --build
 The Compose file defines:
 
 - `postgres`: PostgreSQL 15 with a persistent volume, initialization script, and healthcheck.
-- `app`: CarSpotter server built from the root Dockerfile, waiting for PostgreSQL health before startup.
+- `app`: Revio server built from the root Dockerfile, waiting for PostgreSQL health before startup.
 
 ## Testing Strategy
 

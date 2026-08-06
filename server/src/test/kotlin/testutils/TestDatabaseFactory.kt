@@ -23,7 +23,7 @@ object TestDatabaseFactory {
         if (started) return
 
         val pg = PostgreSQLContainer("postgres:16-alpine").apply {
-            withDatabaseName("carspotter_test")
+            withDatabaseName("revio_test")
             withUsername("test")
             withPassword("test")
             withEnv("TZ", "UTC")

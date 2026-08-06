@@ -82,4 +82,5 @@ suspend fun ApplicationTestBuilder.assertAuthError(
     assertEquals(expectedStatus, response.status)
     val body = Json.decodeFromString<AuthErrorResponse>(response.bodyAsText())
     assertEquals(expectedCode, body.error.code)
+
 }

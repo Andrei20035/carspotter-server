@@ -14,7 +14,6 @@ import org.jetbrains.exposed.sql.select
 import org.jetbrains.exposed.sql.sum
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.update
-import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.greaterEq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.less
@@ -26,12 +25,20 @@ import java.util.UUID
 
 data class PostOwnerInfo(val ownerId: UUID, val source: PostSource)
 
+/**
+ * Result of [IPostDAO.insert]. [createdAt] is the value Postgres actually persisted (via
+ * INSERT ... RETURNING), not a JVM-clock Instant.now() taken separately — callers that need to
+ * evaluate a time window against this post (e.g. challenge eligibility) must use this value, not
+ * their own clock read, so "was this post inside the window" is answered from one consistent
+ * timestamp instead of two independently-read ones.
+ */
+data class InsertedPost(val id: UUID, val createdAt: Instant)
+
 interface IPostDAO {
-    suspend fun insert(post: PersistPostDTO): UUID
+    suspend fun insert(post: PersistPostDTO): InsertedPost
     suspend fun findById(postId: UUID): Post?
     suspend fun listFeed(limit: Int, cursorCreatedAt: Instant?, cursorPostId: UUID?, excludeUserId: UUID?): List<Post>
     suspend fun listByUser(userId: UUID, limit: Int, cursorCreatedAt: Instant?, cursorPostId: UUID?): List<Post>
-    suspend fun deleteById(postId: UUID): Int
 
     /**
      * Updates the car and/or caption of [postId].
@@ -85,8 +92,8 @@ class PostDAO : IPostDAO {
         .join(CarModelTable, JoinType.LEFT, additionalConstraint = { PostTable.carModelId eq CarModelTable.id })
         .select(joinedColumns)
 
-    override suspend fun insert(post: PersistPostDTO): UUID = transaction {
-        PostTable.insertReturning(listOf(PostTable.id)) {
+    override suspend fun insert(post: PersistPostDTO): InsertedPost = transaction {
+        PostTable.insertReturning(listOf(PostTable.id, PostTable.createdAt)) {
             it[userId] = post.userId
             it[carModelId] = post.carModelId
             it[customBrand] = post.customBrand
@@ -99,8 +106,9 @@ class PostDAO : IPostDAO {
             it[country] = post.country
             it[postSource] = post.source.name
             it[createdAtTimezone] = post.createdAtTimezone
-        }.singleOrNull()?.get(PostTable.id)?.value
-            ?: error("Failed to insert post")
+        }.singleOrNull()?.let { row ->
+            InsertedPost(id = row[PostTable.id].value, createdAt = row[PostTable.createdAt])
+        } ?: error("Failed to insert post")
     }
 
     override suspend fun findById(postId: UUID): Post? = transaction {
@@ -156,10 +164,6 @@ class PostDAO : IPostDAO {
             .orderBy(PostTable.createdAt to SortOrder.DESC, PostTable.id to SortOrder.DESC)
             .limit(limit)
             .map(ResultRow::toPost)
-    }
-
-    override suspend fun deleteById(postId: UUID): Int = transaction {
-        PostTable.deleteWhere { id eq postId }
     }
 
     override suspend fun updateById(postId: UUID, carModelId: UUID?, customBrand: String?, customModel: String?, caption: String?): Int = transaction {

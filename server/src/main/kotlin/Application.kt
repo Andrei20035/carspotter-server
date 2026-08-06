@@ -13,7 +13,9 @@ import com.revio.server.core.util.resolveZone
 import com.revio.server.features.account_deletion.accountDeletionModule
 import com.revio.server.features.activity.activityModule
 import com.revio.server.features.auth.authModule
+import com.revio.server.features.car_family.carFamilyModule
 import com.revio.server.features.car_model.carModelModule
+import com.revio.server.features.challenge.challengeModule
 import features.comment.commentModule
 import com.revio.server.features.feedback.feedbackModule
 import com.revio.server.features.friend.friendModule
@@ -59,7 +61,9 @@ fun Application.module() {
             leaderboardModule,
             activityModule,
             accountDeletionModule,
-            feedbackModule
+            feedbackModule,
+            carFamilyModule,
+            challengeModule
         )
     }
 

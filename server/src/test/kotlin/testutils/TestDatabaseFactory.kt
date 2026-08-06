@@ -26,9 +26,12 @@ object TestDatabaseFactory {
             withDatabaseName("carspotter_test")
             withUsername("test")
             withPassword("test")
+            withEnv("TZ", "UTC")
+            withCommand("postgres", "-c", "timezone=UTC")
             withReuse(false)
         }
         pg.start()
+
         container = pg
 
         val hikariConfig = HikariConfig().apply {
@@ -82,12 +85,17 @@ object TestDatabaseFactory {
                         friends,
                         likes,
                         reports,
+                        challenge_reward_ledger,
+                        challenge_participants,
+                        challenge_contributions,
                         comments,
                         posts,
                         users_cars,
                         users,
                         auth_sessions,
                         auth_credentials,
+                        challenges,
+                        car_families,
                         car_models,
                         account_deletion_feedback,
                         first_post_feedback,

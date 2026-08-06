@@ -6,6 +6,7 @@ import com.revio.server.features.auth.session.AuthSessionDAO
 import com.revio.server.features.auth.session.SessionScope
 import com.revio.server.features.auth.session.SessionService
 import com.revio.server.features.car_model.ICarModelDAO
+import com.revio.server.features.challenge.IChallengeProgressService
 import com.revio.server.features.comment.dto.CommentDTO
 import com.revio.server.features.leaderboard.dto.LeaderboardResponseDTO
 import com.revio.server.features.post.IPostDAO
@@ -179,6 +180,7 @@ class R2StorageRoutesTest {
         val commentDao = mockk<ICommentDAO>(relaxed = true)
         val scoringService = mockk<IScoringService>(relaxed = true)
         val scoringDao = mockk<IScoringDao>(relaxed = true)
+        val challengeProgressService = mockk<IChallengeProgressService>(relaxed = true)
         coEvery { postDao.insert(any()) } throws RuntimeException("simulated DB failure")
 
         val service = PostServiceImpl(
@@ -189,6 +191,8 @@ class R2StorageRoutesTest {
             commentDao = commentDao,
             scoringService = scoringService,
             scoringDao = scoringDao,
+            challengeProgressService = challengeProgressService,
+            postRemovalDao = mockk(relaxed = true),
         )
         val keysBefore = R2TestStorageFactory.keysWithPrefix("posts/")
 

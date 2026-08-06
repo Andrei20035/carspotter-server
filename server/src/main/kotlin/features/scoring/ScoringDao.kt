@@ -28,6 +28,14 @@ interface IScoringDao {
      * Returns the number of deleted post rows.
      */
     suspend fun reverseAndDeletePost(ownerId: UUID, postId: UUID, points: Int): Int
+
+    /**
+     * Same reversal as [reverseAndDeletePost], but running in the CALLER'S already-open
+     * transaction instead of one of its own. Exists so post removal can delete the row in the
+     * very same transaction that reconciled the post's challenge contributions — see
+     * IPostRemovalDAO.removePostAtomically for why those two must be one unit.
+     */
+    fun reverseAndDeletePostInCurrentTransaction(ownerId: UUID, postId: UUID, points: Int): Int
 }
 
 class ScoringDaoImpl : IScoringDao {
@@ -71,6 +79,10 @@ class ScoringDaoImpl : IScoringDao {
     }
 
     override suspend fun reverseAndDeletePost(ownerId: UUID, postId: UUID, points: Int): Int = transaction {
+        reverseAndDeletePostInCurrentTransaction(ownerId, postId, points)
+    }
+
+    override fun reverseAndDeletePostInCurrentTransaction(ownerId: UUID, postId: UUID, points: Int): Int {
         if (points > 0) {
             val currentScore = UserTable
                 .select(UserTable.spotScore)
@@ -82,6 +94,6 @@ class ScoringDaoImpl : IScoringDao {
                 it[UserTable.spotScore] = newScore
             }
         }
-        PostTable.deleteWhere { id eq postId }
+        return PostTable.deleteWhere { id eq postId }
     }
 }

@@ -2,6 +2,7 @@ package com.revio.server.features.post
 
 import com.revio.server.core.storage.IStorageService
 import com.revio.server.features.car_model.ICarModelDAO
+import com.revio.server.features.challenge.IChallengeProgressService
 import com.revio.server.features.post.dto.CreatePostDTO
 import com.revio.server.features.post.dto.FeedCursorDTO
 import com.revio.server.features.post.dto.FeedResponseDTO
@@ -30,7 +31,16 @@ interface IPostService {
     ): FeedResponseDTO
     suspend fun listPostsByUser(userId: UUID, limit: Int, cursorCreatedAt: String?, cursorPostId: String?, currentUserId: UUID?): FeedResponseDTO
     suspend fun deletePostAsAuthor(postId: UUID, authorId: UUID)
+
+    /** Moderator takedown (e.g. an upheld report). Same removal mechanics as [deletePostAsAuthor], no ownership check. */
+    suspend fun removePostAsModerator(postId: UUID, moderatorId: UUID)
     suspend fun updatePostAsAuthor(postId: UUID, authorId: UUID, request: UpdatePostRequest): PostDTO
+}
+
+/** Who triggered a post removal — carried only for the structured log line at the end of [PostServiceImpl.removePost]. */
+sealed class PostRemovalActor {
+    data class Author(val userId: UUID) : PostRemovalActor()
+    data class Moderator(val moderatorId: UUID) : PostRemovalActor()
 }
 
 class PostServiceImpl(
@@ -41,6 +51,8 @@ class PostServiceImpl(
     private val commentDao: ICommentDAO,
     private val scoringService: IScoringService,
     private val scoringDao: IScoringDao,
+    private val challengeProgressService: IChallengeProgressService,
+    private val postRemovalDao: IPostRemovalDAO,
 ) : IPostService {
     companion object {
         private val logger = LoggerFactory.getLogger(PostServiceImpl::class.java)
@@ -75,7 +87,7 @@ class PostServiceImpl(
         )
 
         return try {
-            val postId = postDao.insert(
+            val inserted = postDao.insert(
                 PersistPostDTO(
                     userId = request.authorId,
                     carModelId = request.carModelId,
@@ -94,12 +106,30 @@ class PostServiceImpl(
             // Award SpotScore and advance streak for camera posts.
             scoringService.onPostCreated(
                 userId = request.authorId,
-                postId = postId,
+                postId = inserted.id,
                 source = request.source,
                 createdAtUtc = Instant.now(),
                 createdAtTimezone = request.createdAtTimezone,
             )
-            postId
+
+            // Challenge contribution: evaluated against inserted.createdAt (the value Postgres
+            // actually persisted), not a fresh Instant.now(). Best-effort — a failure here must
+            // never fail post creation or its normal points (plan §4.3); a missed evaluation is
+            // recoverable later via the admin reconcile endpoint (Etapa 5/7, plan §5).
+            if (request.source == PostSource.CAMERA && request.carModelId != null) {
+                runCatching {
+                    challengeProgressService.evaluatePostForActiveChallenge(
+                        userId = request.authorId,
+                        postId = inserted.id,
+                        carModelId = request.carModelId,
+                        postCreatedAt = inserted.createdAt,
+                    )
+                }.onFailure {
+                    logger.warn("Challenge evaluation failed for post {}", inserted.id, it)
+                }
+            }
+
+            inserted.id
         } catch (e: Exception) {
             runCatching { storageService.deleteImage(objectKey) }
             throw PostCreationException("Failed to create post for user ${request.authorId}", e)
@@ -175,12 +205,35 @@ class PostServiceImpl(
         if (post.userId != authorId) {
             throw PostForbiddenException(postId, authorId)
         }
+        removePost(post, PostRemovalActor.Author(authorId))
+    }
 
-        // Reverse post.points from spot_score and delete the post atomically.
-        // Cascade removes associated likes and comments.
-        scoringDao.reverseAndDeletePost(ownerId = authorId, postId = postId, points = post.points)
+    override suspend fun removePostAsModerator(postId: UUID, moderatorId: UUID) {
+        val post = postDao.findById(postId) ?: throw PostNotFoundException(postId)
+        removePost(post, PostRemovalActor.Moderator(moderatorId))
+    }
+
+    /**
+     * Shared removal mechanics for both public entry points above — only the ownership/role
+     * check differs between them, done by the caller before this is reached.
+     */
+    private suspend fun removePost(post: Post, actor: PostRemovalActor) {
+        // Challenge reconciliation, points reversal and the delete itself all happen in ONE
+        // transaction (see IPostRemovalDAO.removePostAtomically). Deliberately NOT best-effort:
+        // if reconciliation fails, the exception propagates, the transaction rolls back and the
+        // post is still there to retry. Swallowing it would let the delete commit alone, and
+        // challenge_contributions.post_id being ON DELETE CASCADE would then erase the
+        // contributions without revoking the reward they earned — an inflated spot_score that
+        // nothing recomputes and no reconciliation job can detect. Cascade also removes the
+        // post's likes, comments and reports.
+        postRemovalDao.removePostAtomically(post.id, challengeProgressService.contributionRevokePolicy())
+
+        // Only once the transaction has committed is the image safe to drop. This one stays
+        // best-effort: an orphaned object costs storage, it can't corrupt scores.
         runCatching { storageService.deleteImage(post.imageKey) }
-            .onFailure { logger.warn("Post {} deleted but image cleanup failed", postId, it) }
+            .onFailure { logger.warn("Post {} removed but image cleanup failed", post.id, it) }
+
+        logger.info("Post {} removed by {}", post.id, actor)
     }
 
     override suspend fun updatePostAsAuthor(postId: UUID, authorId: UUID, request: UpdatePostRequest): PostDTO {

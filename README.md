@@ -726,10 +726,21 @@ Security caveats:
 
 - JWTs are stateless and currently have a fixed 24-hour expiration; there is no refresh token rotation or server-side token revocation.
 - `JWT_SECRET` must be strong and environment-specific. A weak shared secret undermines every protected route.
-- The database has a `users.role` column and the JWT verifier supports `isAdmin`, but normal token issuance currently defaults `isAdmin` to `false`; production admin access should be tied to a deliberate role-to-claim issuing path.
 - Local filesystem media storage is suitable for development and single-instance deployments, not horizontally scaled production.
 - CORS is intentionally permissive in the current code and should be narrowed before public deployment.
 - Upload validation checks content type and size, but not file signature scanning or malware detection.
+
+### Promoting A User To Admin
+
+`users.role` is `USER` by default and mapped in `UserTable.kt`; `isAdmin` in the JWT is read from it on every login, refresh, and password change (see `AuthRoutes.kt`, `UserRoutes.kt`), so the `admin` authentication provider (`config/Security.kt`) becomes usable as soon as a row's role is `ADMIN`.
+
+There is deliberately no app endpoint to grant `ADMIN` — a self-service or admin-gated promotion endpoint would be a privilege-escalation risk (the former lets anyone promote themselves, the latter has a bootstrap problem: the first admin can't be created by an admin-only endpoint). The only supported path is a manual SQL update against the production database:
+
+```sql
+UPDATE users SET role = 'ADMIN' WHERE id = '<user-uuid>';
+```
+
+The promoted user must sign in again (or wait for their next `/auth/refresh`) before their access token carries `isAdmin=true` — the existing token they're holding was issued before the promotion and still reflects the old role until it's rotated.
 
 ## Scalability Roadmap
 

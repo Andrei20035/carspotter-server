@@ -2,7 +2,10 @@ package com.revio.server.config
 
 import com.revio.server.features.activity.activityRoutes
 import com.revio.server.features.auth.authRoutes
+import com.revio.server.features.car_family.carFamilyAdminRoutes
 import com.revio.server.features.car_model.carModelRoutes
+import com.revio.server.features.challenge.challengeAdminRoutes
+import com.revio.server.features.challenge.challengeRoutes
 import features.comment.commentRoutes
 import com.revio.server.features.feedback.feedbackRoutes
 import com.revio.server.features.friend.friendRoutes
@@ -10,6 +13,7 @@ import com.revio.server.features.friend_request.friendRequestRoutes
 import com.revio.server.features.leaderboard.adminLeaderboardRoutes
 import com.revio.server.features.leaderboard.leaderboardRoutes
 import features.like.likeRoutes
+import features.report.reportAdminRoutes
 import features.report.reportRoutes
 import com.revio.server.features.post.postRoutes
 import com.revio.server.features.user.userRoutes
@@ -32,7 +36,10 @@ fun Application.configureRouting() {
         route("/api") {
             activityRoutes()
             authRoutes()
+            carFamilyAdminRoutes()
             carModelRoutes()
+            challengeAdminRoutes()
+            challengeRoutes()
             commentRoutes()
             feedbackRoutes()
             friendRequestRoutes()
@@ -40,6 +47,7 @@ fun Application.configureRouting() {
             adminLeaderboardRoutes()
             leaderboardRoutes()
             likeRoutes()
+            reportAdminRoutes()
             reportRoutes()
             postRoutes()
             userCarRoutes()

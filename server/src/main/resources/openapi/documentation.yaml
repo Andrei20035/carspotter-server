@@ -35,6 +35,10 @@ tags:
     description: The single car owned by a user profile
   - name: Car Models
     description: Car brand and model catalogue
+  - name: Car Families
+    description: Groupings of car models (e.g. all Volkswagen Golf variants) used to target challenges
+  - name: Challenges
+    description: Weekend-style challenges — spot N cars from a family within a window to earn a reward
   - name: Friends
     description: Friendships
   - name: Friend Requests
@@ -920,6 +924,65 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  # ---------------------------------------------------------------- Challenges
+  /challenges/current:
+    get:
+      summary: Current or next-upcoming challenge
+      description: >
+        The SCHEDULED challenge active right now, or if none is active, the soonest upcoming
+        one. `challenge`/`progress` are both `null` when no challenge is scheduled at all.
+        `progress` reflects the caller's own contributions (zero/`NONE` if they haven't
+        contributed yet). All instants are UTC; the client converts to the viewer's timezone.
+      tags: [Challenges]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Current challenge and the caller's progress on it
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentChallengeDTO'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+
+  /challenges/{id}/progress:
+    get:
+      summary: Caller's progress on a challenge
+      description: >
+        The caller's own progress and contributing posts for any existing challenge (not
+        limited to the currently active one), so a user can look back at a past challenge.
+        Zero progress is returned (not 404) when the caller has no contributions.
+      tags: [Challenges]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Progress detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChallengeProgressDetailDTO'
+        '400':
+          description: Invalid id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '404':
+          description: Challenge not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   # ---------------------------------------------------------------- User cars
   /me/car:
     get:
@@ -1498,6 +1561,622 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
 
   # ---------------------------------------------------------------- Admin
+  /admin/challenges:
+    post:
+      summary: Create a challenge (admin)
+      description: >
+        Creates a challenge in `DRAFT`. `startsAtLocal`/`endsAtLocal` are the admin's local
+        wall-clock values (no offset, e.g. `2026-08-08T09:00:00`); `timezone` is a strict IANA
+        zone name — an invalid or blank value is rejected (400), never silently defaulted to
+        UTC. Requires a JWT with the `isAdmin` claim.
+      tags: [Challenges, Admin]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateChallengeAdminRequest'
+      responses:
+        '201':
+          description: Challenge created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChallengeAdminDTO'
+        '400':
+          description: Invalid request (bad timezone, non-positive thresholds, endsAt before startsAt, unknown targetFamilyId, ...)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    get:
+      summary: List challenges (admin)
+      description: >
+        Keyset-paginated, newest-created first. `status`, when given, filters by *effective*
+        lifecycle state (`DRAFT`/`SCHEDULED`/`ACTIVE`/`ENDED`/`CANCELLED`) — not the persisted
+        `ChallengeStatus`, which alone can't distinguish `ACTIVE` from a not-yet-started
+        `SCHEDULED` challenge. `cursorCreatedAt`/`cursorId` must both come from a previous
+        response's `nextCursor`, or both be omitted for the first page. Requires a JWT with the
+        `isAdmin` claim.
+      tags: [Challenges, Admin]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+        - name: cursorCreatedAt
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: cursorId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/EffectiveChallengeStatus'
+      responses:
+        '200':
+          description: One page of challenges
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChallengeAdminPageDTO'
+        '400':
+          description: Invalid limit, cursor, or status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    put:
+      summary: Replace a DRAFT challenge's fields (admin)
+      description: >
+        Full-field edit — every field `POST /admin/challenges` accepts, revalidated the same
+        way (timezone, window, thresholds, target family existence). Permitted only while the
+        challenge is still `DRAFT`; rejected with 409 once published (even if since cancelled).
+        Requires a JWT with the `isAdmin` claim.
+      tags: [Challenges, Admin]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ChallengeIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateChallengeAdminRequest'
+      responses:
+        '200':
+          description: Updated challenge
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChallengeAdminDTO'
+        '400':
+          description: Invalid id, bad timezone, non-positive thresholds, endsAt before startsAt, unknown targetFamilyId, ...
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Challenge not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Challenge is no longer DRAFT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/challenges/{id}:
+    get:
+      summary: Challenge detail (admin)
+      description: Requires a JWT with the `isAdmin` claim.
+      tags: [Challenges, Admin]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ChallengeIdPath'
+      responses:
+        '200':
+          description: Challenge detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChallengeAdminDTO'
+        '400':
+          description: Invalid id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Challenge not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    patch:
+      summary: Edit title/description (admin)
+      description: >
+        Only `title`/`description` can be edited, and only while the challenge is not
+        `CANCELLED`. Every other field (target family, thresholds, window) is frozen once a
+        challenge is published, so a completion isn't retroactively made in/eligible with
+        nothing to re-evaluate it. Requires a JWT with the `isAdmin` claim.
+      tags: [Challenges, Admin]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ChallengeIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateChallengeTitleRequest'
+      responses:
+        '200':
+          description: Updated challenge
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChallengeAdminDTO'
+        '400':
+          description: Invalid id, blank title, or missing/invalid body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Challenge not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Challenge is CANCELLED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/challenges/{id}/publish:
+    post:
+      summary: Publish a challenge (admin)
+      description: >
+        `DRAFT` -> `SCHEDULED`. Rejected with 409 if the window overlaps another `SCHEDULED`
+        challenge (only one may be scheduled at a time). Requires a JWT with the `isAdmin` claim.
+      tags: [Challenges, Admin]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ChallengeIdPath'
+      responses:
+        '200':
+          description: Published challenge
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChallengeAdminDTO'
+        '400':
+          description: Invalid id, or challenge is not DRAFT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Challenge not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Window overlaps another SCHEDULED challenge
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/challenges/{id}/cancel:
+    post:
+      summary: Cancel a challenge (admin)
+      description: >
+        Normal cancellation: only while the challenge hasn't ended yet. Sets status to
+        `CANCELLED` and revokes every already-granted reward for it (idempotent — cancelling
+        twice just re-runs a no-op revoke pass). Once a challenge has ended, use
+        `/revoke-all` instead. Requires a JWT with the `isAdmin` claim.
+      tags: [Challenges, Admin]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ChallengeIdPath'
+      responses:
+        '200':
+          description: Number of rewards revoked by this call
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RevokeResultDTO'
+        '400':
+          description: Invalid id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Challenge not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Challenge has already ended; use /revoke-all instead
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/challenges/{id}/revoke-all:
+    post:
+      summary: Retroactively revoke all rewards (admin)
+      description: >
+        Remediation for a misconfigured challenge discovered after it ended: revokes every
+        granted reward regardless of `endsAt`, idempotently, without changing the challenge's
+        status or deleting any audit history. `confirmChallengeId` in the body must repeat the
+        path id as an explicit confirmation barrier. Requires a JWT with the `isAdmin` claim.
+      tags: [Challenges, Admin]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ChallengeIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RevokeAllRequest'
+      responses:
+        '200':
+          description: Number of rewards revoked by this call
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RevokeResultDTO'
+        '400':
+          description: Invalid id, missing body, or confirmChallengeId doesn't match the path id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Challenge not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/car-families:
+    get:
+      summary: List car families (admin)
+      description: Requires a JWT with the `isAdmin` claim.
+      tags: [Car Families, Admin]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: All car families
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CarFamilyAdminDTO'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Create a car family (admin)
+      description: >
+        E.g. `(brand: "Volkswagen", name: "Golf")`. Rejects a duplicate `(brand, name)` pair.
+        Requires a JWT with the `isAdmin` claim.
+      tags: [Car Families, Admin]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCarFamilyRequest'
+      responses:
+        '201':
+          description: Car family created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CarFamilyAdminDTO'
+        '400':
+          description: Blank brand/name
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: A car family with this brand/name already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/car-families/{id}/models:
+    post:
+      summary: Assign car models to a family (admin)
+      description: >
+        Links one or more existing `car_models` rows to a family. All-or-nothing: if any
+        requested id doesn't exist, belongs to a different brand than the family, or is already
+        linked to a *different* family, NOTHING is assigned — not even the otherwise-valid ids
+        — so the request can be fixed and resubmitted as a whole. A model already linked to
+        this same family is a no-op (idempotent, safe to retry). On success, returns every
+        model now linked to the family. Requires a JWT with the `isAdmin` claim.
+      tags: [Car Families, Admin]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CarFamilyIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignCarModelsRequest'
+      responses:
+        '200':
+          description: The family's models after assignment
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CarModelOption'
+        '400':
+          description: Invalid id, empty carModelIds, a car model id that doesn't exist, or a brand mismatch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Car family not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: One or more car models are already linked to a different family
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/car-models/unassigned:
+    get:
+      summary: Car models not yet linked to a family (admin)
+      description: >
+        Helps an admin build a new family without guessing catalogue spellings. Requires a
+        JWT with the `isAdmin` claim.
+      tags: [Car Families, Admin]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: brand
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Unassigned models for the brand
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CarModelOption'
+        '400':
+          description: Missing brand parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/reports:
+    get:
+      summary: List reports by status (admin)
+      description: >
+        Defaults to `PENDING` (the moderation queue) when `status` is omitted. Requires a
+        JWT with the `isAdmin` claim.
+      tags: [Reports, Admin]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/ReportStatus'
+      responses:
+        '200':
+          description: Reports with the given status, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ReportAdminDTO'
+        '400':
+          description: Invalid status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/reports/{id}/resolve:
+    post:
+      summary: Resolve a report (admin)
+      description: >
+        `UPHOLD` takes the reported post down (reversing its points and any challenge reward)
+        and marks the report `REVIEWED`; `DISMISS` marks it `DISMISSED` without touching the
+        post. Idempotent: resolving an already-resolved report just returns its current state.
+        Requires a JWT with the `isAdmin` claim.
+      tags: [Reports, Admin]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResolveReportRequest'
+      responses:
+        '200':
+          description: Resolved report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportAdminDTO'
+        '400':
+          description: Invalid id or missing body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Report not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /admin/leaderboard/snapshot:
     post:
       summary: Snapshot leaderboard ranks (operator)
@@ -1570,6 +2249,20 @@ components:
         format: uuid
     PostIdPath:
       name: postId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ChallengeIdPath:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    CarFamilyIdPath:
+      name: id
       in: path
       required: true
       schema:
@@ -2565,3 +3258,298 @@ components:
           type: string
           enum: [recorded, already_submitted]
       required: [status]
+
+    # ------------------------------------------------------------- car families
+    CarFamilyAdminDTO:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        brand:
+          type: string
+        name:
+          type: string
+      required: [id, brand, name]
+
+    CreateCarFamilyRequest:
+      type: object
+      properties:
+        brand:
+          type: string
+        name:
+          type: string
+      required: [brand, name]
+
+    AssignCarModelsRequest:
+      type: object
+      properties:
+        carModelIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+      required: [carModelIds]
+
+    # ------------------------------------------------------------- challenges
+    ChallengeStatus:
+      type: string
+      description: Persisted lifecycle state. ACTIVE/ENDED are derived from starts_at/ends_at, not stored.
+      enum:
+        - DRAFT
+        - SCHEDULED
+        - CANCELLED
+
+    EffectiveChallengeStatus:
+      type: string
+      description: >
+        Derived lifecycle state used for filtering GET /admin/challenges — DRAFT/CANCELLED map
+        1:1 to the persisted status; SCHEDULED/ACTIVE/ENDED further split a persisted SCHEDULED
+        challenge by whether `now` is before its window, inside it, or after it.
+      enum:
+        - DRAFT
+        - SCHEDULED
+        - ACTIVE
+        - ENDED
+        - CANCELLED
+
+    ChallengeDTO:
+      type: object
+      description: Public-facing challenge config, no admin/audit fields.
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        targetFamilyBrand:
+          type: string
+        targetFamilyName:
+          type: string
+        requiredPosts:
+          type: integer
+        rewardPoints:
+          type: integer
+        startsAt:
+          type: string
+          format: date-time
+          description: UTC instant. Client converts to the viewer's own timezone for display.
+        endsAt:
+          type: string
+          format: date-time
+      required: [id, title, targetFamilyBrand, targetFamilyName, requiredPosts, rewardPoints, startsAt, endsAt]
+
+    ChallengeContributionDTO:
+      type: object
+      properties:
+        postId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+      required: [postId, createdAt]
+
+    ChallengeProgressDTO:
+      type: object
+      description: The viewer's own progress on one challenge.
+      properties:
+        contributionCount:
+          type: integer
+        rewardState:
+          type: string
+          enum: [NONE, GRANTED]
+      required: [contributionCount, rewardState]
+
+    CurrentChallengeDTO:
+      type: object
+      description: Response for GET /challenges/current. Both fields null when no challenge is scheduled.
+      properties:
+        challenge:
+          allOf:
+            - $ref: '#/components/schemas/ChallengeDTO'
+          nullable: true
+        progress:
+          allOf:
+            - $ref: '#/components/schemas/ChallengeProgressDTO'
+          nullable: true
+
+    ChallengeProgressDetailDTO:
+      type: object
+      description: Response for GET /challenges/{id}/progress.
+      properties:
+        progress:
+          $ref: '#/components/schemas/ChallengeProgressDTO'
+        contributions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChallengeContributionDTO'
+      required: [progress, contributions]
+
+    CreateChallengeAdminRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        targetFamilyId:
+          type: string
+          format: uuid
+        requiredPosts:
+          type: integer
+        rewardPoints:
+          type: integer
+        startsAtLocal:
+          type: string
+          description: Local (no offset) ISO-8601 date-time, e.g. "2026-08-08T09:00:00" — the admin's wall clock.
+        endsAtLocal:
+          type: string
+        timezone:
+          type: string
+          description: IANA zone, e.g. "Europe/Bucharest". Rejected (400) if blank or unrecognized — never silently defaulted.
+      required: [title, targetFamilyId, requiredPosts, rewardPoints, startsAtLocal, endsAtLocal, timezone]
+
+    UpdateChallengeTitleRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+      required: [title]
+
+    RevokeAllRequest:
+      type: object
+      properties:
+        confirmChallengeId:
+          type: string
+          format: uuid
+          description: Must repeat the path id — confirmation barrier for a retroactive mass revoke.
+      required: [confirmChallengeId]
+
+    RevokeResultDTO:
+      type: object
+      properties:
+        revokedCount:
+          type: integer
+      required: [revokedCount]
+
+    ChallengeAdminDTO:
+      type: object
+      description: Full admin view of a challenge, including lifecycle/audit fields.
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        targetFamilyId:
+          type: string
+          format: uuid
+        requiredPosts:
+          type: integer
+        rewardPoints:
+          type: integer
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        adminTimezone:
+          type: string
+          description: Informational only — never used to evaluate eligibility.
+        status:
+          $ref: '#/components/schemas/ChallengeStatus'
+        createdBy:
+          type: string
+          format: uuid
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        publishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        cancelledAt:
+          type: string
+          format: date-time
+          nullable: true
+      required: [id, title, targetFamilyId, requiredPosts, rewardPoints, startsAt, endsAt, adminTimezone, status, createdAt, updatedAt]
+
+    ChallengeListCursorDTO:
+      type: object
+      description: Opaque keyset cursor for GET /admin/challenges — echo both fields back as query params to fetch the next page.
+      properties:
+        lastCreatedAt:
+          type: string
+          format: date-time
+        lastChallengeId:
+          type: string
+          format: uuid
+      required: [lastCreatedAt, lastChallengeId]
+
+    ChallengeAdminPageDTO:
+      type: object
+      properties:
+        challenges:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChallengeAdminDTO'
+        nextCursor:
+          allOf:
+            - $ref: '#/components/schemas/ChallengeListCursorDTO'
+          nullable: true
+        hasMore:
+          type: boolean
+      required: [challenges, hasMore]
+
+    # ------------------------------------------------------------- reports (admin)
+    ReportStatus:
+      type: string
+      enum: [PENDING, REVIEWED, DISMISSED]
+
+    ModerationDecision:
+      type: string
+      enum: [UPHOLD, DISMISS]
+
+    ResolveReportRequest:
+      type: object
+      properties:
+        decision:
+          $ref: '#/components/schemas/ModerationDecision'
+      required: [decision]
+
+    ReportAdminDTO:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        reporterId:
+          type: string
+          format: uuid
+        postId:
+          type: string
+          format: uuid
+        reason:
+          $ref: '#/components/schemas/ReportReason'
+        status:
+          $ref: '#/components/schemas/ReportStatus'
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, reporterId, postId, reason, status, createdAt]

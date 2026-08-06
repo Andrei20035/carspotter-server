@@ -26,7 +26,9 @@ import com.revio.server.features.auth.session.RevokeReason
 import com.revio.server.features.auth.session.SessionRevokedException
 import com.revio.server.features.auth.session.SessionScope
 import com.revio.server.features.leaderboard.ILeaderboardService
+import com.revio.server.features.user.IUserDAO
 import com.revio.server.features.user.IUserService
+import com.revio.server.features.user.UserRole
 import features.like.ILikeDAO
 import io.ktor.http.*
 import io.ktor.server.auth.*
@@ -36,6 +38,7 @@ import io.ktor.server.routing.*
 import org.koin.ktor.ext.inject
 import java.time.Duration
 import java.time.Instant
+import java.util.UUID
 
 fun Route.authRoutes() {
     val authService: IAuthService by application.inject()
@@ -44,6 +47,7 @@ fun Route.authRoutes() {
     val sessionService: ISessionService by application.inject()
     val sessionDao: IAuthSessionDAO by application.inject()
     val userService: IUserService by application.inject()
+    val userDao: IUserDAO by application.inject()
     val likeDao: ILikeDAO by application.inject()
     val leaderboardService: ILeaderboardService by application.inject()
     val accountDeletionService: IAccountDeletionService by application.inject()
@@ -123,6 +127,8 @@ fun Route.authRoutes() {
                     userAgent = call.request.headers[HttpHeaders.UserAgent],
                     ip = call.request.local.remoteHost
                 )
+                // No userId exists yet at registration (only the auth credential is created here),
+                // so there is no role to read — isAdmin stays at its false default.
                 val accessToken = jwtService.generateAccessToken(
                     session = session,
                     credentialId = credentialId,
@@ -208,7 +214,8 @@ fun Route.authRoutes() {
                     session = session,
                     credentialId = result.id,
                     email = result.email,
-                    userId = result.userId
+                    userId = result.userId,
+                    isAdmin = userDao.isAdmin(result.userId),
                 )
                 val onboardingStep =
                     if (result.userId == null) OnboardingStep.PROFILE_REQUIRED
@@ -274,11 +281,15 @@ fun Route.authRoutes() {
                     AuthErrorCode.REFRESH_TOKEN_INVALID,
                     "Refresh token is invalid"
                 )
+            // Role is re-read on every refresh (not cached from the old token), so revoking an
+            // admin takes effect at most one refresh cycle later, not only after the access
+            // token's own 15-minute TTL expires.
             val accessToken = jwtService.generateAccessToken(
                 session = session,
                 credentialId = session.credentialId,
                 email = credential.email,
-                userId = session.userId
+                userId = session.userId,
+                isAdmin = userDao.isAdmin(session.userId),
             )
 
             call.respond(
@@ -442,6 +453,7 @@ fun Route.authRoutes() {
                             credentialId = credentialId,
                             email = credential.email,
                             userId = session.userId,
+                            isAdmin = userDao.isAdmin(session.userId),
                         )
                         call.respond(
                             HttpStatusCode.OK,
@@ -474,6 +486,10 @@ fun Route.authRoutes() {
         }
     }
 }
+
+/** Re-reads the current DB role for [userId] (null when no user profile exists yet, e.g. mid-onboarding). */
+private suspend fun IUserDAO.isAdmin(userId: UUID?): Boolean =
+    userId != null && getUserById(userId)?.role == UserRole.ADMIN
 
 private fun isValidEmail(email: String): Boolean {
     val emailRegex = Regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")

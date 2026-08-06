@@ -39,6 +39,7 @@ private val profilePictureExtensions = mapOf(
 
 fun Route.userRoutes() {
     val userService: IUserService by application.inject()
+    val userDao: IUserDAO by application.inject()
     val jwtService: JwtService by application.inject()
     val sessionService: ISessionService by application.inject()
     val storageService: IStorageService by application.inject()
@@ -75,11 +76,16 @@ fun Route.userRoutes() {
                         user = request.toUser(credentialId),
                     )
                     val (session, refreshToken) = sessionService.promoteSession(sessionId, newUserId)
+                    // A freshly created profile is always UserRole.USER (createUser never sets role,
+                    // it relies on the DB default) — re-read anyway so this call site stays uniform
+                    // with every other place an access token is issued.
+                    val isAdmin = userDao.getUserById(newUserId)?.role == UserRole.ADMIN
                     val accessToken = jwtService.generateAccessToken(
                         session = session,
                         credentialId = credentialId,
                         userId = newUserId,
                         email = email,
+                        isAdmin = isAdmin,
                     )
                     call.respond(
                         HttpStatusCode.Created,

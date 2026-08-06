@@ -20,6 +20,7 @@ data class User(
     val lastStreakTimezone: String? = null,
     val isEarlySpotter: Boolean = false,
     val earlySpotterNumber: Int? = null,
+    val role: UserRole = UserRole.USER,
     val createdAt: Instant? = null,
     val updatedAt: Instant? = null,
     val fullNameChangedAt: Instant? = null,

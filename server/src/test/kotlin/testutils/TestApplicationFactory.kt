@@ -26,6 +26,21 @@ import com.revio.server.features.car_model.CarModelService
 import com.revio.server.features.car_model.ICarModelDAO
 import com.revio.server.features.car_model.ICarModelService
 import com.revio.server.features.car_model.carModelRoutes
+import com.revio.server.features.car_family.CarFamilyDAO
+import com.revio.server.features.car_family.CarFamilyService
+import com.revio.server.features.car_family.ICarFamilyDAO
+import com.revio.server.features.car_family.ICarFamilyService
+import com.revio.server.features.car_family.carFamilyAdminRoutes
+import com.revio.server.features.challenge.ChallengeDAO
+import com.revio.server.features.challenge.ChallengeProgressDAO
+import com.revio.server.features.challenge.ChallengeProgressService
+import com.revio.server.features.challenge.ChallengeService
+import com.revio.server.features.challenge.IChallengeDAO
+import com.revio.server.features.challenge.IChallengeProgressDAO
+import com.revio.server.features.challenge.IChallengeProgressService
+import com.revio.server.features.challenge.IChallengeService
+import com.revio.server.features.challenge.challengeAdminRoutes
+import com.revio.server.features.challenge.challengeRoutes
 import com.revio.server.features.feedback.FeedbackDAO
 import com.revio.server.features.feedback.FeedbackService
 import com.revio.server.features.feedback.IFeedbackDAO
@@ -42,6 +57,8 @@ import com.revio.server.features.leaderboard.leaderboardRoutes
 import com.revio.server.features.post.IPostDAO
 import com.revio.server.features.post.IPostService
 import com.revio.server.features.post.PostDAO
+import com.revio.server.features.post.IPostRemovalDAO
+import com.revio.server.features.post.PostRemovalDAO
 import com.revio.server.features.post.PostServiceImpl
 import com.revio.server.features.post.postRoutes
 import com.revio.server.features.scoring.IScoringDao
@@ -71,10 +88,12 @@ import features.like.likeRoutes
 import features.report.IReportDAO
 import features.report.IReportService
 import features.report.ReportDAO
+import features.report.reportAdminRoutes
 import features.report.ReportService
 import features.report.reportRoutes
 import io.ktor.server.application.*
 import io.ktor.server.routing.*
+import io.mockk.mockk
 import org.koin.core.context.stopKoin
 import org.koin.dsl.module
 import org.koin.ktor.plugin.Koin
@@ -284,7 +303,10 @@ fun Application.testReportModule() {
         single<IAuthSessionDAO> { AuthSessionDAO() }
         single { RefreshTokenGenerator() }
         single<ISessionService> { SessionService(get(), get()) }
-        single<IReportService> { ReportService(get()) }
+        // Report submission (the only route this module wires) never calls removePostAsModerator,
+        // so a mock is enough here — unlike testPostModule(), which needs the real challenge stack.
+        single<IPostService> { mockk(relaxed = true) }
+        single<IReportService> { ReportService(get(), get()) }
         single {
             JwtService(
                 jwtSecret = TestEnv.JWT_SECRET,
@@ -357,7 +379,12 @@ fun Application.testPostModule(storage: IStorageService? = null) {
         single<IScoringDao> { ScoringDaoImpl() }
         single<IScoringService> { ScoringServiceImpl(get(), get(), get()) }
         single<IUserService> { UserService(get(), get()) }
-        single<IPostService> { PostServiceImpl(get(), get(), get(), get(), get(), get(), get()) }
+        single<ICarFamilyDAO> { CarFamilyDAO() }
+        single<IChallengeDAO> { ChallengeDAO() }
+        single<IChallengeProgressDAO> { ChallengeProgressDAO() }
+        single<IChallengeProgressService> { ChallengeProgressService(get(), get()) }
+        single<IPostRemovalDAO> { PostRemovalDAO(get(), get()) }
+        single<IPostService> { PostServiceImpl(get(), get(), get(), get(), get(), get(), get(), get(), get()) }
         single {
             JwtService(
                 jwtSecret = TestEnv.JWT_SECRET,
@@ -377,6 +404,122 @@ fun Application.testPostModule(storage: IStorageService? = null) {
     routing {
         route("/api") {
             postRoutes()
+        }
+    }
+}
+
+/**
+ * Ktor module for the admin moderation queue (/api/admin/reports). Takes the IReportService as a
+ * parameter so a test can stub how resolveReport fails — the point of these tests is the HTTP
+ * mapping of domain exceptions, not the service's own logic.
+ */
+fun Application.testReportAdminModule(reportService: IReportService) {
+    val koinTestModule = module {
+        single<IAuthSessionDAO> { AuthSessionDAO() }
+        single { RefreshTokenGenerator() }
+        single<ISessionService> { SessionService(get(), get()) }
+        single<IReportService> { reportService }
+        single {
+            JwtService(
+                jwtSecret = TestEnv.JWT_SECRET,
+                jwtIssuer = TestEnv.JWT_ISSUER,
+                jwtAudience = TestEnv.JWT_AUDIENCE
+            )
+        }
+    }
+
+    install(Koin) { modules(koinTestModule) }
+
+    configureSerialization()
+    configureSecurity(getKoin().get())
+
+    install(RoutingRoot)
+
+    routing {
+        route("/api") {
+            reportAdminRoutes()
+        }
+    }
+}
+
+/**
+ * Both challenge-admin and car-family-admin routes, with the real DAO/service stack (not mocks)
+ * behind them — these tests exercise actual DB behavior (pagination, atomic assignment, DRAFT
+ * status races), and the end-to-end admin workflow test spans both route groups in one flow.
+ */
+fun Application.testChallengeAdminModule() {
+    val koinTestModule = module {
+        single<ICarModelDAO> { CarModelDAO() }
+        single<ICarFamilyDAO> { CarFamilyDAO() }
+        single<ICarFamilyService> { CarFamilyService(get(), get()) }
+        single<IChallengeDAO> { ChallengeDAO() }
+        single<IChallengeProgressDAO> { ChallengeProgressDAO() }
+        single<IChallengeService> { ChallengeService(get(), get(), get()) }
+        single<IChallengeProgressService> { ChallengeProgressService(get(), get()) }
+        single<IAuthSessionDAO> { AuthSessionDAO() }
+        single { RefreshTokenGenerator() }
+        single<ISessionService> { SessionService(get(), get()) }
+        single {
+            JwtService(
+                jwtSecret = TestEnv.JWT_SECRET,
+                jwtIssuer = TestEnv.JWT_ISSUER,
+                jwtAudience = TestEnv.JWT_AUDIENCE
+            )
+        }
+    }
+
+    install(Koin) { modules(koinTestModule) }
+
+    configureSerialization()
+    configureSecurity(getKoin().get())
+
+    install(RoutingRoot)
+
+    routing {
+        route("/api") {
+            challengeAdminRoutes()
+            carFamilyAdminRoutes()
+        }
+    }
+}
+
+/**
+ * The read-only, user-facing challenge routes (GET /challenges/current, GET /challenges/{id}/progress),
+ * gated by the plain "jwt" realm (not "admin") — same real DAO/service stack as
+ * [testChallengeAdminModule], so an admin-created/published challenge in one test is visible via
+ * these routes without any mocking.
+ */
+fun Application.testChallengeModule() {
+    val koinTestModule = module {
+        single<ICarModelDAO> { CarModelDAO() }
+        single<ICarFamilyDAO> { CarFamilyDAO() }
+        single<ICarFamilyService> { CarFamilyService(get(), get()) }
+        single<IChallengeDAO> { ChallengeDAO() }
+        single<IChallengeProgressDAO> { ChallengeProgressDAO() }
+        single<IChallengeService> { ChallengeService(get(), get(), get()) }
+        single<IChallengeProgressService> { ChallengeProgressService(get(), get()) }
+        single<IAuthSessionDAO> { AuthSessionDAO() }
+        single { RefreshTokenGenerator() }
+        single<ISessionService> { SessionService(get(), get()) }
+        single {
+            JwtService(
+                jwtSecret = TestEnv.JWT_SECRET,
+                jwtIssuer = TestEnv.JWT_ISSUER,
+                jwtAudience = TestEnv.JWT_AUDIENCE
+            )
+        }
+    }
+
+    install(Koin) { modules(koinTestModule) }
+
+    configureSerialization()
+    configureSecurity(getKoin().get())
+
+    install(RoutingRoot)
+
+    routing {
+        route("/api") {
+            challengeRoutes()
         }
     }
 }

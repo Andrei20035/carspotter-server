@@ -223,6 +223,7 @@ class UserDao : IUserDAO {
         lastStreakTimezone = this[UserTable.lastStreakTimezone],
         isEarlySpotter = this[UserTable.isEarlySpotter],
         earlySpotterNumber = this[UserTable.earlySpotterNumber],
+        role = this[UserTable.role],
         createdAt = this[UserTable.createdAt],
         updatedAt = this[UserTable.updatedAt],
         fullNameChangedAt = this[UserTable.fullNameChangedAt],

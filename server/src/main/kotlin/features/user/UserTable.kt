@@ -22,6 +22,7 @@ object UserTable : UUIDTable("users") {
     val lastStreakTimezone = varchar("last_streak_timezone", 64).nullable()
     val isEarlySpotter = bool("is_early_spotter").default(false)
     val earlySpotterNumber = integer("early_spotter_number").nullable()
+    val role = enumerationByName("role", 20, UserRole::class).default(UserRole.USER)
     val createdAt = timestamp("created_at").defaultExpression(CurrentTimestamp)
     val updatedAt = timestamp("updated_at").defaultExpression(CurrentTimestamp)
     val fullNameChangedAt = timestamp("full_name_changed_at").nullable()

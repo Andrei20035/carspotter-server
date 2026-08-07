@@ -84,6 +84,14 @@ interface IChallengeService {
 
     suspend fun findById(challengeId: UUID): Challenge?
 
+    /**
+     * Like [findById], except a DRAFT challenge is treated as not found. For public-facing
+     * single-challenge lookups (e.g. opening a challenge's detail from a user's own history):
+     * an unpublished challenge must never be discoverable that way, only [findById] (internal/
+     * admin use) sees DRAFT rows.
+     */
+    suspend fun findPublicById(challengeId: UUID): Challenge?
+
     /** The SCHEDULED challenge whose window contains [now], if any. */
     suspend fun findActive(now: Instant = Instant.now()): Challenge?
 
@@ -276,6 +284,9 @@ class ChallengeService(
     }
 
     override suspend fun findById(challengeId: UUID): Challenge? = challengeDao.findById(challengeId)
+
+    override suspend fun findPublicById(challengeId: UUID): Challenge? =
+        challengeDao.findById(challengeId)?.takeIf { it.status != ChallengeStatus.DRAFT }
 
     override suspend fun findActive(now: Instant): Challenge? = challengeDao.findActive(now)
 

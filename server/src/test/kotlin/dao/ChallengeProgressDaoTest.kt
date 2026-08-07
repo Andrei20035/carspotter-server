@@ -529,6 +529,41 @@ class ChallengeProgressDaoTest {
         assertEquals(listOf(first, second), contributions.map { it.postId })
     }
 
+    @Test
+    fun `listContributionsForUser resolves the post's imageKey and the contribution's own carModel via the join`() = runBlocking {
+        val f = fixture(requiredPosts = 1)
+        val postId = ChallengeTestSeed.seedCameraPost(f.userId, f.modelId)
+        dao.evaluatePostContribution(f.challengeId, f.userId, postId, f.modelId, Instant.now())
+
+        val contribution = dao.listContributionsForUser(f.challengeId, f.userId).single()
+
+        assertEquals("posts/test.jpg", contribution.imageKey)
+        assertEquals("volkswagen", contribution.carBrand)
+        assertEquals("golf r", contribution.carModel)
+    }
+
+    @Test
+    fun `listContributionsForUser keeps the car model captured at contribution time, not the post's current one`() = runBlocking {
+        // ChallengeContributionTable.carModelId is copied at contribution time specifically so a
+        // later edit to the post's own car model doesn't rewrite this history — see that table's
+        // KDoc. The join must read carModelId from the contribution row, not from posts.car_model_id.
+        val f = fixture(requiredPosts = 1)
+        val postId = ChallengeTestSeed.seedCameraPost(f.userId, f.modelId)
+        dao.evaluatePostContribution(f.challengeId, f.userId, postId, f.modelId, Instant.now())
+
+        val laterModelId = ChallengeTestSeed.seedModel("audi", "a4")
+        transaction {
+            com.revio.server.features.post.PostTable.update({ com.revio.server.features.post.PostTable.id eq postId }) {
+                it[com.revio.server.features.post.PostTable.carModelId] = laterModelId
+            }
+        }
+
+        val contribution = dao.listContributionsForUser(f.challengeId, f.userId).single()
+
+        assertEquals("volkswagen", contribution.carBrand)
+        assertEquals("golf r", contribution.carModel)
+    }
+
     // ---------- H. concurrency — real threads, not runTest's virtual-time dispatcher ----------
 
     @Test

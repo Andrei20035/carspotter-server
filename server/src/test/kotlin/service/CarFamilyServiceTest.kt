@@ -143,6 +143,21 @@ class CarFamilyServiceTest {
         coVerify(exactly = 1) { carModelDao.assignToFamily(familyId, "volkswagen", setOf(modelId)) }
     }
 
+    // ---------- getFamilies — batch counterpart to getFamily ----------
+
+    @Test
+    fun `getFamilies delegates to the DAO's batch lookup`() = runTest {
+        val carFamilyDao = mockk<ICarFamilyDAO>()
+        val otherId = UUID.randomUUID()
+        val ids = setOf(familyId, otherId)
+        coEvery { carFamilyDao.findByIds(ids) } returns mapOf(familyId to family)
+
+        val result = CarFamilyService(carFamilyDao, mockk(relaxed = true)).getFamilies(ids)
+
+        assertEquals(mapOf(familyId to family), result)
+        coVerify(exactly = 1) { carFamilyDao.findByIds(ids) }
+    }
+
     // ---------- createFamily — unchanged sanity checks kept alongside the new tests ----------
 
     @Test

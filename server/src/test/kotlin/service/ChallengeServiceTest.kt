@@ -319,6 +319,50 @@ class ChallengeServiceTest {
         coVerify(exactly = 1) { dao.findCurrentOrNext(now) }
     }
 
+    // ---------- findPublicById — DRAFT is never publicly discoverable ----------
+
+    @Test
+    fun `findPublicById returns null for a DRAFT challenge`() = runTest {
+        val dao = mockk<IChallengeDAO>()
+        coEvery { dao.findById(challengeId) } returns challenge(status = ChallengeStatus.DRAFT)
+
+        val result = service(dao).findPublicById(challengeId)
+
+        assertEquals(null, result)
+    }
+
+    @Test
+    fun `findPublicById returns the challenge for a SCHEDULED challenge`() = runTest {
+        val dao = mockk<IChallengeDAO>()
+        coEvery { dao.findById(challengeId) } returns challenge(status = ChallengeStatus.SCHEDULED)
+
+        val result = service(dao).findPublicById(challengeId)
+
+        assertEquals(challengeId, result?.id)
+    }
+
+    @Test
+    fun `findPublicById returns the challenge for a CANCELLED challenge`() = runTest {
+        // Non-DRAFT is the visibility rule (plan §5.2) — CANCELLED still exists publicly, it's
+        // only DRAFT (never published) that must stay invisible.
+        val dao = mockk<IChallengeDAO>()
+        coEvery { dao.findById(challengeId) } returns challenge(status = ChallengeStatus.CANCELLED)
+
+        val result = service(dao).findPublicById(challengeId)
+
+        assertEquals(challengeId, result?.id)
+    }
+
+    @Test
+    fun `findPublicById returns null for an unknown id`() = runTest {
+        val dao = mockk<IChallengeDAO>()
+        coEvery { dao.findById(challengeId) } returns null
+
+        val result = service(dao).findPublicById(challengeId)
+
+        assertEquals(null, result)
+    }
+
     // ---------- updateTitleAndDescription ----------
 
     @Test

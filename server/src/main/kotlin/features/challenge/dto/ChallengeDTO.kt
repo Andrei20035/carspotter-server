@@ -31,6 +31,10 @@ data class ChallengeProgressDTO(
 data class ChallengeContributionDTO(
     @Serializable(with = UUIDSerializer::class) val postId: UUID,
     @Serializable(with = InstantSerializer::class) val createdAt: Instant,
+    /** Nullable so an older client (built before this field existed) still deserializes this response. */
+    val imageUrl: String? = null,
+    val carBrand: String? = null,
+    val carModel: String? = null,
 )
 
 /** Response for GET /challenges/current. Both fields null when no challenge is scheduled at all. */
@@ -45,4 +49,35 @@ data class CurrentChallengeDTO(
 data class ChallengeProgressDetailDTO(
     val progress: ChallengeProgressDTO,
     val contributions: List<ChallengeContributionDTO>,
+)
+
+/** The caller's lifetime challenge participation — the summary strip in "My Challenges". */
+@Serializable
+data class ChallengeSummaryDTO(
+    val joinedCount: Int,
+    val completedCount: Int,
+    val pointsEarned: Int,
+    val totalContributions: Int,
+)
+
+/** One row of GET /challenges/me: a challenge the caller participated in, plus their progress on it. */
+@Serializable
+data class ChallengeHistoryItemDTO(
+    val challenge: ChallengeDTO,
+    val effectiveStatus: String,
+    val progress: ChallengeProgressDTO,
+)
+
+/**
+ * Response for GET /challenges/me. [summary] is present only on the first page (no cursor given)
+ * — recomputing it on every subsequent page would be wasted work the client already has the
+ * answer for.
+ */
+@Serializable
+data class MyChallengesDTO(
+    val summary: ChallengeSummaryDTO?,
+    val challenges: List<ChallengeHistoryItemDTO>,
+    val hasMore: Boolean,
+    @Serializable(with = InstantSerializer::class) val nextCursorEndsAt: Instant?,
+    @Serializable(with = UUIDSerializer::class) val nextCursorId: UUID?,
 )

@@ -2,7 +2,9 @@ package com.revio.server.features.challenge
 
 import com.revio.server.core.db.retrySerializationConflicts
 import com.revio.server.features.car_model.CarModelTable
+import com.revio.server.features.post.PostTable
 import com.revio.server.features.user.UserTable
+import org.jetbrains.exposed.sql.JoinType
 import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.and
@@ -44,10 +46,20 @@ data class ParticipantProgress(
     val rewardState: RewardState,
 )
 
-/** One contributing post, for display (e.g. GET /challenges/{id}/progress). */
+/**
+ * One contributing post, for display (e.g. GET /challenges/{id}/progress). [imageKey] is the raw
+ * storage object key, not a resolved URL — turning it into one is the route/service layer's job
+ * (see PostService.resolveUrl's callers), keeping this DAO storage-agnostic. [carBrand]/[carModel]
+ * come from [ChallengeContributionTable.carModelId] — the model captured at contribution time
+ * (see that table's KDoc), not the post's current one, so a later edit to the post's car model
+ * never rewrites history here.
+ */
 data class ContributionSummary(
     val postId: UUID,
     val createdAt: Instant,
+    val imageKey: String?,
+    val carBrand: String?,
+    val carModel: String?,
 )
 
 interface IChallengeProgressDAO {
@@ -437,14 +449,24 @@ class ChallengeProgressDAO : IChallengeProgressDAO {
     }
 
     override suspend fun listContributionsForUser(challengeId: UUID, userId: UUID): List<ContributionSummary> = transaction {
-        ChallengeContributionTable
-            .select(ChallengeContributionTable.postId, ChallengeContributionTable.postCreatedAt)
+        (ChallengeContributionTable innerJoin PostTable)
+            .join(CarModelTable, JoinType.LEFT, additionalConstraint = { ChallengeContributionTable.carModelId eq CarModelTable.id })
+            .select(
+                ChallengeContributionTable.postId,
+                ChallengeContributionTable.postCreatedAt,
+                PostTable.imageKey,
+                CarModelTable.brand,
+                CarModelTable.model,
+            )
             .where { (ChallengeContributionTable.challengeId eq challengeId) and (ChallengeContributionTable.userId eq userId) }
             .orderBy(ChallengeContributionTable.postCreatedAt to SortOrder.ASC)
             .map {
                 ContributionSummary(
                     postId = it[ChallengeContributionTable.postId],
                     createdAt = it[ChallengeContributionTable.postCreatedAt].toInstant(),
+                    imageKey = it[PostTable.imageKey],
+                    carBrand = it.getOrNull(CarModelTable.brand),
+                    carModel = it.getOrNull(CarModelTable.model),
                 )
             }
     }

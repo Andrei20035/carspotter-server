@@ -31,6 +31,9 @@ interface ICarFamilyService {
 
     suspend fun getFamily(familyId: UUID): CarFamily?
 
+    /** Batch counterpart to [getFamily] — see [ICarFamilyDAO.findByIds]. */
+    suspend fun getFamilies(familyIds: Set<UUID>): Map<UUID, CarFamily>
+
     suspend fun listFamilies(): List<CarFamily>
 
     /** Every car_models row currently linked to [familyId]. */
@@ -72,6 +75,8 @@ class CarFamilyService(
     }
 
     override suspend fun getFamily(familyId: UUID): CarFamily? = carFamilyDao.findById(familyId)
+
+    override suspend fun getFamilies(familyIds: Set<UUID>): Map<UUID, CarFamily> = carFamilyDao.findByIds(familyIds)
 
     override suspend fun listFamilies(): List<CarFamily> = carFamilyDao.listAll()
 

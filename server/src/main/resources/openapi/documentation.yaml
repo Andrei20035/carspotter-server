@@ -945,6 +945,94 @@ paths:
         '401':
           $ref: '#/components/responses/AuthUnauthorized'
 
+  /challenges/me:
+    get:
+      summary: Caller's challenge history and lifetime summary
+      description: >
+        Keyset-paginated history of challenges the caller has participated in (has at least one
+        contribution to), newest-finished first. `summary` is present only on the first page
+        (no cursor given) — recomputing it on every subsequent page would be wasted work the
+        client already has the answer for. A user with no history gets `200` with an empty
+        `challenges` array and a zeroed summary, never `404`.
+      tags: [Challenges]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+          description: 1-50, default 20 (or when 0/omitted).
+        - name: cursorEndsAt
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Must be given together with cursorId, both taken from the previous page's nextCursor* fields.
+        - name: cursorId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: filter
+          in: query
+          schema:
+            type: string
+            enum: [completed, not_completed]
+      responses:
+        '200':
+          description: The caller's challenge history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MyChallengesDTO'
+        '400':
+          description: Invalid limit, cursor, or filter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+
+  /challenges/{id}:
+    get:
+      summary: Public config of one challenge
+      description: >
+        A single challenge's public-facing config, for opening a challenge's detail from the
+        caller's own history or from the Feed's active-challenge card. A `DRAFT` challenge (never
+        published) 404s here, the same as one that doesn't exist at all — only admin routes can
+        see a `DRAFT` challenge.
+      tags: [Challenges]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The challenge's public config
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChallengeDTO'
+        '400':
+          description: Invalid id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '404':
+          description: Challenge not found, or DRAFT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /challenges/{id}/progress:
     get:
       summary: Caller's progress on a challenge
@@ -3351,6 +3439,17 @@ components:
         createdAt:
           type: string
           format: date-time
+        imageUrl:
+          type: string
+          nullable: true
+          description: Resolved, directly loadable URL — not a raw storage key. Absent on clients built before this field existed.
+        carBrand:
+          type: string
+          nullable: true
+          description: The car model captured at contribution time, not the post's current one if it was later edited.
+        carModel:
+          type: string
+          nullable: true
       required: [postId, createdAt]
 
     ChallengeProgressDTO:
@@ -3388,6 +3487,59 @@ components:
           items:
             $ref: '#/components/schemas/ChallengeContributionDTO'
       required: [progress, contributions]
+
+    ChallengeSummaryDTO:
+      type: object
+      description: The caller's lifetime challenge participation.
+      properties:
+        joinedCount:
+          type: integer
+        completedCount:
+          type: integer
+          description: Currently holds the completion reward (reward_state = GRANTED), not "completed at some point".
+        pointsEarned:
+          type: integer
+          description: Net of every grant/revoke, from the reward ledger — not rewardPoints * completedCount.
+        totalContributions:
+          type: integer
+      required: [joinedCount, completedCount, pointsEarned, totalContributions]
+
+    ChallengeHistoryItemDTO:
+      type: object
+      description: One row of GET /challenges/me — a challenge the caller participated in, plus their progress on it.
+      properties:
+        challenge:
+          $ref: '#/components/schemas/ChallengeDTO'
+        effectiveStatus:
+          $ref: '#/components/schemas/EffectiveChallengeStatus'
+        progress:
+          $ref: '#/components/schemas/ChallengeProgressDTO'
+      required: [challenge, effectiveStatus, progress]
+
+    MyChallengesDTO:
+      type: object
+      description: Response for GET /challenges/me.
+      properties:
+        summary:
+          allOf:
+            - $ref: '#/components/schemas/ChallengeSummaryDTO'
+          nullable: true
+          description: Present only on the first page (no cursor given).
+        challenges:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChallengeHistoryItemDTO'
+        hasMore:
+          type: boolean
+        nextCursorEndsAt:
+          type: string
+          format: date-time
+          nullable: true
+        nextCursorId:
+          type: string
+          format: uuid
+          nullable: true
+      required: [challenges, hasMore]
 
     CreateChallengeAdminRequest:
       type: object

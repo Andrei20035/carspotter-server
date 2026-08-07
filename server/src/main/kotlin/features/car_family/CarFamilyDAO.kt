@@ -1,6 +1,7 @@
 package com.revio.server.features.car_family
 
 import org.jetbrains.exposed.sql.SortOrder
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.inList
 import org.jetbrains.exposed.sql.insertReturning
 import org.jetbrains.exposed.sql.select
 import org.jetbrains.exposed.sql.transactions.transaction
@@ -17,6 +18,15 @@ interface ICarFamilyDAO {
     suspend fun findById(id: UUID): CarFamily?
     suspend fun listAll(): List<CarFamily>
     suspend fun exists(id: UUID): Boolean
+
+    /**
+     * Resolves every family in [ids] in a single query — the batch counterpart to [findById],
+     * for callers (e.g. challenge history listing) that would otherwise resolve one family per
+     * row and turn a page of N challenges into N queries. Missing ids are simply absent from the
+     * result map rather than causing an error. Empty input short-circuits to an empty map without
+     * touching the database.
+     */
+    suspend fun findByIds(ids: Set<UUID>): Map<UUID, CarFamily>
 }
 
 class CarFamilyDAO : ICarFamilyDAO {
@@ -61,5 +71,22 @@ class CarFamilyDAO : ICarFamilyDAO {
             .where { CarFamilyTable.id eq id }
             .limit(1)
             .any()
+    }
+
+    override suspend fun findByIds(ids: Set<UUID>): Map<UUID, CarFamily> {
+        if (ids.isEmpty()) return emptyMap()
+
+        return transaction {
+            CarFamilyTable
+                .select(CarFamilyTable.id, CarFamilyTable.brand, CarFamilyTable.name)
+                .where { CarFamilyTable.id inList ids }
+                .associate {
+                    it[CarFamilyTable.id].value to CarFamily(
+                        id = it[CarFamilyTable.id].value,
+                        brand = it[CarFamilyTable.brand],
+                        name = it[CarFamilyTable.name],
+                    )
+                }
+        }
     }
 }
